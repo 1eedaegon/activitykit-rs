@@ -117,6 +117,29 @@ struct Known {
     degraded: Vec<String>,
 }
 
+/// What the Swift layer keeps of each accepted content between launches, so that an update that ActivityKit reports
+/// late is not lost: [`Builder::receipts`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum Receipts {
+    /// The accepted values, in plain text, in a file of the app's Application Support (the default).
+    #[default]
+    Full,
+    /// A SHA-256 digest of the accepted content instead of the values. After a relaunch, [`ActivityKit::activities`]
+    /// then gives the values that ActivityKit shows. A digest of guessable values can be guessed, and so can the
+    /// start's fingerprint (of the layout and the first values) that the receipt and ActivityKit's attributes keep in
+    /// either mode; ActivityKit itself keeps the values in the activity's content.
+    Redacted,
+}
+
+/// The settings of the Swift layer, which hold for the whole process: [`ActivityKit::builder`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[must_use]
+pub struct Builder {
+    receipts: Receipts,
+}
+
 /// A start with options: [`ActivityKit::start_with`].
 #[derive(Debug, Clone)]
 pub struct Start {
@@ -125,6 +148,8 @@ pub struct Start {
     key: Option<String>,
     stale_at: Option<SystemTime>,
     relevance: Option<f64>,
+    revision: u64,
+    timestamp: Option<SystemTime>,
 }
 
 /// An update with options: [`Activity::update_with`].
@@ -135,6 +160,7 @@ pub struct Update {
     relevance: Option<f64>,
     alert: Option<Alert>,
     timestamp: Option<SystemTime>,
+    revision: Option<u64>,
 }
 
 /// The alert of an update: the device lights up, the Dynamic Island expands (or, without one, the Lock Screen
@@ -155,6 +181,35 @@ pub struct End {
     stale_at: Option<SystemTime>,
     relevance: Option<f64>,
     timestamp: Option<SystemTime>,
+    revision: Option<u64>,
+}
+
+impl Builder {
+    /// What the Swift layer keeps of each accepted content: [`Receipts::Full`] unless set.
+    pub fn receipts(mut self, receipts: Receipts) -> Self {
+        self.receipts = receipts;
+        self
+    }
+
+    /// The kit, with these settings for the whole process. The first settings hold: when the process already runs
+    /// with other settings, set by an earlier `build` or fixed as the default by a start, an update, an end or a list
+    /// before any `build`, this answers [`Error::Conflict`] and changes nothing; the same settings again are fine. Off
+    /// iOS it succeeds, and every call of the kit answers [`Error::Unsupported`].
+    pub fn build(self) -> Result<ActivityKit> {
+        self.build_on(ActivityKit::new())
+    }
+
+    /// `kit` once the bridge took these settings; [`build`](Self::build) with the process's kit.
+    pub(crate) fn build_on(self, kit: ActivityKit) -> Result<ActivityKit> {
+        kit.settle(&self)?;
+        Ok(kit)
+    }
+}
+
+/// The settings as the bridge reads them.
+#[derive(Serialize)]
+struct SettingsWire {
+    receipts: Receipts,
 }
 
 impl ActivityKit {
@@ -184,6 +239,36 @@ impl ActivityKit {
         Self { inner }
     }
 
+    /// Settings for the Swift layer, before its first use: `ActivityKit::builder().receipts(Receipts::Redacted).build()`.
+    /// [`ActivityKit::new`] uses the settings in force, the default ones unless a `build` set others first.
+    pub fn builder() -> Builder {
+        Builder::default()
+    }
+
+    /// Hands `settings` to the bridge, which answers with the settings in force or why they cannot hold.
+    pub(crate) fn settle(&self, settings: &Builder) -> Result<()> {
+        let wire = SettingsWire {
+            receipts: settings.receipts,
+        };
+        let request = serde_json::to_vec(&wire).map_err(|_| Error::invalid())?;
+        bridge::decode::<serde_json::Value>(&self.inner.bridge.configure(request)).map(|_| ())
+    }
+
+    /// The handle of the activity `id`: the one alive in this process, without asking ActivityKit, when it knows its
+    /// revision; else the one that [`activities`](Self::activities) gives, or `None` when ActivityKit does not list
+    /// the activity.
+    pub async fn activity(&self, id: &str) -> Result<Option<Activity>> {
+        if let Some(activity) = self
+            .inner
+            .alive(id)
+            .filter(|activity| activity.revision().is_some())
+        {
+            return Ok(Some(activity));
+        }
+        let listed = self.inner.list().await?;
+        Ok(listed.into_iter().find(|activity| activity.id() == id))
+    }
+
     /// Whether activities can show, read now. [`Event::Authorization`] reports changes.
     pub fn authorization(&self) -> Authorization {
         bridge::decode(&self.inner.bridge.authorization()).unwrap_or(Authorization {
@@ -208,10 +293,10 @@ impl ActivityKit {
             layout,
             styles,
             snapshot: LayoutSnapshot {
-                revision: 0,
+                revision: start.revision,
                 values: start.values,
                 stale_at: start.stale_at.map(millis).transpose()?,
-                timestamp: Some(millis(SystemTime::now())?),
+                timestamp: Some(millis(start.timestamp.unwrap_or_else(SystemTime::now))?),
             },
             android: None,
         };
@@ -279,6 +364,14 @@ impl Activity {
         self.shared.known().values.clone()
     }
 
+    /// When the last accepted content was made, as the reply or the list says: its timestamp.
+    pub fn timestamp(&self) -> Option<SystemTime> {
+        self.shared
+            .known()
+            .timestamp
+            .map(|at| UNIX_EPOCH + Duration::from_millis(at))
+    }
+
     /// The stale date of the last accepted content.
     pub fn stale_at(&self) -> Option<SystemTime> {
         self.shared
@@ -315,6 +408,7 @@ impl Activity {
         self.write(
             Call::Update,
             update.timestamp,
+            update.revision,
             |revision, timestamp, _known| {
                 let input = LayoutUpdateInput {
                     id: self.shared.id.clone(),
@@ -337,20 +431,25 @@ impl Activity {
     /// again is fine.
     pub async fn end(&self, end: End) -> Result<()> {
         let policy = end.policy.clone()?;
-        self.write(Call::End, end.timestamp, |revision, timestamp, known| {
-            let input = EndInput {
-                id: self.shared.id.clone(),
-                policy: policy.clone(),
-                snapshot: Some(LayoutSnapshot {
-                    revision,
-                    values: end.values.clone().unwrap_or_else(|| known.values.clone()),
-                    stale_at: end.stale_at.map(millis).transpose()?,
-                    timestamp: Some(timestamp),
-                }),
-            };
-            input.validate()?;
-            envelope(&input, end.relevance, None)
-        })
+        self.write(
+            Call::End,
+            end.timestamp,
+            end.revision,
+            |revision, timestamp, known| {
+                let input = EndInput {
+                    id: self.shared.id.clone(),
+                    policy: policy.clone(),
+                    snapshot: Some(LayoutSnapshot {
+                        revision,
+                        values: end.values.clone().unwrap_or_else(|| known.values.clone()),
+                        stale_at: end.stale_at.map(millis).transpose()?,
+                        timestamp: Some(timestamp),
+                    }),
+                };
+                input.validate()?;
+                envelope(&input, end.relevance, None)
+            },
+        )
         .await
     }
 
@@ -361,20 +460,22 @@ impl Activity {
         &self,
         call: Call,
         made: Option<SystemTime>,
+        chosen: Option<u64>,
         request: impl Fn(u64, u64, &Known) -> Result<Vec<u8>>,
     ) -> Result<()> {
         let mut timestamp = made.map(millis).transpose()?;
         if self.shared.known().reserved.is_none() {
             self.inner.list().await?;
         }
-        match self.send(call, &mut timestamp, &request).await {
-            Err(Error::StaleRevision(message)) => {
+        match self.send(call, chosen, &mut timestamp, &request).await {
+            // A revision that the caller chose is the caller's to retry.
+            Err(Error::StaleRevision(message)) if chosen.is_none() => {
                 self.inner.list().await?;
                 let shown = self.shared.known().timestamp;
                 if shown.is_some_and(|shown| timestamp.is_none_or(|made| shown >= made)) {
                     return Err(Error::StaleRevision(message));
                 }
-                self.send(call, &mut timestamp, &request).await
+                self.send(call, None, &mut timestamp, &request).await
             }
             other => other,
         }
@@ -386,6 +487,7 @@ impl Activity {
     async fn send(
         &self,
         call: Call,
+        chosen: Option<u64>,
         timestamp: &mut Option<u64>,
         request: &impl Fn(u64, u64, &Known) -> Result<Vec<u8>>,
     ) -> Result<()> {
@@ -399,8 +501,9 @@ impl Activity {
                 Some(made) => made,
                 None => *timestamp.insert(millis(SystemTime::now())?),
             };
-            let bytes = request(current + 1, made, &known)?;
-            known.reserved = Some(current + 1);
+            let revision = chosen.unwrap_or(current + 1);
+            let bytes = request(revision, made, &known)?;
+            known.reserved = Some(current.max(revision));
             bytes
         };
         let reply = self.inner.write(call, bytes, self.shared.clone(), turn);
@@ -440,7 +543,22 @@ impl Start {
             key: None,
             stale_at: None,
             relevance: None,
+            revision: 0,
+            timestamp: None,
         }
+    }
+
+    /// The revision of the first content: 0 unless set. A repeated keyed start counts it as content.
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.revision = revision;
+        self
+    }
+
+    /// When the first content was made; without it, the time the start is sent. A repeated keyed start does not
+    /// count it.
+    pub fn timestamp(mut self, at: SystemTime) -> Self {
+        self.timestamp = Some(at);
+        self
     }
 
     /// The activity key, 1 to 128 of `A-Za-z0-9._:-`, starting with a letter or digit. While an activity with this
@@ -472,7 +590,17 @@ impl Update {
             relevance: None,
             alert: None,
             timestamp: None,
+            revision: None,
         }
+    }
+
+    /// Sends this revision instead of the one after the last sent, and does not retry it after
+    /// [`Error::StaleRevision`]. The Swift layer takes a higher revision than the accepted one, answers the accepted
+    /// one with the same content as done, and refuses a lower one ([`Error::StaleRevision`]) or the accepted one with
+    /// other content ([`Error::Conflict`]). Later updates without a revision continue above the highest one sent.
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.revision = Some(revision);
+        self
     }
 
     /// When this content was made. Without it the handle takes the time it sends the content, so timestamps grow with
@@ -522,7 +650,14 @@ impl End {
             stale_at: None,
             relevance: None,
             timestamp: None,
+            revision: None,
         }
+    }
+
+    /// The revision of the final content, as [`Update::revision`] takes it.
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.revision = Some(revision);
+        self
     }
 
     /// Removes the activity from the screen at once.
@@ -673,6 +808,20 @@ impl Inner {
         Ok(records.iter().map(|record| self.adopt(record)).collect())
     }
 
+    /// The handle of the activity `id` that is alive in this process.
+    fn alive(self: &Arc<Self>, id: &str) -> Option<Activity> {
+        let shared = self
+            .activities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(id)
+            .and_then(Weak::upgrade)?;
+        Some(Activity {
+            inner: self.clone(),
+            shared,
+        })
+    }
+
     /// The handle of the activity `id`: the live one, or a new one.
     fn handle(self: &Arc<Self>, id: &str, key: Option<&str>) -> Activity {
         let mut activities = self
@@ -736,7 +885,7 @@ impl Inner {
                 activity_key,
             } => {
                 let activity = self.handle(&activity_id, Some(&activity_key));
-                self.hub.publish(Event::Started { activity }, false);
+                self.hub.publish(Event::Started { activity });
             }
             WireEvent::Action {
                 activity_id,
@@ -744,13 +893,11 @@ impl Inner {
                 activity_key,
             } => {
                 let activity = self.handle(&activity_id, activity_key.as_deref());
-                self.hub.publish(
-                    Event::Action {
-                        activity,
-                        action: action_id,
-                    },
-                    true,
-                );
+                self.hub.tap(|acknowledgement| Event::Action {
+                    activity: activity.clone(),
+                    action: action_id.clone(),
+                    acknowledgement,
+                });
             }
             WireEvent::State {
                 activity_id,
@@ -759,10 +906,10 @@ impl Inner {
             } => {
                 let activity = self.handle(&activity_id, Some(&activity_key));
                 activity.shared.known().state = state;
-                self.hub.publish(Event::State { activity, state }, false);
+                self.hub.publish(Event::State { activity, state });
             }
             WireEvent::Authorization { authorization } => {
-                self.hub.publish(Event::Authorization(authorization), false)
+                self.hub.publish(Event::Authorization(authorization))
             }
         }
     }
@@ -826,6 +973,8 @@ impl Shared {
 
 #[cfg(test)]
 mod event_tests;
+#[cfg(test)]
+mod setting_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

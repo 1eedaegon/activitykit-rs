@@ -38,9 +38,9 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
         return Activity<LiveActivityLayoutAttributes>.activities.first { $0.attributes.instanceID == id }?.attributes.activityKey
     }
 
-    @MainActor func makeController(presentations: Presentations, events: EventSink) throws -> LayoutActivityController {
+    @MainActor func makeController(presentations: Presentations, events: EventSink, receipts: ReceiptMode) throws -> LayoutActivityController {
         guard #available(iOS 16.2, *), Platform.supported else { throw Bridge.unsupported }
-        let store = try FileReceiptStore.applicationStore(mode: .full)
+        let store = try FileReceiptStore.applicationStore(mode: receipts)
         let backend = LayoutActivityKitBackend(presentations: presentations, observer: observer.value)
         return LayoutActivityController(backend: backend, store: store)
     }

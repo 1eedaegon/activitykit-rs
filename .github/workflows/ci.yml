@@ -134,7 +134,7 @@ jobs:
       # The shared models, the lifecycle and the C bridge on the Mac, with every fixture; at least 80 % coverage.
       - run: bash tests/swift/run.sh
       # build.rs for the device and both simulators: platform, architecture, deployment target (12.0 raised to 15.0 on
-      # x86_64), the seven C functions. Under CI a check that cannot run fails.
+      # x86_64), the eight C functions. Under CI a check that cannot run fails.
       - run: sh tests/build/run.sh
       # On a simulator that the script creates and deletes: start, a bound color turning red, content older than the
       # shown one dropped, Stop tapped on the Lock Screen and its event in Rust, an end with final values, every node

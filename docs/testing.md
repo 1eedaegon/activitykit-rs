@@ -18,7 +18,7 @@ sh tests/ci/run.sh              # which changed paths start which CI job
   `src/fake.rs`, a bridge that answers as the Swift layer does, from another thread when a test asks for a delay. The
   fake joins those threads and fails the test when delivering a reply panicked.
 - `tests/contract.rs` and `tests/swift/` give every case of `tests/fixtures/layout-requests.json` its verdict, code and
-  weight; the Swift side also sends each through the seven C functions, which it looks up by their symbols and calls
+  weight; the Swift side also sends each through the C functions, which it looks up by their symbols and calls
   from several threads. That is how Rust and Swift agree. Both check that an error's message is constant text.
 - The Swift coverage counts the code that runs on the Mac. The ActivityKit adapter, system, backend and observers are
   `#if os(iOS)` and compile to nothing there, so the gate does not see them; the simulator host runs them.
@@ -34,9 +34,11 @@ sh tests/ci/run.sh              # which changed paths start which CI job
   that the app posts when a scenario ends), not on fixed sleeps; the Lock Screen is pulled down from fixed points of
   the screen.
   - `HostTests`: a start, a bound color turned red, an update an hour older than the shown content that ActivityKit
-    drops, Stop tapped on the Lock Screen and the event in Rust, an end with final values; every node type drawn with
-    its button; a start from the background, which ActivityKit refuses (`NotForeground`); `activities()` after a
-    relaunch, whose handle continues the revision.
+    drops, Stop tapped on the Lock Screen and the event in Rust, a handler of 1 s that the tap's intent waits for, an
+    end with final values; every node type drawn with its button; a start from the background, which ActivityKit
+    refuses (`NotForeground`); `activities()` after a relaunch, whose handle continues the revision, and the same
+    keyed start returning the running activity before and after it; redacted receipts that keep no values, and the
+    values ActivityKit shows after a relaunch.
   - `PolicyTests`, which runs last because it leaves ended activities on the Lock Screen: the reply of a dropped update
     reaching the handle, an end with the system's default keeping its score and its place, an end's relevance, a
     dismissal at a time eight seconds ahead and at once for a past time.

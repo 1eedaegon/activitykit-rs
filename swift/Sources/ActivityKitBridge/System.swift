@@ -24,8 +24,8 @@ protocol BridgeSystem: AnyObject, Sendable {
     func imageFolder() throws -> URL
     /// The activity key of a tapped activity while the system lists it. Any thread.
     func activityKey(of id: String) -> String?
-    /// The controller of layout activities, made once, on the first call.
-    @MainActor func makeController(presentations: Presentations, events: EventSink) throws -> LayoutActivityController
+    /// The controller of layout activities, made once, on the first call, with receipts in the mode of the settings.
+    @MainActor func makeController(presentations: Presentations, events: EventSink, receipts: ReceiptMode) throws -> LayoutActivityController
     /// Starts reporting state and authorization changes to `events`; called once.
     func observe(_ events: EventSink)
 }
@@ -58,7 +58,7 @@ final class UnsupportedSystem: BridgeSystem {
     func authorization() -> AuthorizationReply { AuthorizationReply(supported: false, enabled: false, buttons: false) }
     func imageFolder() throws -> URL { throw Bridge.unsupported }
     func activityKey(of id: String) -> String? { nil }
-    @MainActor func makeController(presentations: Presentations, events: EventSink) throws -> LayoutActivityController {
+    @MainActor func makeController(presentations: Presentations, events: EventSink, receipts: ReceiptMode) throws -> LayoutActivityController {
         throw Bridge.unsupported
     }
     func observe(_ events: EventSink) {}

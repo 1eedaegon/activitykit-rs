@@ -5,7 +5,7 @@
 //! `FAIL <scenario>: <reason>`.
 
 use activitykit::{
-    Activity, ActivityKit, Bound, End, Error, Event, Layout, State, Style, Update, Value,
+    Activity, ActivityKit, Bound, End, Error, Event, Layout, Receipts, State, Style, Update, Value,
     layout::{
         ButtonStyle, Font, Frame, ImageSource, IndicatorKind, button, custom, divider, gauge,
         hstack, image, path, progress, spacer, symbol, text, timer, vstack, zstack,
@@ -26,6 +26,18 @@ static IN_BACKGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicB
 #[unsafe(no_mangle)]
 pub extern "C" fn ak_host_entered_background() {
     IN_BACKGROUND.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// When the host app saw the intent of a tap acknowledged (App/Host.swift): the intent returns right after.
+static TAP_ACKNOWLEDGED: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+
+/// The host app calls this when the acknowledgement of a tap's intent is complete.
+#[unsafe(no_mangle)]
+pub extern "C" fn ak_host_tap_acknowledged() {
+    let mut acknowledged = TAP_ACKNOWLEDGED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    acknowledged.get_or_insert_with(Instant::now);
 }
 
 /// Hands one line to the host app; `bytes` lives only during the call.
@@ -81,6 +93,8 @@ pub extern "C" fn ak_host_run(report: Report) {
             "background-start" => background_start(&reporter),
             "every-node" => every_node(&reporter),
             "policies" => policies(&reporter),
+            "redacted-start" => redacted_start(&reporter),
+            "redacted-check" => redacted_check(&reporter),
             other => Err(format!("no scenario {other}")),
         };
         match outcome {
@@ -122,7 +136,11 @@ fn layout() -> Layout {
 
 /// The kit, with Live Activities on, and no activity left from an earlier run.
 fn prepared(reporter: &Reporter) -> Result<ActivityKit, String> {
-    let kit = ActivityKit::new();
+    cleared(reporter, ActivityKit::new())
+}
+
+/// `kit`, with Live Activities on, and no activity left from an earlier run.
+fn cleared(reporter: &Reporter, kit: ActivityKit) -> Result<ActivityKit, String> {
     let authorization = kit.authorization();
     reporter.say(format!("authorization {authorization:?}"));
     check(authorization.enabled, "Live Activities are not enabled")?;
@@ -175,12 +193,30 @@ fn next_event<T>(
     None
 }
 
-fn start(kit: &ActivityKit, reporter: &Reporter, key: &str) -> Result<Activity, String> {
+/// The start of the recording scenarios under `key`; the same each time it is made.
+fn first_start(key: &str) -> activitykit::Start {
     let first = values! { "status" => "Recording", "tone" => "green", "level" => 0.2 };
-    let start = activitykit::Start::new(layout(), first)
+    activitykit::Start::new(layout(), first)
         .key(key)
-        .relevance(50.0);
-    let activity = block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+        .relevance(50.0)
+}
+
+/// AK-START-3: the same keyed start, made again now, returns the running activity.
+fn starts_again(kit: &ActivityKit, start: activitykit::Start, running: &Activity) -> Outcome {
+    let again = block_on(kit.start_with(start)).map_err(|error| format!("start again: {error}"))?;
+    check(
+        again == *running && again.revision() == running.revision(),
+        format!(
+            "the same keyed start returns {}, got {}",
+            running.id(),
+            again.id()
+        ),
+    )
+}
+
+fn start(kit: &ActivityKit, reporter: &Reporter, key: &str) -> Result<Activity, String> {
+    let activity =
+        block_on(kit.start_with(first_start(key))).map_err(|error| format!("start: {error}"))?;
     check(
         activity.revision() == Some(0) && activity.key() == key,
         "the start's record",
@@ -202,7 +238,7 @@ fn start(kit: &ActivityKit, reporter: &Reporter, key: &str) -> Result<Activity, 
 }
 
 /// Start, turn the bound color red, wait for the Stop button on the Lock Screen (the UI test taps it), then end.
-// AK-AUTH-1, AK-CUSTOM-3, AK-END-1, AK-END-6, AK-EVENT-1, AK-EVENT-2, AK-EVENT-8, AK-HANDLE-3, AK-KIT-1, AK-START-1, AK-STATE-2, AK-THREAD-2, AK-UPDATE-1, AK-UPDATE-5, AK-UPDATE-11, AK-UPDATE-12, AK-UPDATE-16
+// AK-AUTH-1, AK-CUSTOM-3, AK-END-1, AK-END-6, AK-EVENT-1, AK-EVENT-2, AK-EVENT-8, AK-EVENT-14, AK-HANDLE-3, AK-KIT-1, AK-START-1, AK-STATE-2, AK-THREAD-2, AK-UPDATE-1, AK-UPDATE-5, AK-UPDATE-11, AK-UPDATE-12, AK-UPDATE-16
 fn lock_screen(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let events = kit.events();
@@ -247,19 +283,50 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     reporter.say("updated: tap Stop on the Lock Screen");
     let tapped = next_event(&events, Duration::from_secs(180), |event| match event {
         Event::Action {
-            activity, action, ..
-        } => Some((activity, action)),
+            activity,
+            action,
+            acknowledgement,
+            ..
+        } => Some((activity, action, acknowledgement)),
         _ => None,
     });
-    let (tapped, action) = tapped.ok_or("no tap within 3 minutes")?;
+    let (tapped, action, acknowledgement) = tapped.ok_or("no tap within 3 minutes")?;
     reporter.say(format!("action {action} from {}", tapped.id()));
+    // AK-EVENT-14: the handler updates the activity and takes a second in all, holding the acknowledgement; the tap's
+    // intent waits for it.
+    let stopping = values! { "status" => "Stopping", "tone" => "gray", "level" => 1.0 };
+    block_on(tapped.update(stopping)).map_err(|error| format!("update in the handler: {error}"))?;
+    thread::sleep(Duration::from_secs(1));
+    let early = *TAP_ACKNOWLEDGED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    check(
+        early.is_none(),
+        "the intent was acknowledged while the handler still worked",
+    )?;
+    let handled = Instant::now();
+    drop(acknowledgement);
+    let acknowledged = wait_until(Duration::from_secs(5), || {
+        *TAP_ACKNOWLEDGED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    })
+    .ok_or("the intent of the tap was never acknowledged")?;
+    check(
+        acknowledged >= handled,
+        "the intent was acknowledged before the handler was done",
+    )?;
+    reporter.say(format!(
+        "the intent was acknowledged {:?} after the handler (an update and 1 s) was done",
+        acknowledged - handled
+    ));
     check(
         action == "stop" && tapped == activity,
         "the tap names the button and the activity",
     )?;
     check(
-        tapped.revision() == Some(2),
-        "the tapped handle shares the started one's revision",
+        tapped.revision() == Some(3) && activity.revision() == Some(3),
+        "the tapped handle shares the started one's revision, and the handler's update",
     )?;
     // AK-END-6: the end carries its final values.
     let last = End::immediately()
@@ -267,7 +334,7 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     block_on(tapped.end(last)).map_err(|error| format!("end: {error}"))?;
     check(activity.state() == State::Ended, "the record of the end")?;
     check(
-        activity.revision() == Some(3)
+        activity.revision() == Some(4)
             && activity.values().get("status") == Some(&Value::from("Stopped")),
         "the end shows its final values",
     )?;
@@ -285,10 +352,12 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     Ok(())
 }
 
+// AK-START-3
 /// Start and update an activity, then the UI test ends the process.
 fn relaunch_start(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let activity = start(&kit, reporter, "host:relaunch")?;
+    starts_again(&kit, first_start("host:relaunch"), &activity)?;
     reporter.say(format!(
         "running {} at revision 1: terminate the app",
         activity.id()
@@ -297,7 +366,7 @@ fn relaunch_start(reporter: &Reporter) -> Outcome {
 }
 
 /// After a relaunch, find the activity, continue its revision, and end it.
-// AK-HANDLE-1, AK-LIST-1, AK-STATE-3
+// AK-HANDLE-1, AK-HANDLE-3, AK-KIT-4, AK-LIST-1, AK-START-3, AK-STATE-3
 fn relaunch_check(reporter: &Reporter) -> Outcome {
     let kit = ActivityKit::new();
     let activities = block_on(kit.activities()).map_err(|error| format!("activities: {error}"))?;
@@ -318,6 +387,20 @@ fn relaunch_check(reporter: &Reporter) -> Outcome {
         activity.values().get("tone") == Some(&Value::from("red")),
         "the accepted values survive the relaunch",
     )?;
+    // AK-HANDLE-3: the content's timestamp comes back too.
+    check(
+        activity.timestamp().is_some(),
+        "the content's timestamp survives the relaunch",
+    )?;
+    // AK-KIT-4: the lookup by id gives the handle the list gave.
+    let found =
+        block_on(kit.activity(activity.id())).map_err(|error| format!("activity: {error}"))?;
+    check(
+        found.as_ref() == Some(&activity),
+        "activity(id) finds the listed handle",
+    )?;
+    // AK-START-3: after the relaunch the same keyed start still returns the running activity.
+    starts_again(&kit, first_start("host:relaunch"), &activity)?;
     let update = values! { "status" => "Quiet again", "tone" => "green", "level" => 0.1 };
     block_on(activity.update(update)).map_err(|error| format!("update: {error}"))?;
     check(
@@ -617,4 +700,99 @@ fn policies(reporter: &Reporter) -> Outcome {
         ),
     );
     checks.outcome()
+}
+
+/// The receipt file of the Swift layer, as the app's Application Support holds it.
+fn receipts_text() -> Result<String, String> {
+    let home = std::env::var_os("HOME").ok_or("no HOME")?;
+    let path = std::path::Path::new(&home)
+        .join("Library/Application Support/activitykit/receipts-v2.json");
+    std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+/// The start of the redacted scenarios; the same each time it is made.
+fn secret_start() -> activitykit::Start {
+    let first = values! { "status" => "First secret", "tone" => "green", "level" => 0.2 };
+    activitykit::Start::new(layout(), first).key("host:redacted")
+}
+
+/// A kit whose receipts keep no values; other settings in the same process conflict.
+// AK-KIT-3
+fn redacted_kit(reporter: &Reporter) -> Result<ActivityKit, String> {
+    let kit = ActivityKit::builder()
+        .receipts(Receipts::Redacted)
+        .build()
+        .map_err(|error| format!("build: {error}"))?;
+    check(
+        matches!(ActivityKit::builder().build(), Err(Error::Conflict(_))),
+        "other settings conflict with the first ones",
+    )?;
+    cleared(reporter, kit)
+}
+
+/// Starts and updates an activity with redacted receipts, then the UI test ends the process.
+// AK-KIT-3, AK-LIST-4
+fn redacted_start(reporter: &Reporter) -> Outcome {
+    let kit = redacted_kit(reporter)?;
+    let activity =
+        block_on(kit.start_with(secret_start())).map_err(|error| format!("start: {error}"))?;
+    block_on(
+        activity.update(values! { "status" => "Second secret", "tone" => "red", "level" => 0.8 }),
+    )
+    .map_err(|error| format!("update: {error}"))?;
+    starts_again(&kit, secret_start(), &activity)?;
+    let text = receipts_text()?;
+    check(
+        !text.contains("First secret")
+            && !text.contains("Second secret")
+            && text.contains("digest"),
+        "the receipt file keeps a digest and no values",
+    )?;
+    reporter.say(format!(
+        "running {} with redacted receipts: terminate the app",
+        activity.id()
+    ));
+    Ok(())
+}
+
+/// After a relaunch, the list gives the activity with the values ActivityKit shows; it continues and ends.
+// AK-LIST-4, AK-START-3
+fn redacted_check(reporter: &Reporter) -> Outcome {
+    let kit = ActivityKit::builder()
+        .receipts(Receipts::Redacted)
+        .build()
+        .map_err(|error| format!("build: {error}"))?;
+    let activities = block_on(kit.activities()).map_err(|error| format!("activities: {error}"))?;
+    let activity = activities
+        .into_iter()
+        .find(|activity| activity.key() == "host:redacted" && activity.state() == State::Active)
+        .ok_or("no running activity with the key host:redacted")?;
+    reporter.say(format!(
+        "found {} at revision {:?} with {:?}",
+        activity.id(),
+        activity.revision(),
+        activity.values().get("status")
+    ));
+    check(
+        activity.revision() == Some(1)
+            && activity.values().get("status") == Some(&Value::from("Second secret")),
+        "the list gives the revision and the values that ActivityKit shows",
+    )?;
+    starts_again(&kit, secret_start(), &activity)?;
+    block_on(
+        activity.update(values! { "status" => "Third secret", "tone" => "green", "level" => 0.1 }),
+    )
+    .map_err(|error| format!("update: {error}"))?;
+    check(
+        activity.revision() == Some(2),
+        "the handle continues the revision",
+    )?;
+    let text = receipts_text()?;
+    check(
+        !text.contains("secret"),
+        "the receipt file still keeps no values",
+    )?;
+    block_on(activity.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
+    reporter.say(format!("updated to revision 2 and ended {}", activity.id()));
+    Ok(())
 }

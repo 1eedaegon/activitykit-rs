@@ -9,8 +9,8 @@ import ActivityKitCore
 // The C functions that the activitykit crate calls (src/native.rs). Each one takes JSON and answers through a C
 // callback with the caller's context: `{"ok":true,"data":…}` or `{"ok":false,"error":{"code","message"}}`. A request
 // is copied before the function returns, so the caller may free it; the reply's bytes live only during the callback.
-// Any thread may call any function. `ak_authorization` and `ak_image_folder` reply before they return; the others
-// reply once, later, from the main thread.
+// Any thread may call any function. `ak_authorization`, `ak_image_folder` and `ak_configure` reply before they return;
+// the others reply once, later, from the main thread.
 
 /// The reply callback: the caller's context, then the reply's bytes and their count.
 public typealias AKReply = @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, Int) -> Void
@@ -73,6 +73,66 @@ public func ak_image_folder(_ context: UnsafeMutableRawPointer?, _ reply: AKRepl
     do { data = Bridge.encode(Success(data: ImageFolderReply(path: try Systems.current.imageFolder().path))) }
     catch { data = Bridge.encode(Failure(error)) }
     ReplyTarget(context: context, function: reply).send(data)
+}
+
+@_cdecl("ak_configure")
+public func ak_configure(_ bytes: UnsafePointer<UInt8>?, _ count: Int, _ context: UnsafeMutableRawPointer?, _ reply: AKReply) {
+    let data: Data
+    do {
+        let wanted = try JSONDecoder().decode(SettingsCall.self, from: copy(bytes, count))
+        data = Bridge.encode(Success(data: try Settings.shared.set(wanted)))
+    } catch { data = Bridge.encode(Failure(error)) }
+    ReplyTarget(context: context, function: reply).send(data)
+}
+
+/// `ak_configure`: `{"receipts": "full" | "redacted"}`, nothing else.
+struct SettingsCall: Codable, Equatable, Sendable {
+    let receipts: ReceiptMode
+    private enum CodingKeys: String, CodingKey { case receipts }
+    private struct Member: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+    init(receipts: ReceiptMode) { self.receipts = receipts }
+    init(from decoder: Decoder) throws {
+        guard try decoder.container(keyedBy: Member.self).allKeys.map(\.stringValue) == ["receipts"] else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Settings take receipts only."))
+        }
+        receipts = try decoder.container(keyedBy: CodingKeys.self).decode(ReceiptMode.self, forKey: .receipts)
+    }
+}
+
+/// The settings of the bridge for the whole process: the first ones that `ak_configure` sets, or the default ones that
+/// the lifecycle's first use fixes. Later different settings are CONFLICT. Any thread.
+final class Settings: @unchecked Sendable {
+    static let shared = Settings()
+    private let lock = NSLock()
+    private var current: SettingsCall?
+
+    /// Takes `wanted` unless other settings already hold, and answers the settings in force.
+    func set(_ wanted: SettingsCall) throws -> SettingsCall {
+        lock.lock(); defer { lock.unlock() }
+        if let current, current != wanted {
+            throw ActivityFailure("CONFLICT", "The Swift layer already runs with other settings.")
+        }
+        current = wanted
+        return wanted
+    }
+
+    /// The receipts of the settings in force, the default ones unless set: they hold from now on.
+    func fix() -> ReceiptMode {
+        lock.lock(); defer { lock.unlock() }
+        let settled = current ?? SettingsCall(receipts: .full)
+        current = settled
+        return settled.receipts
+    }
+
+    /// Forgets the settings. For the tests.
+    func reset() {
+        lock.lock(); current = nil; lock.unlock()
+    }
 }
 
 /// Sets the event handler, replacing an earlier one; nil drops events from then on. The first handler starts the
@@ -225,7 +285,7 @@ final class Bridge {
 
     private func lifecycle() throws -> LayoutActivityController {
         if let controller { return controller }
-        let created = try Systems.current.makeController(presentations: presentations, events: .shared)
+        let created = try Systems.current.makeController(presentations: presentations, events: .shared, receipts: Settings.shared.fix())
         controller = created
         return created
     }

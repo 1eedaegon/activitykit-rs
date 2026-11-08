@@ -44,6 +44,9 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     says(&usage, "plain text", "docs/usage.md");
     says(&usage, "does not check the app's setup", "docs/usage.md");
     says(&read("README.md"), "plain text", "README.md");
+    says(&read("README.md"), "Receipts::Redacted", "README.md");
+    says(&usage, "Receipts::Redacted", "docs/usage.md");
+    says(&usage, "acknowledgement", "docs/usage.md");
     says(
         &rustdoc,
         "does not check the app's setup",
@@ -97,6 +100,7 @@ fn no_doc_says_what_is_no_longer_true() {
         "receipts-v1.json",
         "not one of the three below",
         "in the order they were called",
+        "seven C functions",
     ];
     for file in files {
         let text = read(file);

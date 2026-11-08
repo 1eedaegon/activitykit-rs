@@ -25,6 +25,7 @@ extension LifecycleTests {
     @MainActor static func testReceipts() async throws {
         try await testFullLayoutReceipts()
         try await testRedactedLayoutReceipts()
+        try await testRedactedDigestOfContent()
         try await testRedactedEndAfterRestart()
         try await testGuessableRedaction()
         try await testReceiptFileRules()
@@ -43,6 +44,31 @@ extension LifecycleTests {
         let guessed = try ["Yes", "No", "Maybe"].first { try digest(LayoutSnapshot(revision: 0, values: ["answer": .string($0)])) == stored }
         try await verify(!(try fileText(url)).contains("Maybe") && guessed == "Maybe",
                          "a redacted file holds no snapshot text, yet a guessable snapshot is recovered from its digest")
+    }
+
+    // AK-LIST-4, AK-UPDATE-10
+    /// A redacted receipt digests the content without its timestamp: after a restart, the accepted revision sent again
+    /// with the same values and another timestamp is the same content.
+    @MainActor private static func testRedactedDigestOfContent() async throws {
+        let folder = try receiptFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("receipts.json")
+        func made(_ revision: Int64, _ text: String, at: Int64) -> LayoutSnapshot {
+            LayoutSnapshot(revision: revision, values: ["transcript": .string(text)], timestamp: at)
+        }
+        let lagging = FakeLayoutBackend()
+        lagging.delayObservation = true
+        let first = LayoutActivityController(backend: lagging, store: FileReceiptStore(url: url, mode: .redacted))
+        let started = try await first.start(transcriptRequest("Recording"))
+        _ = try await first.update(layoutUpdate(started.id, made(2, "Saved", at: 1_000)))
+        let entry = try fileEntries(url).first { $0["id"] as? String == started.id } ?? [:]
+        try await verify(NSDictionary(dictionary: entry["content"] as? [String: Any] ?? [:]).isEqual(to: ["digest": try digest(transcript(2, "Saved"))]),
+                         "the file keeps the digest of the content without its timestamp")
+        let restart = LayoutActivityController(backend: lagging, store: FileReceiptStore(url: url, mode: .redacted))
+        let again = try await restart.update(layoutUpdate(started.id, made(2, "Saved", at: 2_000)))
+        expect(again.snapshot.revision == 2 && lagging.updates == 1,
+               "after a restart the accepted revision with the same values and another timestamp succeeds without the backend")
+        await expectError("CONFLICT") { _ = try await restart.update(layoutUpdate(started.id, made(2, "Other", at: 3_000))) }
     }
 
     // AK-END-5
@@ -116,6 +142,7 @@ extension LifecycleTests {
         await expectError("NOT_FOUND") { _ = try await afterEnd.update(layoutUpdate(started.id, transcript(3, "x"))) }
     }
 
+    // AK-LIST-4
     @MainActor private static func testRedactedLayoutReceipts() async throws {
         let folder = try receiptFolder()
         defer { try? FileManager.default.removeItem(at: folder) }

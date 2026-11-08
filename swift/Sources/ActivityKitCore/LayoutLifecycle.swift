@@ -132,6 +132,8 @@ extension LayoutActivity: LifecycleActivity {
         if case .layout(let snapshot) = content { return snapshot } else { return nil }
     }
     static func revision(of snapshot: LayoutSnapshot) -> Int64 { snapshot.revision }
+    static func sameContent(_ one: LayoutSnapshot, _ other: LayoutSnapshot) -> Bool { one.content == other.content }
+    static func digest(of snapshot: LayoutSnapshot) throws -> String { try ReceiptDigest.of(snapshot.content) }
     static func record(_ entry: StoredReceipt) -> LayoutActivityRecord {
         LayoutActivityRecord(id: entry.id, activityKey: entry.summary.activityKey, schemaVersion: entry.summary.schemaVersion,
                              snapshot: snapshot(in: entry.content) ?? LayoutSnapshot(revision: entry.revision, values: [:]), state: entry.state)
