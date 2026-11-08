@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0
 
 The first version: iOS Live Activities from Rust. Split out of tauri-plugin-live-activity 0.3.0.
 
