@@ -48,14 +48,39 @@ sh tests/ci/run.sh              # which changed paths start which CI job
 `.github/workflows/ci.yml` decides from the changed paths what runs; `tests/ci/run.sh` checks those patterns. The
 specification check, the path check and the docs test run on Linux for any change to code, tests or docs. Rust
 changes run format, clippy (also for the iOS target, without Swift), the tests, coverage and the host build checks on
-Linux, and the tests again on Rust 1.90, the crate's `rust-version`. The repository is private and a macOS minute costs
-ten Linux minutes, so the macOS job runs only for changes that reach the Swift layer: the Swift package, every Rust
-source and manifest, `build.rs`, the toolchain files, the templates, the Swift tests, the build checks and the test
-host. It runs the Swift tests, the build checks for the device and both simulators, and `tests/ios-host/run.sh`.
+Linux, and the tests again on Rust 1.90, the crate's `rust-version`. The macOS jobs are the slow ones, so they run only
+for changes that reach the Swift layer: the Swift package, every Rust source and manifest, `build.rs`, the toolchain
+files, the templates, the Swift tests, the build checks, the test host and `tests/ci/cache.sh`. One runs the Swift
+tests and the build checks for the device and both simulators, the other `tests/ios-host/run.sh`.
 
 `.github/workflows/publish.yml` runs on a `v*` tag: it checks the tag against the crate's version, that main's CI
 passed for the tag's exact commit, and that the crate packages. It publishes nothing until `publish = false` leaves
 `Cargo.toml` and the repository variable `CRATES_IO_PUBLISH` is `true`.
+
+### Caches
+
+- Every Rust job keeps its dependencies with `Swatinem/rust-cache`, keyed on the toolchain and the lock files. The build
+  checks' job also keeps the crate's own outputs, among them the SwiftPM build of the bridge for each iOS target.
+  `cargo-llvm-cov` comes as a binary from `taiki-e/install-action`.
+- The simulator job caches the test host's Xcode products (`Build/Products` of its DerivedData, with the
+  `.xctestrun`) under `simulator-products-v1-<system>-<arch>-xcode<version>-<build>-rust<toolchain>-<files>`.
+  `<files>` is a hash of the tracked files under `src/`, `swift/`, `templates/`, `contracts/` and `tests/ios-host/`,
+  `build.rs`, the manifests and the toolchain files. On that exact key `run.sh` (given it as `BUILD_KEY`) skips cargo
+  and `build-for-testing` and tests the cached products through the project's scheme (XcodeGen takes under a second);
+  when any of them is missing it builds. Other inputs build with the Rust dependencies from the cache, and Xcode
+  builds from scratch: checkout gives every file a new modification time, so cargo recompiles the crate and the host
+  and reruns `build.rs`, and Xcode would recompile every Swift source anyway; an incremental Xcode build over restored
+  intermediates also made an app whose Lock Screen taps never reached it.
+- A suite that passed is not run again for the same inputs: the same files, Xcode, runner image (`ImageOS`,
+  `ImageVersion`), Rust and, for the simulator, the runtime (`tests/ci/cache.sh keys`). After a full pass the job
+  uploads a record, an artifact named `passed-<suite>-<hash>` that keeps 90 days; a later run that finds it skips the
+  suite, stays green, and names the run that passed it, with a warning for each test that passed there only on a
+  retry. The record is an artifact rather than a cache because a push to main cannot read a pull request's caches, so
+  the push that merges a pull request finds the pull request's pass. Only runs of this repository's `ci.yml` count.
+  This covers the Swift tests, the build checks and the simulator suite.
+
+To run everything from scratch, start the workflow by hand with `fresh` checked: it ignores every cache and record.
+`retest` runs the suites again but keeps the build caches.
 
 ## Record
 
