@@ -1,6 +1,6 @@
 # The C bridge
 
-Rust and Swift meet in seven C functions, which `swift/Sources/ActivityKitBridge/Bridge.swift` defines with `@_cdecl`
+Rust and Swift meet in eight C functions, which `swift/Sources/ActivityKitBridge/Bridge.swift` defines with `@_cdecl`
 and `src/native.rs` declares. There is no generated glue: every request and reply is JSON.
 
 ```c
@@ -13,6 +13,7 @@ void ak_end(const uint8_t *json, intptr_t len, void *context, ak_reply reply);
 void ak_list(void *context, ak_reply reply);
 void ak_authorization(void *context, ak_reply reply);
 void ak_image_folder(void *context, ak_reply reply);
+void ak_configure(const uint8_t *json, intptr_t len, void *context, ak_reply reply);
 void ak_set_event_handler(ak_event_handler handler);
 ```
 
@@ -20,9 +21,9 @@ void ak_set_event_handler(ak_event_handler handler);
 
 - Swift copies the request before the function returns. The reply's bytes are valid only during the callback, which
   the caller copies.
-- `ak_authorization` and `ak_image_folder` call `reply` before they return. The other four call it exactly once,
-  later, from the main thread: Swift runs the request in a `Task` on the main actor, where the lifecycle and
-  ActivityKit live.
+- `ak_authorization`, `ak_image_folder` and `ak_configure` call `reply` before they return. The other four call it
+  exactly once, later, from the main thread: Swift runs the request in a `Task` on the main actor, where the lifecycle
+  and ActivityKit live.
 - Any thread may call any function at any time. Rust passes a boxed closure as `context` and completes a one-shot
   channel from it, which is what an `async fn` of the crate awaits.
 
@@ -34,12 +35,17 @@ void ak_set_event_handler(ak_event_handler handler);
 | `ak_list` | none | a list of records |
 | `ak_authorization` | none | `{"supported", "enabled", "buttons"}` |
 | `ak_image_folder` | none | `{"path"}` |
+| `ak_configure` | `{"receipts": "full" \| "redacted"}`, no other member | the settings in force |
 
 `request` is exactly a request of the [contract](request-contract.md); `relevance` and `alert` are what ActivityKit
 takes beside the content and are not part of it. Without a relevance an update or end keeps the activity's score. A
 reply is `{"ok":true,"data":…}` or `{"ok":false,"error":{"code","message"}}` with a code of the contract, plus
 `feature` and `minimumIos` for `UNSUPPORTED_FEATURE` and `scope` for `SYSTEM_LIMIT`. Before each of the four asynchronous calls the
 bridge checks that the device has Live Activities and answers `UNSUPPORTED_PLATFORM` otherwise.
+
+`ak_configure` sets the bridge's settings for the whole process. The first settings hold: the same ones again succeed,
+other ones answer `CONFLICT`, and the lifecycle's first use (a start, update, end or list) fixes the default ones,
+`{"receipts":"full"}`. Rust calls it from `ActivityKit::builder().build()`.
 
 A record:
 

@@ -54,6 +54,11 @@ pub(crate) struct FakeState {
     /// drops them unanswered, as a bridge that goes away would.
     pub(crate) hold: bool,
     held: Vec<(Reply, Vec<u8>)>,
+    /// The settings in force, as the Swift layer keeps them: the first configured ones, or the default ones that the
+    /// first call fixes.
+    pub(crate) settings: Option<Value>,
+    /// Every request of `configure`.
+    pub(crate) configured: Vec<Value>,
     events: Option<Listener>,
     next: u64,
 }
@@ -245,6 +250,9 @@ fn accept(
 impl Bridge for FakeBridge {
     fn call(&self, call: Call, request: Vec<u8>, reply: Reply) {
         let request: Value = serde_json::from_slice(&request).unwrap();
+        self.lock()
+            .settings
+            .get_or_insert_with(|| json!({"receipts": "full"}));
         self.lock().requests.push((call, request.clone()));
         let answer = self.answer(call, &request);
         let answer = {
@@ -284,6 +292,22 @@ impl Bridge for FakeBridge {
                 "CONFIGURATION_REQUIRED",
                 "The widget extension names no App Group under ActivityKitAppGroup.",
             ),
+        }
+    }
+
+    fn configure(&self, request: Vec<u8>) -> Vec<u8> {
+        let request: Value = serde_json::from_slice(&request).unwrap();
+        let mut state = self.lock();
+        state.configured.push(request.clone());
+        match &state.settings {
+            Some(settings) if *settings != request => error(
+                "CONFLICT",
+                "The Swift layer already runs with other settings.",
+            ),
+            _ => {
+                state.settings = Some(request.clone());
+                ok(request)
+            }
         }
     }
 

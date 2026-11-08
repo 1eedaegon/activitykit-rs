@@ -116,6 +116,7 @@ extension LifecycleTests {
         await expectError("NOT_FOUND") { _ = try await afterEnd.update(layoutUpdate(started.id, transcript(3, "x"))) }
     }
 
+    // AK-LIST-4
     @MainActor private static func testRedactedLayoutReceipts() async throws {
         let folder = try receiptFolder()
         defer { try? FileManager.default.removeItem(at: folder) }

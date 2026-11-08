@@ -36,7 +36,7 @@ fn taker(
     (thread, ready)
 }
 
-// AK-EVENT-6
+// AK-EVENT-6, AK-EVENT-14
 #[test]
 fn a_tap_waits_for_the_slowest_receiver() {
     let (kit, fake) = waiting(Duration::from_secs(10));
@@ -54,6 +54,80 @@ fn a_tap_waits_for_the_slowest_receiver() {
         "{:?}",
         slowest.saturating_duration_since(returned)
     );
+}
+
+// AK-EVENT-14
+/// A handler that keeps the tap's event while it works holds the tap until it drops the event.
+#[test]
+fn a_tap_waits_until_its_event_is_dropped() {
+    let (kit, fake) = waiting(Duration::from_secs(10));
+    let events = kit.events();
+    let handler = thread::spawn(move || {
+        let event = events.recv_blocking().unwrap();
+        assert!(matches!(event, Event::Action { .. }));
+        thread::sleep(Duration::from_millis(150));
+        let done = Instant::now();
+        drop(event);
+        done
+    });
+    let started = Instant::now();
+    fake.emit(tap());
+    let returned = Instant::now();
+    let done = handler.join().unwrap();
+    assert!(
+        returned >= done && returned - started < Duration::from_secs(5),
+        "returned {:?} before the handler was done",
+        done.saturating_duration_since(returned)
+    );
+}
+
+// AK-EVENT-14
+/// `acknowledge()` lets the tap go while the app still keeps its event.
+#[test]
+fn acknowledging_releases_the_tap_before_the_event_is_dropped() {
+    let (kit, fake) = waiting(Duration::from_secs(10));
+    let events = kit.events();
+    let (acknowledged, kept) = std::sync::mpsc::channel();
+    let handler = thread::spawn(move || {
+        let event = events.recv_blocking().unwrap();
+        let Event::Action {
+            ref acknowledgement,
+            ..
+        } = event
+        else {
+            panic!("a tap")
+        };
+        assert!(!acknowledgement.is_acknowledged());
+        acknowledgement.acknowledge();
+        assert!(acknowledgement.is_acknowledged());
+        kept.recv().unwrap();
+        drop(event);
+    });
+    let started = Instant::now();
+    fake.emit(tap());
+    assert!(started.elapsed() < Duration::from_secs(1));
+    acknowledged.send(()).unwrap();
+    handler.join().unwrap();
+}
+
+// AK-EVENT-14
+/// A clone of the event holds the tap as the event does.
+#[test]
+fn a_tap_waits_for_every_clone_of_its_event() {
+    let (kit, fake) = waiting(Duration::from_secs(10));
+    let events = kit.events();
+    let handler = thread::spawn(move || {
+        let event = events.recv_blocking().unwrap();
+        let kept = event.clone();
+        drop(event);
+        thread::sleep(Duration::from_millis(150));
+        let done = Instant::now();
+        drop(kept);
+        done
+    });
+    fake.emit(tap());
+    let returned = Instant::now();
+    assert!(returned >= handler.join().unwrap());
 }
 
 // AK-EVENT-5, AK-EVENT-6

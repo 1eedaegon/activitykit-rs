@@ -98,7 +98,7 @@ class HostCase: XCTestCase {
 final class HostTests: HostCase {
     /// Start, the bound color turned red, content older than the shown one dropped, Stop tapped on the Lock Screen,
     /// the tap's event in Rust, end.
-    // AK-CUSTOM-3, AK-EVENT-1, AK-EVENT-2, AK-EVENT-6, AK-EVENT-8, AK-KIT-1, AK-RENDER-3, AK-RENDER-10, AK-UPDATE-5, AK-UPDATE-16, AK-WIDGET-1
+    // AK-CUSTOM-3, AK-EVENT-1, AK-EVENT-2, AK-EVENT-6, AK-EVENT-8, AK-EVENT-14, AK-KIT-1, AK-RENDER-3, AK-RENDER-10, AK-UPDATE-5, AK-UPDATE-16, AK-WIDGET-1
     func testLockScreenButtonReachesRust() throws {
         launch("lockscreen")
         waitFor("updated")
@@ -150,8 +150,19 @@ final class HostTests: HostCase {
         waitFor("PASS background-start", timeout: 30)
     }
 
+    // AK-KIT-3, AK-LIST-4
+    /// With redacted receipts the file keeps no values; after a relaunch the list gives the values ActivityKit shows.
+    func testRedactedReceiptsAfterRelaunch() throws {
+        launch("redacted-start")
+        waitFor("PASS redacted-start")
+        app.terminate()
+        launch("redacted-check")
+        waitFor("PASS redacted-check")
+        try capture("redacted-report")
+    }
+
     /// After the process ends, `activities()` finds the activity at its accepted revision, and its handle continues.
-    // AK-HANDLE-1, AK-LIST-1
+    // AK-HANDLE-1, AK-LIST-1, AK-START-3
     func testActivitiesAfterRelaunch() throws {
         launch("relaunch-start")
         waitFor("PASS relaunch-start")

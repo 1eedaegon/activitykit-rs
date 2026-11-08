@@ -58,7 +58,7 @@ extension LifecycleTests {
         LayoutEndRequest(id: id, policy: EndPolicy(kind: kind, at: at))
     }
 
-    // AK-END-3, AK-END-4, AK-END-5, AK-LIST-3, AK-START-5, AK-START-9, AK-UPDATE-3, AK-UPDATE-4, AK-UPDATE-10
+    // AK-END-3, AK-END-4, AK-END-5, AK-LIST-3, AK-START-3, AK-START-5, AK-START-9, AK-UPDATE-3, AK-UPDATE-4, AK-UPDATE-10
     @MainActor static func testLayoutLifecycle() async throws {
         let backend = FakeLayoutBackend()
         let controller = LayoutActivityController(backend: backend)
@@ -177,10 +177,45 @@ extension LifecycleTests {
         try await verify(try await watcher.list().allSatisfy { $0.state != "active" }, "a missing OS activity is never reported active")
 
         try await testOneCallAtATime()
+        try await testTimestampIsNotContent()
         try await testBoundStyleUpdates()
         try testLayoutWidgetPreflight()
         try await testActionRelay()
         try await testNativeSizeCheck()
+    }
+
+    // AK-UPDATE-10, AK-UPDATE-18
+    /// The timestamp is when content was made, not content: a start or a revision repeated with another timestamp is
+    /// the same, in memory and with digests after a restart.
+    @MainActor private static func testTimestampIsNotContent() async throws {
+        func stamped(_ revision: Int64, _ progress: Double, at: Int64) -> LayoutSnapshot {
+            LayoutSnapshot(revision: revision, values: ["title": .string("Download"), "progress": .number(progress)], timestamp: at)
+        }
+        func keyed(at: Int64) throws -> LayoutRequest {
+            try layoutRequest(layoutJSON(key: "stamped", lockScreen: meterLayout, values: #"{"title":"Download","progress":0}"#,
+                                         rest: "").replacingOccurrences(of: #""revision":0,"#, with: #""revision":0,"timestamp":\#(at),"#))
+        }
+        for mode in [ReceiptMode.full, .redacted] {
+            let folder = try receiptFolder()
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let url = folder.appendingPathComponent("receipts.json")
+            let backend = FakeLayoutBackend()
+            let controller = LayoutActivityController(backend: backend, store: FileReceiptStore(url: url, mode: mode))
+            let first = try await controller.start(keyed(at: 1_000))
+            let again = try await controller.start(keyed(at: 2_000))
+            expect(again.id == first.id && backend.starts == 1, "\(mode): the same keyed start with another timestamp returns the running activity")
+            _ = try await controller.update(layoutUpdate(first.id, stamped(2, 0.5, at: 3_000)))
+            _ = try await controller.update(layoutUpdate(first.id, stamped(2, 0.5, at: 4_000)))
+            expect(backend.updates == 1, "\(mode): the accepted revision again with another timestamp is the same content")
+            await expectError("CONFLICT") { _ = try await controller.update(layoutUpdate(first.id, stamped(2, 0.6, at: 4_000))) }
+            let restarted = LayoutActivityController(backend: backend, store: FileReceiptStore(url: url, mode: mode))
+            try await verify(try await restarted.start(keyed(at: 5_000)).id == first.id, "\(mode): and after a restart")
+            _ = try await restarted.update(layoutUpdate(first.id, stamped(2, 0.5, at: 6_000)))
+            expect(backend.updates == 1, "\(mode): the accepted revision again after a restart is the same content")
+            let ended = try await restarted.end(LayoutEndRequest(id: first.id, policy: EndPolicy(kind: "immediate", at: nil),
+                                                                  snapshot: stamped(2, 0.5, at: 7_000)))
+            expect(ended.state == "ended", "\(mode): final content at the accepted revision with another timestamp ends the activity")
+        }
     }
 
     // AK-UPDATE-17

@@ -68,6 +68,9 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
     public init(revision: Int64, values: [String: LayoutValue], staleAt: Int64? = nil, timestamp: Int64? = nil) {
         self.revision = revision; self.values = values; self.staleAt = staleAt; self.timestamp = timestamp
     }
+    /// The content without its timestamp: when content was made is not part of it, so a repeat of the same content
+    /// made later is the same.
+    public var content: LayoutSnapshot { LayoutSnapshot(revision: revision, values: values, staleAt: staleAt) }
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         revision = try object.need("revision"); values = try object.need("values"); staleAt = try object.take("staleAt")

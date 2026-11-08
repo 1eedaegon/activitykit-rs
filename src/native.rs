@@ -1,6 +1,7 @@
 //! The Swift bridge on iOS: the C functions of `swift/Sources/ActivityKitBridge/Bridge.swift`, which `build.rs`
 //! links. Every function takes JSON bytes that Swift copies before it returns, and answers through a callback with a
-//! context pointer: at once for `ak_authorization` and `ak_image_folder`, later from the main thread for the others.
+//! context pointer: at once for `ak_authorization`, `ak_image_folder` and `ak_configure`, later from the main thread
+//! for the others.
 //! See `docs/bridge.md`.
 
 use crate::{
@@ -26,6 +27,7 @@ unsafe extern "C" {
     fn ak_update(bytes: *const u8, len: isize, context: *mut c_void, reply: ReplyFn);
     fn ak_end(bytes: *const u8, len: isize, context: *mut c_void, reply: ReplyFn);
     fn ak_list(context: *mut c_void, reply: ReplyFn);
+    fn ak_configure(bytes: *const u8, len: isize, context: *mut c_void, reply: ReplyFn);
 }
 
 fn copy(bytes: *const u8, len: isize) -> Vec<u8> {
@@ -98,6 +100,20 @@ impl Bridge for SwiftBridge {
 
     fn image_folder(&self) -> Vec<u8> {
         self.now(ak_image_folder)
+    }
+
+    fn configure(&self, request: Vec<u8>) -> Vec<u8> {
+        let mut reply = Vec::new();
+        // SAFETY: Swift copies the request and calls `fill` before it returns, while `reply` is alive.
+        unsafe {
+            ak_configure(
+                request.as_ptr(),
+                request.len() as isize,
+                (&raw mut reply).cast(),
+                fill,
+            )
+        };
+        reply
     }
 
     fn listen(&self, events: Events) {

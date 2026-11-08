@@ -297,7 +297,10 @@ fn a_handle_that_only_an_event_named_learns_its_revision_from_the_list() {
     });
     let events = kit.events();
     fake.emit(json!({"type":"action","activityId":"la-ios-layout-1","actionId":"stop","activityKey":"recording"}));
-    let Ok(Event::Action { activity, action }) = events.try_recv() else {
+    let Ok(Event::Action {
+        activity, action, ..
+    }) = events.try_recv()
+    else {
         panic!("an action event")
     };
     assert_eq!(
@@ -487,6 +490,7 @@ fn every_subscriber_gets_every_event_with_the_shared_handle() {
         let Ok(Event::Action {
             activity: tapped,
             action,
+            ..
         }) = events.try_recv()
         else {
             panic!("an action")
@@ -557,13 +561,15 @@ fn a_tap_returns_once_every_subscriber_has_taken_it() {
     let taker = thread::spawn(move || {
         thread::sleep(Duration::from_millis(100));
         let ready = Instant::now();
-        (events.recv_blocking().unwrap(), ready)
+        // The event is dropped as soon as it is read.
+        let tapped = matches!(events.recv_blocking().unwrap(), Event::Action { .. });
+        (tapped, ready)
     });
     let started = Instant::now();
     fake.emit(json!({"type":"action","activityId":"la-1","actionId":"stop"}));
     let returned = Instant::now();
-    let (event, ready) = taker.join().unwrap();
-    assert!(matches!(event, Event::Action { .. }));
+    let (tapped, ready) = taker.join().unwrap();
+    assert!(tapped);
     // The tap returned after the receiver began to take it, and long before the wait was over.
     assert!(returned >= ready && returned - started < Duration::from_secs(5));
     // States and authorization changes do not wait.

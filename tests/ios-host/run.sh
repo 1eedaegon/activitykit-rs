@@ -38,9 +38,12 @@ elif [ -n "${CI:-}" ]; then
   # press: in CI a failed test runs again, up to three times in all, and every retry is reported as a warning below.
   set -- "$@" -retry-tests-on-failure -test-iterations 3
 fi
-{ TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
-    -destination "id=$udid" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" 2>&1
-  echo $? >"$out/.status"; } | tee "$out/xcodebuild.log"
+# The status goes through a file: the group runs in a subshell of the pipe, where `set -e` would end it at a failing
+# xcodebuild before the status is written.
+{ tested=0
+  TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
+    -destination "id=$udid" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" 2>&1 || tested=$?
+  echo "$tested" >"$out/.status"; } | tee "$out/xcodebuild.log"
 status=$(cat "$out/.status")
 rm -f "$out/.status"
 

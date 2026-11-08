@@ -35,9 +35,16 @@ public struct LayoutRequest: Codable, Sendable {
     public var document: LayoutDocument { LayoutDocument(layout: layout, styles: styles) }
     /// Payload weight of the layout, the style table and the values.
     public var weight: Int { document.weight + snapshot.values.wireWeight }
+    /// The SHA-256 of the request without its snapshot's timestamp, which differs for every start of the same content.
     public func fingerprint() throws -> String {
+        struct Body: Encodable {
+            let activityKey: String, schemaVersion: Int, fallback: String, layout: LayoutRegions, styles: [String: LayoutStyle]?
+            let snapshot: LayoutSnapshot, android: LayoutAndroidOptions?
+        }
+        let body = Body(activityKey: activityKey, schemaVersion: schemaVersion, fallback: fallback, layout: layout, styles: styles,
+                        snapshot: snapshot.content, android: android)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
-        return SHA256.hash(data: try encoder.encode(self)).map { String(format: "%02x", $0) }.joined()
+        return SHA256.hash(data: try encoder.encode(body)).map { String(format: "%02x", $0) }.joined()
     }
 }
 

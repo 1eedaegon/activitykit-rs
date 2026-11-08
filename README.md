@@ -74,11 +74,11 @@ main thread on a future or a receiver: the Swift side answers from it.
 ## How it works
 
 ```text
-Rust (ActivityKit, Activity) -> C bridge (7 functions, JSON) -> Swift (lifecycle, receipts) -> ActivityKit -> liveactivitiesd
+Rust (ActivityKit, Activity) -> C bridge (8 functions, JSON) -> Swift (lifecycle, receipts) -> ActivityKit -> liveactivitiesd
 Lock Screen, Dynamic Island  <- SpringBoard <- chronod <- your widget extension (ActivityKitLayoutWidget)
 ```
 
-Rust checks each request against the contract, keeps the revision, and calls one of seven C functions with JSON
+Rust checks each request against the contract, keeps the revision, and calls one of eight C functions with JSON
 ([the bridge](docs/bridge.md)). The Swift layer checks it again, runs it through the lifecycle (idempotent starts,
 revisions, receipts of accepted updates) and calls ActivityKit, which hands the activity to the system's
 `liveactivitiesd`. The system has your widget extension draw it through `chronod`: the widget reads the layout from the
@@ -94,7 +94,8 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 - With Rust as a static library, the app target must compile some Swift, for the button's App Intents metadata and the
   bridge's Swift runtime.
 - The Swift layer keeps each activity's last accepted values in plain text in the app's Application Support, which iOS
-  protects until the first unlock after a restart: leave out of activities what must not rest on the device.
+  protects until the first unlock after a restart, unless `ActivityKit::builder().receipts(Receipts::Redacted)` keeps
+  a digest instead.
 - No push updates, no Android. [Not yet supported](docs/not-yet-supported.md) lists what ActivityKit has and the crate
   does not.
 

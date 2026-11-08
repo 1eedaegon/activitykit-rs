@@ -95,7 +95,7 @@ public struct StoredReceipt: Codable, Sendable {
     fileprivate func redacted() throws -> StoredReceipt {
         let digest: String
         switch content {
-        case .layout(let snapshot): digest = try ReceiptDigest.of(snapshot)
+        case .layout(let snapshot): digest = try ReceiptDigest.of(snapshot.content)
         case .digest: return self
         }
         return StoredReceipt(id: id, summary: summary, state: state, revision: revision, content: .digest(digest))
@@ -113,7 +113,7 @@ public struct StoredReceipt: Codable, Sendable {
     }
 }
 
-/// SHA-256 of a snapshot's sorted-keys JSON, in lower-case hex.
+/// SHA-256 of a value's sorted-keys JSON, in lower-case hex; a snapshot's digest covers its content, not its timestamp.
 enum ReceiptDigest {
     static func of<Value: Encodable>(_ value: Value) throws -> String {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]

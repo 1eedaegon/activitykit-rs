@@ -20,6 +20,22 @@ and `buttons` does not check that the app links `ActivityKitIntent`.
 Off iOS, `authorization()` reports nothing supported and every other call answers `Error::Unsupported` after it has
 checked the request, so an invalid layout fails the same way on a Mac or Linux as on a phone.
 
+The Swift layer has settings for the whole process, set once, before its first use:
+
+```rust
+use activitykit::{ActivityKit, Receipts};
+
+let kit = ActivityKit::builder().receipts(Receipts::Redacted).build()?;
+```
+
+The first settings hold. A later `build` with other settings answers `Error::Conflict` and changes nothing; the same
+settings again are fine, and `ActivityKit::new()` uses the settings in force. A start, update, end or list before any
+`build` fixes the default settings, so build first. [After a relaunch](#after-a-relaunch) says what the receipts
+keep. Off iOS `build` succeeds.
+
+`kit.activity(id).await?` finds the handle of an activity by its id: the one alive in this process, without asking
+ActivityKit, when it knows its revision, else the one the list gives, or `None` when ActivityKit does not list it.
+
 ## Layouts
 
 A layout is a tree per region and a table of styles. The tree is fixed when the activity starts; values change it.
@@ -106,7 +122,9 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
   the start answers `Error::NotForeground`. Starts made right after the app leaves the foreground may still succeed:
   ActivityKit treats the app as visible for a short while after that. Each `start` is a new activity.
   `Start::key("rec")` gives it a key: while that activity runs, the same start returns it and a different one is
-  `Error::Conflict`.
+  `Error::Conflict`, within one launch and after a relaunch. The same start means the same layout, styles, values,
+  stale date and revision; its timestamp and relevance do not count. `Start::revision` and `Start::timestamp` set the
+  first content's revision (0 unless set) and timestamp (the time of the start unless set).
 - Each update sends every value again; the handle adds the revision and a timestamp: the time it sends the content,
   unless `Update::timestamp` gives one. ActivityKit uses it on iOS 17.2 to drop older content: an update with a
   timestamp older than the shown content's still succeeds, and the handle and the list report its values, but the
@@ -119,6 +137,11 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
   one at a time as well, so an end would wait there for a hung ActivityKit call anyway, and a write that overtook one
   still in flight could end the activity with older values. A write that fails keeps its revision taken, so the next
   one skips it; no revision is sent twice.
+- `Update::revision(n)` and `End::revision(n)` send the revision you choose instead of the next one, and are not
+  retried. The Swift layer takes a higher revision than the accepted one, answers the accepted one with the same
+  values and stale date (whatever the timestamp) as done, and refuses a lower one with `Error::StaleRevision` and the
+  accepted one with other content with `Error::Conflict`. Later writes without a revision continue above the highest
+  revision sent.
 - After an update with a timestamp older than the shown content's, which ActivityKit drops, the handle holds the
   dropped values, and an end without values ends with them under the time of the end, so ActivityKit shows them. Give
   that end its values.
@@ -132,8 +155,8 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
   four hours after the end, whichever comes first; a time in the past removes it at once. Times run to
   8 640 000 000 000 000 ms after 1970; a later one, like one before 1970, is `Error::InvalidInput`. Ending again is
   fine.
-- `activity.state()`, `values()`, `revision()`, `stale_at()`, `relevance()` and `degraded_features()` give what the
-  last reply or event said.
+- `activity.state()`, `values()`, `revision()`, `timestamp()`, `stale_at()`, `relevance()` and `degraded_features()`
+  give what the last reply or event said.
 
 The system ends an activity after 8 hours and removes it from the Lock Screen after 12 hours. Dropping a handle,
 every handle and the kit, or ending the process never ends the activity; dropping a future does not cancel its
@@ -148,10 +171,14 @@ for activity in kit.activities().await? {
 ```
 
 The Swift layer keeps receipts of accepted requests in Application Support (`activitykit/receipts-v2.json`), because
-ActivityKit can report an update late. A receipt holds the activity's key and its last accepted values in plain text,
-in a file only the app's user can read, which iOS protects until the device is first unlocked after a restart; values
-that must not rest on the device in plain text do not belong in an activity. Changes while the app was not running are
-not replayed as events; the list gives the current state.
+ActivityKit can report an update late. By default a receipt holds the activity's key and its last accepted values in
+plain text, in a file only the app's user can read, which iOS protects until the device is first unlocked after a
+restart. With `Receipts::Redacted` it holds the key, the state, the accepted revision and a SHA-256 digest of the
+content instead of the values; a digest of guessable values, such as a flag or a short word, can be guessed. After a
+relaunch the list then gives what ActivityKit shows: its values and its revision, which is older than the accepted
+one only while ActivityKit lags behind an update. An ended activity that ActivityKit no longer lists is not listed in
+either mode, and ending it again answers its record without values. Changes while the app was not running are not
+replayed as events; the list gives the current state.
 
 ## Events
 
@@ -162,7 +189,9 @@ let events = kit.events();               // async_channel::Receiver<Event>, also
 while let Ok(event) = events.recv().await {
     match event {
         Event::Started { activity, .. } => { /* an activity began, the app's or the system's */ }
-        Event::Action { activity, action, .. } => { /* a tap on button(action, ..) */ }
+        Event::Action { activity, action, acknowledgement, .. } => {
+            /* a tap on button(action, ..): keep the event, or `acknowledgement`, while you act on it */
+        }
         Event::State { activity, state, .. } => { /* Pending, Active, Stale, Ended, Dismissed, Unknown */ }
         Event::Authorization(authorization) => { /* turned on or off in Settings */ }
         _ => {}
@@ -179,7 +208,10 @@ them. Read with `recv().await` in an async runtime, `try_recv()` once per frame 
 
 A tap runs the button's App Intent in the app process, also when the app was not running: the system launches it in
 the background. The intent posts the tap for at most 5 seconds, and the tap waits for at most 4 of them until every
-receiver has taken it, which keeps such an app running meanwhile. A tap for an activity that ActivityKit no longer
+receiver has handled it, which keeps such an app running meanwhile: until the receiver's event, and every clone of
+it, is dropped, or `acknowledgement.acknowledge()` is called. An app that hands a tap to another thread, for example
+to start recording, keeps the event or its acknowledgement until that thread is done; an app that drops the event as
+soon as it reads it lets the intent return at once. A tap for an activity that ActivityKit no longer
 lists comes with a handle whose `key()` is empty and whose update answers `Error::NotFound`. A tap does not change the
 activity; update it if the button should change.
 

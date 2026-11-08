@@ -14,6 +14,15 @@ The first version: iOS Live Activities from Rust. Split out of tauri-plugin-live
   timeout, so an end without values ends with the values of the updates before it; the handle takes a reply that
   nobody awaits. Timestamps are taken when the content is sent. An update or end without a relevance keeps the score;
   a retry after `STALE_REVISION` happens only for newer content.
+- `ActivityKit::builder().receipts(Receipts::Redacted).build()`: settings of the Swift layer for the whole process,
+  through a new C function, `ak_configure`; the first settings hold and others are `Error::Conflict`. Redacted
+  receipts keep a digest instead of the values.
+- `ActivityKit::activity(id)` finds a handle by its id; `Start::revision`, `Start::timestamp`, `Update::revision`,
+  `End::revision` and `Activity::timestamp`.
+- `Event::Action` carries an `Acknowledgement`: a tap's intent waits until every receiver has dropped its event or
+  acknowledged it, so an app launched for the tap keeps running while it acts on it.
+- A repeated keyed start, and the same revision sent again, count content without its timestamp: the same keyed start
+  returns the running activity instead of `Error::Conflict`.
 - `Error` with one variant per contract code, `NotForeground` for a start ActivityKit refuses outside the foreground,
   `UnsupportedFeature { feature, minimum_ios }` and `SystemLimit { scope }`.
 - The layout DSL of request contract v2 with builders: nodes, styles, bound style members, `fontFamily`, drawn images

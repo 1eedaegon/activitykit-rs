@@ -28,6 +28,10 @@ protocol LifecycleActivity: Sendable {
     static func content(_ snapshot: Snapshot) -> StoredReceipt.Content
     static func snapshot(in content: StoredReceipt.Content) -> Snapshot?
     static func revision(of snapshot: Snapshot) -> Int64
+    /// Whether two snapshots hold the same content: when they were made does not count.
+    static func sameContent(_ one: Snapshot, _ other: Snapshot) -> Bool
+    /// The digest a redacted receipt keeps of a snapshot's content.
+    static func digest(of snapshot: Snapshot) throws -> String
     /// The record of an activity that only its receipt knows; a redacted receipt shows an empty snapshot.
     static func record(_ entry: StoredReceipt) -> Record
     var id: String { get }
@@ -139,10 +143,10 @@ final class ActivityLifecycle<Activity: LifecycleActivity> {
             if revision == floor {
                 let conflict = ActivityFailure("CONFLICT", "This revision already contains different state.")
                 if revision == current {
-                    guard snapshot == activity.snapshot else { throw conflict }
+                    guard Activity.sameContent(snapshot, activity.snapshot) else { throw conflict }
                     return activity.record
                 }
-                guard case .digest(let digest)? = receipt?.entry.content, digest == (try ReceiptDigest.of(snapshot)) else { throw conflict }
+                guard case .digest(let digest)? = receipt?.entry.content, digest == (try Activity.digest(of: snapshot)) else { throw conflict }
                 return activity.with(snapshot: snapshot, state: activity.state).record
             }
             try check(activity)
@@ -184,7 +188,7 @@ final class ActivityLifecycle<Activity: LifecycleActivity> {
                 guard revision >= floor else {
                     throw ActivityFailure("STALE_REVISION", "The revision is older than the current activity state.")
                 }
-                if revision == floor, revision != current || content.snapshot != activity.snapshot {
+                if revision == floor, revision != current || !Activity.sameContent(content.snapshot, activity.snapshot) {
                     throw ActivityFailure("CONFLICT", "This revision already contains different state.")
                 }
                 try content.check(activity)

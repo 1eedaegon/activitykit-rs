@@ -36,7 +36,7 @@ check_skip() {
 }
 
 # AK-BUILD-1, AK-BUILD-2, AK-BUILD-3, AK-BUILD-6: an iOS target builds the bridge for its platform, architecture and
-# deployment target (IPHONEOS_DEPLOYMENT_TARGET, raised to 15.0). AK-BRIDGE-8: the library exports the seven C functions.
+# deployment target (IPHONEOS_DEPLOYMENT_TARGET, raised to 15.0). AK-BRIDGE-8: the library exports the eight C functions.
 check_ios() {
   id=$1 target=$2 platform=$3 arch=$4 requested=$5 expected=$6
   if ! command -v xcrun >/dev/null 2>&1; then skip "$id $target: no Xcode"; return; fi
@@ -50,11 +50,11 @@ check_ios() {
   object=$(ls "$objects"/Bridge*.o | head -1)
   build=$(xcrun vtool -show-build "$object" | tr -s ' ' | tr '\n' ' ')
   archs=$(lipo -archs "$object")
-  symbols=$(nm "$library" 2>/dev/null | grep -cE ' T _ak_(start|update|end|list|authorization|image_folder|set_event_handler)$' || true)
+  symbols=$(nm "$library" 2>/dev/null | grep -cE ' T _ak_(start|update|end|list|authorization|image_folder|configure|set_event_handler)$' || true)
   rm -rf "$objects"
   case "$build" in *"platform $platform "*"minos $expected "*) ok_platform=1 ;; *) ok_platform=0 ;; esac
-  if [ "$ok_platform" = 1 ] && [ "$archs" = "$arch" ] && [ "$symbols" = 7 ]; then
-    pass "$id $target: $arch, $platform, iOS $expected (asked $requested), 7 C functions"
+  if [ "$ok_platform" = 1 ] && [ "$archs" = "$arch" ] && [ "$symbols" = 8 ]; then
+    pass "$id $target: $arch, $platform, iOS $expected (asked $requested), 8 C functions"
   else
     fail "$id $target: archs=$archs build=[$build] symbols=$symbols"
   fi

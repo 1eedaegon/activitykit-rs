@@ -28,6 +28,8 @@ pub(crate) trait Bridge: Send + Sync + 'static {
     fn authorization(&self) -> Vec<u8>;
     /// The envelope of the folder that images go to, at once.
     fn image_folder(&self) -> Vec<u8>;
+    /// Sets the settings of `request`, `{"receipts": …}`, and answers with the settings in force, at once.
+    fn configure(&self, request: Vec<u8>) -> Vec<u8>;
     /// Starts sending events to `events`. Called once per bridge.
     fn listen(&self, events: Events);
 }
@@ -74,6 +76,16 @@ impl Bridge for NoBridge {
 
     fn image_folder(&self) -> Vec<u8> {
         failure(&Error::Unsupported)
+    }
+
+    /// Nothing to set up: the settings are taken as they are, and every call stays unsupported.
+    fn configure(&self, request: Vec<u8>) -> Vec<u8> {
+        match serde_json::from_slice::<Value>(&request) {
+            Ok(settings) => serde_json::json!({"ok": true, "data": settings})
+                .to_string()
+                .into_bytes(),
+            Err(_) => failure(&Error::invalid()),
+        }
     }
 
     fn listen(&self, _events: Events) {}

@@ -10,6 +10,31 @@ func hostRun(_ report: @convention(c) (UnsafePointer<UInt8>?, Int) -> Void)
 @_silgen_name("ak_host_entered_background")
 func hostEnteredBackground()
 
+@_silgen_name("ak_host_tap_acknowledged")
+func hostTapAcknowledged()
+
+/// Watches the taps that a button's intent posts (`ActionPost`) and tells Rust when one's acknowledgement completes:
+/// the intent returns at its next check, at most 100 ms later.
+enum TapWatch {
+    private static let lock = NSLock()
+    private static var watched = Set<ObjectIdentifier>()
+    private static var observer: NSObjectProtocol?
+
+    static func start() {
+        observer = NotificationCenter.default.addObserver(forName: Notification.Name("activitykit.action"), object: nil, queue: nil) { note in
+            guard let acknowledgement = note.userInfo?["acknowledgement"] as? Progress else { return }
+            lock.lock()
+            let new = watched.insert(ObjectIdentifier(acknowledgement)).inserted
+            lock.unlock()
+            guard new else { return }
+            DispatchQueue.global().async {
+                while !acknowledgement.isFinished { usleep(5_000) }
+                hostTapAcknowledged()
+            }
+        }
+    }
+}
+
 final class Report: ObservableObject {
     static let shared = Report()
     @Published var lines: [String] = []
@@ -53,6 +78,7 @@ struct HostApp: App {
 
     /// An activity starts only in the foreground, which a launching app may not be yet.
     @MainActor private func runWhenActive() async {
+        TapWatch.start()
         for _ in 0..<50 where UIApplication.shared.applicationState != .active {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }

@@ -50,6 +50,7 @@ enum C {
     static let authorization = symbol("ak_authorization", Now.self)
     static let imageFolder = symbol("ak_image_folder", Now.self)
     static let register = symbol("ak_set_event_handler", Register.self)
+    static let configure = symbol("ak_configure", Request.self)
 }
 
 let logEvent: AKEventHandler = { bytes, count in
@@ -94,6 +95,9 @@ final class PresentingBackend: LayoutActivityBackend {
 /// The system of the host tests: supported, with a fake backend that each new controller gets fresh.
 final class FakeSystem: BridgeSystem, @unchecked Sendable {
     var reply = AuthorizationReply(supported: true, enabled: true, buttons: true)
+    /// Where the controller keeps its receipts, when a test wants a file, and the mode it was made with.
+    var receipts: URL?
+    @MainActor var mode: ReceiptMode?
     var folder: URL?
     var keys: [String: String] = [:]
     var observed: [EventSink] = []
@@ -104,10 +108,11 @@ final class FakeSystem: BridgeSystem, @unchecked Sendable {
         return folder
     }
     func activityKey(of id: String) -> String? { keys[id] }
-    @MainActor func makeController(presentations: Presentations, events: EventSink) throws -> LayoutActivityController {
+    @MainActor func makeController(presentations: Presentations, events: EventSink, receipts: ReceiptMode) throws -> LayoutActivityController {
         let created = PresentingBackend(presentations: presentations)
         backend = created
-        return LayoutActivityController(backend: created)
+        mode = receipts
+        return LayoutActivityController(backend: created, store: self.receipts.map { FileReceiptStore(url: $0, mode: receipts) })
     }
     func observe(_ events: EventSink) { observed.append(events) }
 }
@@ -171,6 +176,7 @@ extension LifecycleTests {
         let system = FakeSystem()
         Systems.install(system)
         Bridge.shared.reset()
+        Settings.shared.reset()
         return system
     }
 
@@ -183,6 +189,7 @@ extension LifecycleTests {
         try testBridgeAuthorizationAndImages()
         try await testBridgeUnsupported()
         try await testBridgeEvents()
+        try await testSettings()
         try await testBridgeFixtures()
         Systems.install(UnsupportedSystem())
         Bridge.shared.reset()
@@ -250,6 +257,15 @@ extension LifecycleTests {
         let first = data(await call(C.start, #"{"request":\#(request)}"#))["id"] as? String
         let again = data(await call(C.start, #"{"request":\#(request)}"#))["id"] as? String
         expect(first != nil && first == again && system.backend?.base.starts == 1, "the same keyed start returns the running activity")
+        // Rust sends the time of each start in the snapshot: a later repeat differs only there, and is the same start.
+        let stamped = { (at: Int) in
+            layoutJSON(key: "rec:keyed", lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0)
+                .replacingOccurrences(of: #""revision":0,"#, with: #""revision":0,"timestamp":\#(at),"#)
+        }
+        let timed = data(await call(C.start, #"{"request":\#(stamped(1_790_000_000_000))}"#))["id"] as? String
+        let later = data(await call(C.start, #"{"request":\#(stamped(1_790_000_000_001)),"relevance":80}"#))["id"] as? String
+        expect(timed == first && later == first && system.backend?.base.starts == 1,
+               "the same keyed start 1 ms later, with another relevance, returns the running activity")
         let other = layoutJSON(key: "rec:keyed", lockScreen: meterLayout, values: #"{"title":"Other","progress":0.2}"#, revision: 0)
         let conflict = await call(C.start, #"{"request":\#(other)}"#)
         expect(code(conflict) == "CONFLICT", "another start under a running key is CONFLICT")
@@ -335,7 +351,7 @@ extension LifecycleTests {
         let system = UnsupportedSystem()
         system.observe(EventSink.shared)
         expect(system.activityKey(of: "x") == nil, "an unsupported platform knows no activity")
-        do { _ = try system.makeController(presentations: Presentations(), events: .shared); expect(false, "no controller") }
+        do { _ = try system.makeController(presentations: Presentations(), events: .shared, receipts: .full); expect(false, "no controller") }
         catch let failure as ActivityFailure { expect(failure.code == "UNSUPPORTED_PLATFORM", "no controller without the platform") }
     }
 
