@@ -39,14 +39,12 @@ extension StartRequest {
 }
 
 extension EndPolicy {
-    public func validate(now: Date = Date()) throws {
+    /// Any time from 1970 on: the system removes the ended activity at it or four hours after the end, whichever comes
+    /// first, and a past time removes it at once.
+    public func validate() throws {
         if ["default", "immediate"].contains(kind), at == nil { return }
-        guard kind == "after", let at = at else {
+        guard kind == "after", let at = at, at >= 0 else {
             throw ActivityFailure("INVALID_INPUT", "Invalid dismissal policy.")
-        }
-        let delay = Double(at) / 1000 - now.timeIntervalSince1970
-        guard delay > 0, delay <= 4 * 60 * 60 else {
-            throw ActivityFailure("INVALID_INPUT", "Dismissal must be within the next four hours.")
         }
     }
 }

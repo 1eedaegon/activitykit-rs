@@ -92,11 +92,13 @@ fn many(count: usize, value: Json) -> Json {
     )
 }
 
+// AK-CONTRACT-10
 #[test]
 fn the_base_request_is_valid() {
     assert_eq!(verdict(start()), Ok(()));
 }
 
+// AK-CONTRACT-10
 #[test]
 fn rejects_each_request_and_value_rule() {
     let long = "a".repeat(33);
@@ -130,6 +132,7 @@ fn rejects_each_request_and_value_rule() {
     );
 }
 
+// AK-CONTRACT-10, AK-FONT-1
 #[test]
 fn rejects_each_style_and_color_rule() {
     each(
@@ -171,6 +174,7 @@ fn rejects_each_style_and_color_rule() {
     );
 }
 
+// AK-CUSTOM-1
 #[test]
 fn rejects_each_node_rule() {
     let texts = vec![json!({"type":"text","value":"a"}); 13];
@@ -235,6 +239,7 @@ fn rejects_each_node_rule() {
     assert_eq!(gauge(json!({"max":-1})), Err(Error::invalid()));
 }
 
+// AK-CONTRACT-9
 #[test]
 fn rejects_each_reference_rule() {
     each(
@@ -287,6 +292,7 @@ fn bound(member: &str, value: Json) -> Result<()> {
     verdict(set(input, "/snapshot/values/v", value))
 }
 
+// AK-CONTRACT-9
 #[test]
 fn a_bound_member_takes_what_its_literal_takes() {
     for (member, value) in [
@@ -326,6 +332,7 @@ fn a_bound_member_takes_what_its_literal_takes() {
     }
 }
 
+// AK-CONTRACT-9
 #[test]
 fn rejects_a_bound_member_whose_value_does_not_fit() {
     for (member, value) in [
@@ -380,6 +387,7 @@ fn rejects_a_bound_member_whose_value_does_not_fit() {
     );
 }
 
+// AK-CONTRACT-10
 #[test]
 fn accepts_the_limits_of_each_rule() {
     let long = "a".repeat(32);

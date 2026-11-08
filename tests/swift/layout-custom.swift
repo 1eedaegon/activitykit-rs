@@ -17,6 +17,7 @@ extension LifecycleTests {
         try testImageFolder()
     }
 
+    // AK-CUSTOM-2, AK-CUSTOM-3, AK-RENDER-11
     @MainActor private static func testCustomNodes() throws {
         let ring = try layoutDocument(#"{"type":"vstack","children":[{"type":"custom","name":"ring","props":{"level":{"bind":"bowl"},"width":3,"#
             + #""label":"Bowl","on":true}},{"type":"custom","name":"bare","if":"on"}]}"#)
@@ -50,6 +51,7 @@ extension LifecycleTests {
         expect(encoded?["degradedFeatures"] as? [String] == ["layout.custom.ring"], "the record encodes the report")
     }
 
+    // AK-FONT-1, AK-RENDER-5
     @MainActor private static func testFontFamilyAndFileImages() throws {
         let styled = try layoutDocument(#"{"type":"hstack","children":[{"type":"text","value":"a","style":"face"},"#
             + #"{"type":"image","source":{"file":"badge.png"},"resizable":true,"contentMode":"fill"}]}"#,
@@ -62,6 +64,7 @@ extension LifecycleTests {
         expect(LayoutImageSource.file("a.png").name == "a.png" && LayoutImageSource.asset("logo").name == "logo", "the name of each source")
     }
 
+    // AK-IMAGE-4, AK-IMAGE-5
     @MainActor private static func testImageFolder() throws {
         let root = URL(fileURLWithPath: "/container", isDirectory: true)
         expect(LayoutImageFolder.url(group: nil) { _ in root } == nil && LayoutImageFolder.url(group: "") { _ in root } == nil, "no group, no folder")

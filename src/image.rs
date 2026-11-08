@@ -123,6 +123,7 @@ pub(crate) mod tests {
             .map(|error| error.code().to_owned())
     }
 
+    // AK-IMAGE-1, AK-IMAGE-3
     #[test]
     fn takes_a_png_within_the_limits_under_a_file_name() {
         for name in ["badge.png", "b", "0_a-b.c", &"a".repeat(64)] {
@@ -134,6 +135,7 @@ pub(crate) mod tests {
         assert_eq!(code("large.png", &largest), None);
     }
 
+    // AK-IMAGE-1
     #[test]
     fn rejects_names_outside_the_file_rule() {
         for name in [
@@ -155,6 +157,7 @@ pub(crate) mod tests {
         }
     }
 
+    // AK-IMAGE-2
     #[test]
     fn rejects_what_is_not_a_whole_png() {
         let good = png(8, 8, 4);
@@ -175,6 +178,7 @@ pub(crate) mod tests {
         }
     }
 
+    // AK-IMAGE-3
     #[test]
     fn a_png_too_large_is_a_payload_error() {
         for bytes in [
@@ -194,6 +198,7 @@ pub(crate) mod tests {
         );
     }
 
+    // AK-IMAGE-4
     #[test]
     fn writes_the_png_and_replaces_an_earlier_one_whole() {
         let folder = std::env::temp_dir().join(format!("la-images-{}", std::process::id()));
@@ -215,6 +220,7 @@ pub(crate) mod tests {
         fs::remove_dir_all(&folder).unwrap();
     }
 
+    // AK-IMAGE-2
     #[test]
     fn the_input_is_strict() {
         let input: ImageInput =

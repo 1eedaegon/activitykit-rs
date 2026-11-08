@@ -1,6 +1,6 @@
 //! Events from the Swift layer, fanned out to every subscriber of [`ActivityKit::events`](crate::ActivityKit::events).
 
-use crate::{Activity, State};
+use crate::{Activity, Authorization, State};
 use async_channel::{Receiver, Sender};
 use std::{
     collections::VecDeque,
@@ -12,17 +12,34 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// What the system reports about the app's activities. More kinds may come, such as push tokens.
+/// What the system reports about the app's activities. More kinds, and more members of these, may come: match with
+/// `..`.
+///
+/// ```compile_fail
+/// // AK-EVENT-10: the variants leave room for members, so a pattern needs `..`.
+/// fn tapped(event: activitykit::Event) -> Option<String> {
+///     match event {
+///         activitykit::Event::Action { activity: _, action } => Some(action),
+///         _ => None,
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum Event {
+    /// An activity began while the app was running: one the app started, or one the system or a push started.
+    #[non_exhaustive]
+    Started { activity: Activity },
     /// A tap on a [`button`](crate::layout::button) of `activity`; `action` is the button's action id. The tap
     /// does not change the activity: update it if the button should change.
+    #[non_exhaustive]
     Action { activity: Activity, action: String },
-    /// ActivityKit reports a new lifecycle state of `activity`.
+    /// ActivityKit reports a new lifecycle state of `activity`. Changes while the app was not running are not
+    /// replayed; [`ActivityKit::activities`](crate::ActivityKit::activities) gives the current state.
+    #[non_exhaustive]
     State { activity: Activity, state: State },
-    /// Live Activities of this app were turned on or off in Settings.
-    Authorization { enabled: bool },
+    /// Live Activities of this app were turned on or off in Settings; this is the whole authorization after the change.
+    Authorization(Authorization),
 }
 
 /// Events kept while nobody subscribes.

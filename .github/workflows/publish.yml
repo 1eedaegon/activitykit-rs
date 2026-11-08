@@ -1,0 +1,86 @@
+name: Publish
+
+# Prepared for crates.io. A `v*` tag only validates: the tag matches the
+# crate's version, main's CI passed for the tag's exact commit, and the crate packages. Publishing needs a run by hand
+# with `publish` checked, the repository variable CRATES_IO_PUBLISH set to `true`, and `publish = false` gone from
+# Cargo.toml; until then it publishes nothing. The first publication is the owner's decision.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (for example v0.1.0)
+        required: true
+        type: string
+      publish:
+        description: Publish the validated version to crates.io
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate the release
+    if: github.repository == '1eedaegon/activitykit-rs'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.guard.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - run: rustup toolchain install 1.95.0 --profile minimal && rustup default 1.95.0
+      - name: The tag, the version, and main's CI for the exact commit
+        id: guard
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -eu
+          printf '%s' "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$' || { echo "not a vSEMVER tag: $TAG"; exit 1; }
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "activitykit") | .version')
+          [ "v$version" = "$TAG" ] || { echo "Cargo.toml has $version, the tag is $TAG"; exit 1; }
+          sha=$(git rev-parse "$TAG^{commit}")
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$sha" origin/main || { echo "$sha is not on main"; exit 1; }
+          runs=$(gh api "repos/$REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&branch=main&status=success&per_page=100" \
+            --jq '[.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch")] | length')
+          [ "$runs" -gt 0 ] || { echo "no successful CI run on main for $sha"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - run: cargo test --locked
+      # Builds the packaged crate from its .crate file, as crates.io would get it.
+      - run: cargo package --locked
+
+  crates-io:
+    name: Publish to crates.io
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && vars.CRATES_IO_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+      - run: rustup toolchain install 1.95.0 --profile minimal && rustup default 1.95.0
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+        id: auth
+      - run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

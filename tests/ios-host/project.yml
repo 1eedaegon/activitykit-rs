@@ -1,0 +1,86 @@
+# The iOS test host, generated with XcodeGen (run.sh does it). The app target is App/Host.swift linked against the
+# Rust static library of src/lib.rs, which holds activitykit and its Swift bridge, and against the ActivityKitIntent
+# product; the widget extension is templates/ios/Widget.swift linked against ActivityKitWidget, as in any app.
+name: ActivityKitHost
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+packages:
+  activitykit:
+    path: ../../swift
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+    # The simulator needs no signing.
+    CODE_SIGNING_ALLOWED: NO
+    # Where cargo built the Rust library (run.sh passes its target folder).
+    RUST_TARGET_DIR: $(SRCROOT)/target
+targets:
+  ActivityKitHost:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - target: ActivityKitHostWidget
+      # The button's intent, which the system runs in the app. Only this product: the rest of activitykit's Swift
+      # code is in the Rust library. The target compiles Swift (Host.swift), so Xcode extracts the intent's App
+      # Intents metadata and links the Swift runtime that the bridge needs.
+      - package: activitykit
+        product: ActivityKitIntent
+      - sdk: AppIntents.framework
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: ActivityKit Host
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        NSSupportsLiveActivities: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.activitykit.host
+        RUST_TARGET[sdk=iphoneos*]: aarch64-apple-ios
+        RUST_TARGET[sdk=iphonesimulator*][arch=x86_64]: x86_64-apple-ios
+        RUST_TARGET[sdk=iphonesimulator*][arch=arm64]: aarch64-apple-ios-sim
+        # The library by its path: with -l the linker would prefer a dylib of the same name.
+        OTHER_LDFLAGS: $(inherited) $(RUST_TARGET_DIR)/$(RUST_TARGET)/debug/libactivitykit_ios_host.a
+  ActivityKitHostWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../../templates/ios/Widget.swift
+    dependencies:
+      - package: activitykit
+        product: ActivityKitWidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.activitykit.host.widget
+        INFOPLIST_FILE: ../../templates/ios/Widget-Info.plist
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+  ActivityKitHostUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: ActivityKitHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.activitykit.host.uitests
+        TEST_TARGET_NAME: ActivityKitHost
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  ActivityKitHost:
+    build:
+      targets:
+        ActivityKitHost: all
+        ActivityKitHostUITests: [test]
+    test:
+      targets:
+        - ActivityKitHostUITests

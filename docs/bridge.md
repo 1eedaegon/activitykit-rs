@@ -30,14 +30,15 @@ void ak_set_event_handler(ak_event_handler handler);
 | --- | --- | --- |
 | `ak_start` | `{"request": <start_layout>, "relevance"?: number}` | the activity's record |
 | `ak_update` | `{"request": <update_layout>, "relevance"?: number, "alert"?: {"title", "body"}}` | the record |
-| `ak_end` | `{"request": <end_layout>}` | the record |
+| `ak_end` | `{"request": <end_layout>, "relevance"?: number}` | the record |
 | `ak_list` | none | a list of records |
 | `ak_authorization` | none | `{"supported", "enabled", "buttons"}` |
 | `ak_image_folder` | none | `{"path"}` |
 
 `request` is exactly a request of the [contract](request-contract.md); `relevance` and `alert` are what ActivityKit
-takes beside the content and are not part of it. A reply is `{"ok":true,"data":…}` or
-`{"ok":false,"error":{"code","message"}}` with a code of the contract. Before each of the four asynchronous calls the
+takes beside the content and are not part of it. Without a relevance an update or end keeps the activity's score. A
+reply is `{"ok":true,"data":…}` or `{"ok":false,"error":{"code","message"}}` with a code of the contract, plus
+`feature` and `minimumIos` for `UNSUPPORTED_FEATURE` and `scope` for `SYSTEM_LIMIT`. Before each of the four asynchronous calls the
 bridge checks that the device has Live Activities and answers `UNSUPPORTED_PLATFORM` otherwise.
 
 A record:
@@ -51,15 +52,20 @@ A record:
 ## Events
 
 `ak_set_event_handler` registers one handler (a later call replaces it; null drops events). The first registration
-starts the observation of every layout activity's state (`activityStateUpdates`, also for activities that appear
-later) and of the authorization (`activityEnablementUpdates`). Every registration gets the button taps that waited
+starts the observation of new layout activities (`activityUpdates`), of every layout activity's state
+(`activityStateUpdates`) and of the authorization (`activityEnablementUpdates`). Every registration gets the button taps that waited
 for a handler, at most 16.
 
 ```json
+{"type":"started","activityId":"la-ios-layout-…","activityKey":"rec"}
 {"type":"action","activityId":"la-ios-layout-…","actionId":"stop","activityKey":"rec"}
 {"type":"state","activityId":"la-ios-layout-…","activityKey":"rec","state":"dismissed"}
-{"type":"authorization","enabled":false}
+{"type":"authorization","authorization":{"supported":true,"enabled":false,"buttons":true}}
 ```
+
+`started` comes once for each activity that begins while events are observed: one the app started, or one the system
+or a push started (from `activityUpdates`). `authorization` carries the whole authorization after a change; the
+observer holds its `ActivityAuthorizationInfo` for as long as it watches.
 
 `activityKey` of an action is absent once ActivityKit no longer lists the activity. The handler runs on whichever
 thread reports the event. For a tap that is the action relay's queue, and the tap's intent waits until the handler
@@ -67,7 +73,7 @@ returns; Rust returns once every receiver has taken the event, or after 4 second
 
 ## What is Swift and what is Rust
 
-The Swift layer is the plugin's: the strict request decoding and validation, the lifecycle (idempotent start by key and
+The Swift layer does the strict request decoding and validation, the lifecycle (idempotent start by key and
 fingerprint, revisions, `STALE_REVISION` and `CONFLICT`, tombstones of ended activities), the receipts, the payload
 check against ActivityKit's 4 KB, the action relay, and the renderer. Rust validates every request with the same rules
 before it crosses (so errors come without a round trip, and off iOS too), keeps the revision per activity, and fans

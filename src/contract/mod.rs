@@ -47,6 +47,10 @@ pub struct LayoutSnapshot {
     /// When the system may show the activity as out of date, in epoch milliseconds.
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub stale_at: Option<u64>,
+    /// When the content was made, in epoch milliseconds. ActivityKit (iOS 17.2) drops content older than what it
+    /// shows, and a retry after `STALE_REVISION` compares it.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub timestamp: Option<u64>,
 }
 
 /// The wire member `layout`: one tree per region and the two tints. The layout is fixed when the activity starts;
@@ -120,7 +124,7 @@ pub struct LayoutUpdateInput {
 pub enum EndPolicy {
     Immediate {},
     Default {},
-    /// At this time in epoch milliseconds, within the next four hours.
+    /// At this time in epoch milliseconds, or four hours after the end, whichever comes first.
     After {
         at: u64,
     },
@@ -132,6 +136,9 @@ pub enum EndPolicy {
 pub struct EndInput {
     pub id: String,
     pub policy: EndPolicy,
+    /// The final content, checked like an update. Without it the activity ends showing its last accepted content.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub snapshot: Option<LayoutSnapshot>,
 }
 
 /// Which backend drew the activity: `activityKit` on iOS.
@@ -143,10 +150,13 @@ pub enum Backend {
     Unsupported,
 }
 
-/// The lifecycle of an activity as ActivityKit reports it.
+/// The lifecycle of an activity as ActivityKit reports it. More states may come.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum State {
+    /// Scheduled and not started yet (iOS 26).
+    Pending,
     Active,
     /// Past its stale date (iOS 16.2 and later).
     Stale,
@@ -154,6 +164,8 @@ pub enum State {
     Ended,
     /// Gone from the screen.
     Dismissed,
+    /// Not reported yet, or a state that this version does not know.
+    #[serde(other)]
     Unknown,
 }
 
@@ -188,4 +200,7 @@ pub struct LayoutActivityRecord {
     pub degraded_features: Vec<String>,
     pub promotion_requested: bool,
     pub promotion_state: PromotionState,
+    /// The content's relevance score, when the Swift layer knows it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relevance: Option<f64>,
 }

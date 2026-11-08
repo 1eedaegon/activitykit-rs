@@ -49,6 +49,7 @@ struct LifecycleTests {
     static func request(_ key: String = "job:1", _ state: ActivitySnapshot = snapshot()) -> StartRequest {
         StartRequest(activityKey: key, schemaVersion: 1, template: "progress", fallback: "none", snapshot: state)
     }
+    // AK-END-3, AK-LIST-3, AK-UPDATE-10
     @MainActor static func main() async throws {
         let backend = FakeBackend()
         let controller = LiveActivityController(backend: backend)
@@ -80,7 +81,7 @@ struct LifecycleTests {
         _ = try await b.value
         let afterConcurrent = try await controller.list()
         expect(afterConcurrent.first?.snapshot.revision == 4, "concurrent updates serialize across suspension")
-        await expectError("INVALID_INPUT") { _ = try await controller.end(EndRequest(id: first.id, policy: EndPolicy(kind: "after", at: 0))) }
+        await expectError("INVALID_INPUT") { _ = try await controller.end(EndRequest(id: first.id, policy: EndPolicy(kind: "after", at: -1))) }
         let ended = try await controller.end(EndRequest(id: first.id, policy: EndPolicy(kind: "immediate", at: nil)))
         expect(ended.state == "ended", "end result")
         let endedAgain = try await controller.end(EndRequest(id: first.id, policy: EndPolicy(kind: "immediate", at: nil)))
@@ -144,6 +145,7 @@ struct LifecycleTests {
         try testLayoutCustomizations()
         try await testLayoutLifecycle()
         try await testReceipts()
+        try await testActivityKitMapping()
         try await testBridge()
         print("Swift tests: \(assertions) assertions passed")
     }

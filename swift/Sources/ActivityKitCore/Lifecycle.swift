@@ -236,7 +236,14 @@ final class ActivityLifecycle<Activity: LifecycleActivity> {
         }
     }
 
-    func end(id: String, policy: EndPolicy) async throws -> Activity.Record {
+    /// New final content for an end: the snapshot, its check against the activity, and the payload check.
+    struct FinalContent {
+        let snapshot: Activity.Snapshot
+        let validate: (Activity) throws -> Void
+        let check: (Activity) throws -> Void
+    }
+
+    func end(id: String, policy: EndPolicy, content: FinalContent? = nil) async throws -> Activity.Record {
         try await queue.run {
             try self.load()
             if let known = self.receipts.first(where: { $0.id == id && isTerminal($0.state) }) {
@@ -250,6 +257,24 @@ final class ActivityLifecycle<Activity: LifecycleActivity> {
             }
             try policy.validate()
             let activity = try await self.active(id)
+            // Final content follows the rules of an update: the keys and types of the start, a revision not older than
+            // the accepted one, and at the accepted revision only the same content.
+            if let content {
+                try content.validate(activity)
+                let receipt = self.receipts.first { $0.id == id }
+                let current = Activity.revision(of: activity.snapshot), revision = Activity.revision(of: content.snapshot)
+                let floor = max(current, receipt?.entry.revision ?? current)
+                guard revision >= floor else {
+                    throw ActivityFailure("STALE_REVISION", "The revision is older than the current activity state.")
+                }
+                if revision == floor, revision != current || content.snapshot != activity.snapshot {
+                    throw ActivityFailure("CONFLICT", "This revision already contains different state.")
+                }
+                try content.check(activity)
+                let result = try await self.backend.end(activity.with(snapshot: content.snapshot, state: activity.state), policy)
+                try self.remember(result)
+                return result.record
+            }
             // A redacted receipt read after a restart knows the accepted revision only by its digest. While ActivityKit
             // still shows an older revision, ending with that snapshot would publish it again, so the activity ends
             // without new content and the tombstone keeps the accepted revision.

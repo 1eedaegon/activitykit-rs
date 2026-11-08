@@ -82,7 +82,8 @@ extension LayoutValue {
 
 extension LayoutSnapshot {
     fileprivate func validateShape() throws {
-        guard (0...LayoutRules.maxRevision).contains(revision), staleAt.map((0...LayoutRules.maxTimestamp).contains) ?? true else {
+        let times = 0...LayoutRules.maxTimestamp
+        guard (0...LayoutRules.maxRevision).contains(revision), staleAt.map(times.contains) ?? true, timestamp.map(times.contains) ?? true else {
             throw LayoutRules.snapshot
         }
         guard values.count <= 32, values.allSatisfy({ LayoutRules.isName($0.key) && $0.value.isValid }) else { throw LayoutRules.values }
@@ -124,9 +125,11 @@ extension LayoutUpdateRequest {
 }
 
 extension LayoutEndRequest {
-    /// The shape of the handle and the policy. The dismissal window is judged when the activity ends.
+    /// The shape of the handle, the policy and the final content alone; the content is checked against the activity
+    /// when it ends.
     public func validate() throws {
         guard LayoutRules.isHandle(id) else { throw LayoutRules.handle }
+        try snapshot?.validate()
         if ["immediate", "default"].contains(policy.kind), policy.at == nil { return }
         guard policy.kind == "after", let at = policy.at, (0...LayoutRules.maxTimestamp).contains(at) else { throw LayoutRules.policy }
     }

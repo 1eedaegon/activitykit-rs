@@ -1,4 +1,4 @@
-//! iOS Live Activities for any Rust app: Tauri, Dioxus, Bevy, Slint or your own.
+//! iOS Live Activities from Rust.
 //!
 //! ```no_run
 //! use activitykit::{ActivityKit, Bound, End, Event, Layout, Style, values};
@@ -39,7 +39,7 @@ mod value;
 #[doc(no_inline)]
 pub use async_channel;
 pub use contract::State;
-pub use error::{Error, Result};
+pub use error::{Error, LimitScope, Result};
 pub use events::Event;
 pub use image::{ImageInput, MAX_IMAGE_BYTES, MAX_IMAGE_HEIGHT, MAX_IMAGE_WIDTH, check_image};
 pub use kit::{Activity, ActivityKit, Alert, Authorization, End, Start, Update};

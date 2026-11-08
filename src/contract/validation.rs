@@ -41,10 +41,10 @@ pub(crate) fn require(valid: bool) -> Result<()> {
 impl Validate for EndInput {
     fn validate(&self) -> Result<()> {
         require(text(&self.id, 256))?;
-        match self.policy {
-            EndPolicy::After { at } => require(at <= MAX_TIMESTAMP),
-            _ => Ok(()),
+        if let EndPolicy::After { at } = self.policy {
+            require(at <= MAX_TIMESTAMP)?;
         }
+        self.snapshot.as_ref().map_or(Ok(()), Validate::validate)
     }
 }
 
@@ -231,6 +231,7 @@ impl LayoutSnapshot {
     fn shape(&self) -> Result<()> {
         require(self.revision <= MAX_REVISION && self.values.len() <= 32)?;
         require(self.stale_at.is_none_or(|at| at <= MAX_TIMESTAMP))?;
+        require(self.timestamp.is_none_or(|at| at <= MAX_TIMESTAMP))?;
         require(self.values.iter().all(|(key, value)| {
             name(key)
                 && match value {
@@ -278,9 +279,24 @@ impl LayoutStartInput {
     /// and the weight of the layout, the styles and the new values together. A start that breaks
     /// a rule of its own fails here as well.
     pub fn validate_update(&self, update: &LayoutUpdateInput) -> Result<()> {
-        self.validate()?;
         update.validate()?;
-        let (before, values) = (&self.snapshot.values, &update.snapshot.values);
+        self.validate_content(&update.snapshot)
+    }
+
+    /// Checks `end` against this start as [`validate_update`](Self::validate_update) checks an update: its final
+    /// content, when it has one, follows the rules of an update.
+    pub fn validate_end(&self, end: &EndInput) -> Result<()> {
+        end.validate()?;
+        match &end.snapshot {
+            Some(snapshot) => self.validate_content(snapshot),
+            None => self.validate(),
+        }
+    }
+
+    /// New content against this start: the same keys and value types, the layout's references, the whole weight.
+    fn validate_content(&self, snapshot: &LayoutSnapshot) -> Result<()> {
+        self.validate()?;
+        let (before, values) = (&self.snapshot.values, &snapshot.values);
         let kept = |(key, value): (&String, &Value)| {
             before
                 .get(key)

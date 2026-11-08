@@ -9,18 +9,23 @@ on:
 permissions:
   contents: read
 
+# Each commit on main gets a run of its own that nothing cancels: publish.yml needs a successful main run for the
+# exact commit of a release tag.
 concurrency:
   group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Which parts the push or pull request changed. The repository is private, so a macOS minute costs ten Linux
-  # minutes: the Rust job runs on Linux every time, the macOS job only when the Swift side or its build changed.
+  # Which parts the push or pull request changed. A change to docs alone ends here, and the run still succeeds.
+  # The repository is private and a macOS minute costs ten Linux minutes, so the macOS job runs only for the Swift
+  # side and what builds or tests it.
   changes:
     name: What changed
     runs-on: ubuntu-latest
     outputs:
+      rust: ${{ steps.areas.outputs.rust }}
       apple: ${{ steps.areas.outputs.apple }}
+      spec: ${{ steps.areas.outputs.spec }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,21 +37,40 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.sha }}
         run: |
-          if [ "$EVENT" = workflow_dispatch ]; then echo "apple=true" >> "$GITHUB_OUTPUT"; echo "every part: run by hand"; exit 0; fi
-          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then echo "apple=true" >> "$GITHUB_OUTPUT"; echo "every part: no base"; exit 0; fi
-          if ! files=$(git diff --name-only "$BASE" "$HEAD"); then echo "apple=true" >> "$GITHUB_OUTPUT"; echo "every part: git diff failed"; exit 0; fi
+          all() { for area in rust apple spec; do echo "$area=true" >> "$GITHUB_OUTPUT"; done; echo "every part: $1"; }
+          if [ "$EVENT" = workflow_dispatch ]; then all "run by hand"; exit 0; fi
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then all "no base to compare"; exit 0; fi
+          if ! files=$(git diff --name-only "$BASE" "$HEAD"); then all "git diff failed"; exit 0; fi
           printf '%s\n' "$files"
-          # The Swift package, the build script that compiles it, the Rust side of the C bridge, the templates, the
-          # Swift tests, the fixtures both languages read, the example's Xcode project and this workflow.
-          if grep -qE '^(swift/|build\.rs$|src/native\.rs$|src/bridge\.rs$|templates/ios/|tests/swift/|tests/fixtures/|contracts/|examples/dioxus/ios/|\.github/workflows/)' <<< "$files"; then
-            echo "apple=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "apple=false" >> "$GITHUB_OUTPUT"
-          fi
+          # The workflows and the fixtures that both languages read concern every part.
+          if grep -qE '^(\.github/workflows/|tests/fixtures/|contracts/)' <<< "$files"; then all "workflow or shared fixtures"; exit 0; fi
+          area() { grep -qE "$2" <<< "$files" && echo "$1=true" >> "$GITHUB_OUTPUT" || echo "$1=false" >> "$GITHUB_OUTPUT"; }
+          area rust '^(src/|tests/[^/]+\.rs$|tests/ios-host/(src/|Cargo\.)|build\.rs$|Cargo\.(toml|lock)$)'
+          # The Swift package, the build script that compiles it, the bridge's Rust side, the templates, the Swift
+          # tests and the iOS test host.
+          area apple '^(swift/|build\.rs$|src/native\.rs$|src/bridge\.rs$|templates/|tests/swift/|tests/ios-host/|tests/build/)'
+          # The specification and its tests, and the docs that tests/docs.rs reads: a light check on any of them.
+          area spec '^(src/|tests/|swift/|build\.rs$|docs/|tools/|README\.md$)'
           cat "$GITHUB_OUTPUT"
+
+  # Every requirement of docs/spec.md has a test and every test names a requirement; the docs state what they must.
+  spec:
+    name: Specification and docs
+    needs: changes
+    if: needs.changes.outputs.spec == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: sh tools/spec-coverage.sh
+      - run: rustup toolchain install 1.95.0 --profile minimal && rustup default 1.95.0
+      - run: cargo test --locked --test docs
 
   rust:
     name: Rust (Linux)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,37 +79,56 @@ jobs:
       - run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview --target aarch64-apple-ios
       - run: rustup default 1.95.0
       - run: cargo fmt --all -- --check
-      - run: cargo fmt --manifest-path examples/dioxus/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path tests/ios-host/Cargo.toml -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
-      # Type-checks the iOS side of the bridge (src/native.rs) without Xcode: build.rs skips the Swift build.
+      # The iOS side of the bridge (src/native.rs) and the test host's scenarios, type-checked without Xcode:
+      # build.rs skips the Swift build.
       - run: cargo clippy --locked --target aarch64-apple-ios --lib -- -D warnings
+        env:
+          ACTIVITYKIT_SKIP_SWIFT: "1"
+      - run: cargo clippy --locked --manifest-path tests/ios-host/Cargo.toml --target aarch64-apple-ios -- -D warnings
         env:
           ACTIVITYKIT_SKIP_SWIFT: "1"
       - run: cargo install cargo-llvm-cov --version 0.8.7 --locked
       - run: cargo llvm-cov --locked --summary-only --fail-under-lines 80
       - run: cargo test --locked --doc
+      # What build.rs does off Apple platforms, and for iOS under docs.rs and ACTIVITYKIT_SKIP_SWIFT.
+      - run: sh tests/build/run.sh
 
   apple:
-    name: Swift tests and iOS builds (macOS)
+    name: Swift, iOS builds and the simulator test (macOS)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The newest Xcode of the image: its App Intents tooling extracts the intent of a linked package product.
+      - name: Select Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
       - run: rustup toolchain install 1.95.0 --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim
       - run: rustup default 1.95.0
-      # The shared models, the lifecycle and the C bridge on the Mac, with every fixture; at least 80% coverage.
+      - run: brew install xcodegen
+      # The shared models, the lifecycle and the C bridge on the Mac, with every fixture; at least 80 % coverage.
       - run: bash tests/swift/run.sh
-      # build.rs compiles the bridge into the Rust library for the simulator and the device.
-      - run: cargo build --locked --target aarch64-apple-ios-sim
-      - run: cargo build --locked --target aarch64-apple-ios --release
-      # The products an app links in Xcode: the widget (with the renderer and the intent), the intent alone and the
-      # custom views.
-      - name: Build the package products for the simulator
-        working-directory: swift
-        run: |
-          for scheme in ActivityKitWidget ActivityKitIntent ActivityKitViews; do
-            xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/package" build
-          done
+      # build.rs for the device and the simulator: platform, architecture, deployment target, the seven C functions.
+      - run: sh tests/build/run.sh
+      # On a simulator that the script creates and deletes: start, a bound color turning red, Stop tapped on the Lock
+      # Screen and its event in Rust, an end with final values, every node type drawn, a start from the background,
+      # and activities() after a relaunch.
+      - name: End to end on the simulator
+        run: tests/ios-host/run.sh
+        env:
+          OUT: ${{ runner.temp }}/ios-host
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: ios-host
+          path: ${{ runner.temp }}/ios-host/
+          retention-days: 14
+          if-no-files-found: ignore

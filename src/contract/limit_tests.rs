@@ -36,6 +36,7 @@ fn island(region: &str, tree: Json) -> Result<(), Error> {
     verdict(set(start(), "/layout/island", island))
 }
 
+// AK-CONTRACT-8
 #[test]
 fn a_tree_is_at_most_8_levels_deep() {
     assert_eq!(lock(nested(7, text())), Ok(()));
@@ -49,6 +50,7 @@ fn a_tree_is_at_most_8_levels_deep() {
     );
 }
 
+// AK-CONTRACT-8
 #[test]
 fn each_region_has_its_node_and_button_limits() {
     let forty = vec![
@@ -95,6 +97,7 @@ fn each_region_has_its_node_and_button_limits() {
     }
 }
 
+// AK-START-6
 #[test]
 fn layout_styles_and_values_weigh_at_most_3584_together() {
     let fill = |weight: usize| {
@@ -121,6 +124,7 @@ fn layout_styles_and_values_weigh_at_most_3584_together() {
     assert_eq!(verdict(over), Err(Error::payload_too_large()));
 }
 
+// AK-CONTRACT-10
 #[test]
 fn an_update_checks_its_id_and_its_values_alone() {
     let update = |id: &str, values: Json| {
@@ -150,6 +154,7 @@ fn an_update_checks_its_id_and_its_values_alone() {
     );
 }
 
+// AK-CONTRACT-10
 #[test]
 fn typed_requests_meet_the_same_rules() {
     let typed = || serde_json::from_value::<LayoutStartInput>(start()).unwrap();
@@ -212,6 +217,7 @@ fn typed_requests_meet_the_same_rules() {
     assert_eq!(input.validate(), Err(Error::payload_too_large()));
 }
 
+// AK-CONTRACT-4, AK-UPDATE-6
 #[test]
 fn an_update_is_checked_against_its_start() {
     let typed = |input: Json| serde_json::from_value::<LayoutStartInput>(input).unwrap();

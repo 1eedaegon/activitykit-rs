@@ -78,6 +78,7 @@ extension LifecycleTests {
                          "a redacted file holds no snapshot text, yet a guessable snapshot is recovered from its digest")
     }
 
+    // AK-END-5
     /// After a restart a redacted receipt knows the accepted revision only by its digest. While ActivityKit still
     /// shows an older revision, end must not publish that one again, and the tombstone keeps the accepted revision.
     @MainActor private static func testRedactedEndAfterRestart() async throws {
@@ -129,6 +130,7 @@ extension LifecycleTests {
                "the redacted v1 tombstone keeps the accepted revision")
     }
 
+    // AK-LIST-3
     @MainActor private static func testFullLayoutReceipts() async throws {
         let folder = try receiptFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -357,6 +359,7 @@ extension LifecycleTests {
         await expectError("NATIVE_ERROR") { _ = try FileReceiptStore.store(in: brokenFolder, mode: .full).load() }
     }
 
+    // AK-LIST-3
     @MainActor private static func testReceiptFileRules() async throws {
         let folder = try receiptFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -416,7 +419,7 @@ extension LifecycleTests {
         struct Config: Decodable { let receipts: ReceiptMode? }
         try await verify(try JSONDecoder().decode(Config.self, from: Data(#"{"receipts":"redacted"}"#.utf8)).receipts == .redacted
             && (try JSONDecoder().decode(Config.self, from: Data(#"{"receipts":"full"}"#.utf8)).receipts) == .full
-            && (try JSONDecoder().decode(Config.self, from: Data("{}".utf8)).receipts) == nil, "the receipt mode decodes from the plugin configuration")
+            && (try JSONDecoder().decode(Config.self, from: Data("{}".utf8)).receipts) == nil, "the receipt mode decodes from a configuration")
         expect((try? JSONDecoder().decode(Config.self, from: Data(#"{"receipts":"hashed"}"#.utf8))) == nil, "an unknown receipt mode is rejected")
     }
 }

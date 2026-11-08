@@ -55,7 +55,7 @@ public struct LayoutUpdateRequest: Codable, Sendable {
     public var weight: Int { snapshot.values.wireWeight }
 }
 
-/// The input of `end_layout`: the v1 shape, read strictly.
+/// The input of `end_layout`: the handle, the dismissal policy and, optionally, the final content.
 public struct LayoutEndRequest: Codable, Sendable {
     private struct Policy: Decodable {
         let kind: String
@@ -68,12 +68,15 @@ public struct LayoutEndRequest: Codable, Sendable {
     }
     public let id: String
     public let policy: EndPolicy
-    public init(id: String, policy: EndPolicy) { self.id = id; self.policy = policy }
+    /// Checked like an update; without it the activity ends showing its last accepted content.
+    public let snapshot: LayoutSnapshot?
+    public init(id: String, policy: EndPolicy, snapshot: LayoutSnapshot? = nil) { self.id = id; self.policy = policy; self.snapshot = snapshot }
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         id = try object.need("id")
         let strict: Policy = try object.need("policy")
         policy = EndPolicy(kind: strict.kind, at: strict.at)
+        snapshot = try object.take("snapshot")
         try object.finish()
     }
 }

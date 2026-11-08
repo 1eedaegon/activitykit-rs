@@ -54,6 +54,7 @@ extension LifecycleTests {
         LayoutEndRequest(id: id, policy: EndPolicy(kind: kind, at: at))
     }
 
+    // AK-END-3, AK-END-4, AK-END-5, AK-START-5, AK-START-9, AK-UPDATE-3, AK-UPDATE-4, AK-UPDATE-10
     @MainActor static func testLayoutLifecycle() async throws {
         let backend = FakeLayoutBackend()
         let controller = LayoutActivityController(backend: backend)
@@ -131,7 +132,7 @@ extension LifecycleTests {
         try await verify(try await controller.update(layoutUpdate(timer.id, LayoutSnapshot(revision: 2, values: ["from": .number(1), "to": .number(2)]))).snapshot.revision == 2,
                "a stale layout activity remains updateable")
 
-        await expectError("INVALID_INPUT") { _ = try await controller.end(layoutEnd(first.id, "after", at: 0)) }
+        await expectError("INVALID_INPUT") { _ = try await controller.end(layoutEnd(first.id, "after", at: -1)) }
         await expectError("INVALID_INPUT") { _ = try await controller.end(layoutEnd(first.id, "immediate", at: 5)) }
         let ended = try await controller.end(layoutEnd(first.id))
         expect(ended.state == "ended" && ended.snapshot.revision == 4, "layout end returns the last accepted snapshot")
@@ -171,6 +172,7 @@ extension LifecycleTests {
         try await testNativeSizeCheck()
     }
 
+    // AK-UPDATE-5
     /// An update re-checks the values that bound style members name, against the stored styles.
     @MainActor private static func testBoundStyleUpdates() async throws {
         let backend = FakeLayoutBackend()
@@ -193,6 +195,7 @@ extension LifecycleTests {
         expect(backend.starts == 1, "a start with such a value never reaches the backend")
     }
 
+    // AK-START-6
     /// The weight is an estimate in front of the encoded 4096-byte check. Escapes take more bytes than they weigh, so a
     /// request within the weight can still be too large for ActivityKit.
     @MainActor private static func testNativeSizeCheck() async throws {
@@ -216,6 +219,7 @@ extension LifecycleTests {
                "the same weight without escapes fits the encoded limit")
     }
 
+    // AK-CONTRACT-5
     /// v1 and v2 share one receipt file and never see each other's activities.
     @MainActor private static func testContractIsolation() async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("receipts-v2.json")
@@ -246,6 +250,7 @@ extension LifecycleTests {
                "a v1 activity still projects to its record")
     }
 
+    // AK-START-9, AK-WIDGET-2
     @MainActor private static func testLayoutWidgetPreflight() throws {
         let plugIns = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("PlugIns")
         defer { try? FileManager.default.removeItem(at: plugIns.deletingLastPathComponent()) }

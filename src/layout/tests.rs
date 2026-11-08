@@ -6,6 +6,7 @@ fn wire(node: Node) -> Json {
     serde_json::to_value(node).unwrap()
 }
 
+// AK-LAYOUT-1
 #[test]
 fn the_sketch_layout_builds_its_wire_request() {
     let layout = Layout::new(vstack([
@@ -26,6 +27,7 @@ fn the_sketch_layout_builds_its_wire_request() {
     );
 }
 
+// AK-LAYOUT-1
 #[test]
 fn every_builder_writes_its_node() {
     let cases = [
@@ -67,6 +69,7 @@ fn every_builder_writes_its_node() {
     }
 }
 
+// AK-CUSTOM-1, AK-LAYOUT-2
 #[test]
 fn modifiers_set_the_members_of_their_nodes() {
     let cases = [
@@ -143,6 +146,7 @@ fn modifiers_set_the_members_of_their_nodes() {
     }
 }
 
+// AK-LAYOUT-2
 #[test]
 fn a_modifier_leaves_other_nodes_as_they_are() {
     let plain = text("a");
@@ -170,6 +174,7 @@ fn a_modifier_leaves_other_nodes_as_they_are() {
     );
 }
 
+// AK-LAYOUT-3
 #[test]
 fn style_builders_write_every_member() {
     let style = Style::new()
@@ -216,6 +221,7 @@ fn style_builders_write_every_member() {
     assert_eq!(Color::from("#00FF00"), Color::Hex("#00FF00".into()));
 }
 
+// AK-LAYOUT-4
 #[test]
 fn layout_and_island_builders_fill_every_region() {
     let layout = Layout::new(text("a"))

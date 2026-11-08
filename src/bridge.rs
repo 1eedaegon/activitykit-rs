@@ -2,7 +2,7 @@
 //! comes back as the reply envelope `{"ok":true,"data":…}` or `{"ok":false,"error":{"code","message"}}`. The Swift
 //! bridge implements it on iOS ([`crate::native`]), [`NoBridge`] everywhere else, and a fake in the tests.
 
-use crate::{Error, Result};
+use crate::{Error, Result, error::WireError};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -37,14 +37,7 @@ pub(crate) trait Bridge: Send + Sync + 'static {
 struct Envelope {
     ok: bool,
     data: Option<Value>,
-    error: Option<Failure>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Failure {
-    code: String,
-    message: String,
+    error: Option<WireError>,
 }
 
 /// The data of a successful reply, or its error. A reply that does not fit the envelope is a native error.
@@ -52,7 +45,7 @@ pub(crate) fn decode<T: DeserializeOwned>(reply: &[u8]) -> Result<T> {
     let envelope: Envelope = serde_json::from_slice(reply).map_err(|_| Error::native())?;
     match (envelope.ok, envelope.data, envelope.error) {
         (true, Some(data), None) => serde_json::from_value(data).map_err(|_| Error::native()),
-        (false, None, Some(failure)) => Err(Error::from_code(&failure.code, failure.message)),
+        (false, None, Some(failure)) => Err(Error::from_wire(failure)),
         _ => Err(Error::native()),
     }
 }
@@ -95,6 +88,7 @@ mod tests {
         value.to_string().into_bytes()
     }
 
+    // AK-BRIDGE-4, AK-ERROR-1
     #[test]
     fn unwraps_success_and_keeps_the_swift_error_codes() {
         assert_eq!(
@@ -117,6 +111,7 @@ mod tests {
         );
     }
 
+    // AK-BRIDGE-4, AK-ERROR-2
     #[test]
     fn malformed_replies_fail_closed() {
         for value in [
@@ -136,6 +131,7 @@ mod tests {
         assert_eq!(decode::<u64>(b"not json"), Err(Error::native()));
     }
 
+    // AK-KIT-2
     #[cfg(not(target_os = "ios"))]
     #[test]
     fn no_bridge_answers_unsupported() {

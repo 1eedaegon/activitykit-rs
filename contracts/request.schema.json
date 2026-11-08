@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:tauri-plugin-live-activity:request:v1",
+  "$id": "urn:activitykit:request:v2",
   "title": "Live activity request contracts v1 and v2 (layout)",
   "type": "object",
   "additionalProperties": false,
@@ -15,7 +15,7 @@
     { "properties": { "command": { "const": "end" }, "input": { "$ref": "#/$defs/end" } } },
     { "properties": { "command": { "const": "start_layout" }, "input": { "$ref": "#/$defs/startLayout" } } },
     { "properties": { "command": { "const": "update_layout" }, "input": { "$ref": "#/$defs/updateLayout" } } },
-    { "properties": { "command": { "const": "end_layout" }, "input": { "$ref": "#/$defs/end" } } }
+    { "properties": { "command": { "const": "end_layout" }, "input": { "$ref": "#/$defs/endLayout" } } }
   ],
   "$defs": {
     "timestamp": { "type": "integer", "minimum": 0, "maximum": 8640000000000000 },
@@ -92,6 +92,16 @@
         }
       }
     },
+    "endLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "policy"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "policy": { "$ref": "#/$defs/end/properties/policy" },
+        "snapshot": { "$ref": "#/$defs/layoutSnapshot" }
+      }
+    },
     "startLayout": {
       "type": "object",
       "additionalProperties": false,
@@ -136,7 +146,8 @@
             ]
           }
         },
-        "staleAt": { "$ref": "#/$defs/timestamp" }
+        "staleAt": { "$ref": "#/$defs/timestamp" },
+        "timestamp": { "$ref": "#/$defs/timestamp" }
       }
     },
     "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$" },

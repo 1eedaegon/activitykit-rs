@@ -1,11 +1,12 @@
 # Request contract v2
 
-This is the contract between the Rust API and the Swift layer, from tauri-plugin-live-activity 0.3.0 and unchanged:
-the same requests, rules, error codes and weights. This repository holds its machine-readable parts:
-`contracts/request.schema.json` (the shapes; it also holds the plugin's contract v1, which this crate does not use)
+This is the contract between the Rust API and the Swift layer: the requests, their rules, the error codes and the
+payload weights. This repository holds its machine-readable parts: `contracts/request.schema.json` (the shapes; it
+also holds an earlier contract v1, which this crate does not use)
 and `tests/fixtures/layout-requests.json`, which lists requests with the result every validator must give. A `valid`
-start or update states its weight and an `invalid` case its error code; the list `updates` holds a `start` and the
-`update` after it, checked the way the Swift layer checks an update against the activity it started. The Rust tests
+start, update or end with final content states its weight and an `invalid` case its error code; the lists `updates`
+and `ends` hold a `start` and the `update` or `end` after it, checked the way the Swift layer checks new content
+against the activity it started. The Rust tests
 (`tests/contract.rs`) and the Swift tests (`tests/swift/run.sh`, through the validators and through the C bridge) give
 every case its result. Cases whose command is not one of the three below (`start`, `update`, `startLayout`,
 `list_layout`) are `INVALID_INPUT`.
@@ -31,39 +32,43 @@ Unknown members, `null` and numbers in strings are rejected. Input is never corr
 | fallback | `none` or `notification`; required on start. iOS ignores it; the crate sends `none` |
 | revision | An integer in 0..9007199254740991, not a string |
 | Times | Integer UTC Unix epoch milliseconds in 0..8640000000000000; no local time strings, no seconds |
-| staleAt | An optional time. A past value is allowed: the activity may already be stale |
+| staleAt | An optional time. A past value is allowed: the activity may already be stale. Each snapshot has its own; one without it clears the date |
+| timestamp | An optional time: when the snapshot's content was made. ActivityKit (iOS 17.2) drops content older than what it shows |
 
-An end takes `id` and `policy`: `{ "kind": "immediate" }`, `{ "kind": "default" }` or `{ "kind": "after", "at": ... }`.
-Which `after` dates iOS accepts (within the next four hours) is checked natively.
+An end takes `id`, `policy` and, optionally, `snapshot`: the final content, checked like an update. Without it the
+activity ends showing its last accepted content. The policy is `{ "kind": "immediate" }`, `{ "kind": "default" }` or
+`{ "kind": "after", "at": ... }`, with any time: the system removes the ended activity at that time or four hours after
+the end, whichever comes first, and a past time removes it at once.
 
 An active start with the same key refers to the same activity, and a repeat with different content is `CONFLICT`. A
 new start after the activity ended gets a new handle; an update with the old handle does not reach the new activity.
-An end succeeds again only for a known ended activity; an unknown handle gets `NOT_FOUND`. An update with an older
-revision than the accepted one is `STALE_REVISION`; the same revision with other values is `CONFLICT`.
+An end succeeds again only for a known ended activity; an unknown handle gets `NOT_FOUND`. An update, or the final
+content of an end, with an older revision than the accepted one is `STALE_REVISION`; the same revision with other
+values is `CONFLICT`.
 
 ## Requests
 
 ```jsonc
 // start_layout
 {
-  "activityKey": "fremen:session",           // same rule as v1
+  "activityKey": "demo:session",             // same rule as v1
   "schemaVersion": 2,                         // exactly 2
   "fallback": "none",                         // "none" or "notification"; required, as in v1
   "layout": { "lockScreen": { "type": "text", "bind": "title", "style": "title" } },   // required
   "styles": { "title": { "font": "headline" } },                                       // optional; 1 to 24 styles
-  "snapshot": { "revision": 0, "values": { "title": "Focus" }, "staleAt": 1790000000000 },
+  "snapshot": { "revision": 0, "values": { "title": "Focus" }, "staleAt": 1790000000000, "timestamp": 1789999400000 },
   "android": { "visibility": "private" }      // optional; "public", "private" or "secret"
 }
 
 // update_layout
-{ "id": "<handle>", "snapshot": { "revision": 1, "values": { "title": "Break" } } }
+{ "id": "<handle>", "snapshot": { "revision": 1, "values": { "title": "Break" }, "timestamp": 1789999700000 } }
 
-// end_layout: the same shape as the v1 end
-{ "id": "<handle>", "policy": { "kind": "immediate" } }
+// end_layout; "snapshot" is optional
+{ "id": "<handle>", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": { "title": "Done" } } }
 ```
 
-`activityKey`, `id`, `revision`, `staleAt`, `fallback` and `policy` follow the common rules above. `staleAt`
-is optional in both snapshots. `android`, when present, must carry `visibility`; iOS ignores it.
+`activityKey`, `id`, `revision`, `staleAt`, `timestamp`, `fallback` and `policy` follow the common rules above.
+`staleAt` and `timestamp` are optional in every snapshot. `android`, when present, must carry `visibility`; iOS ignores it.
 
 An `id` is 1 to 256 code points and holds at least one character that is not whitespace.
 Whitespace here is the ECMAScript set: U+0009 to U+000D, U+0020, U+00A0, U+1680, U+2000 to
@@ -97,12 +102,22 @@ the Rust and Swift tests would fail to read the whole file.
 Start, update and end return this record, and the list returns a list of them:
 
 ```jsonc
-{ "id", "activityKey", "schemaVersion": 2, "snapshot": { "revision", "values", "staleAt"? },
+{ "id", "activityKey", "schemaVersion": 2, "snapshot": { "revision", "values", "staleAt"?, "timestamp"? },
   "backend", "state", "visibility": "unknown", "degradedFeatures": [...],
-  "promotionRequested", "promotionState" }
+  "promotionRequested", "promotionState", "relevance"? }
 ```
 
-The record has no `template` and does not repeat the layout.
+The record has no `template` and does not repeat the layout. `state` is `pending` (iOS 26), `active`, `stale`,
+`ended`, `dismissed` or `unknown`; a reader takes a state it does not know as `unknown`. `relevance` is the content's
+relevance score, absent when only a receipt knows the activity.
+
+## Errors
+
+A failed request answers `{ "code", "message" }`; the message is constant text. The codes are `INVALID_INPUT`,
+`PAYLOAD_TOO_LARGE`, `NOT_FOUND`, `CONFLICT`, `STALE_REVISION`, `PERMISSION_DENIED`, `NOT_FOREGROUND` (ActivityKit
+refused a start outside the foreground), `CONFIGURATION_REQUIRED`, `UNSUPPORTED_PLATFORM`, `UNSUPPORTED_FEATURE`,
+`SYSTEM_LIMIT` and `NATIVE_ERROR`. `UNSUPPORTED_FEATURE` also carries `feature` and `minimumIos` (such as `"18.0"`),
+and `SYSTEM_LIMIT` carries `scope`, `app` or `device`.
 
 ## Values
 
@@ -224,10 +239,10 @@ These rules need the layout, the styles and the values together, so they are che
 A style that no node uses and a value that no node reads are allowed. The number that a
 `progress` or a `gauge` reads is not range-checked; a progress bar shows it clamped to 0..1.
 
-On update the Swift layer checks the rules that depend on values again, ranges and bound members
-included, against the layout and styles it stored at start. Rust checks an update alone, since it keeps
-no layout; `LayoutStartInput::validate_update` applies the Swift layer's check to a start and an update
-that the caller passes, and runs the `updates` fixtures.
+On update, and for the final content of an end, the Swift layer checks the rules that depend on values again, ranges
+and bound members included, against the layout and styles it stored at start. Rust checks an update or an end alone,
+since it keeps no layout; `LayoutStartInput::validate_update` and `validate_end` apply the Swift layer's check to a
+start and the request after it, and run the `updates` and `ends` fixtures.
 
 ## Styles
 

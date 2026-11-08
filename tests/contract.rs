@@ -3,7 +3,7 @@
 //! weight.
 
 use activitykit::contract::{
-    LayoutStartInput, LayoutUpdateInput, Validate, validate_request, weight,
+    EndInput, LayoutStartInput, LayoutUpdateInput, Validate, validate_request, weight,
 };
 use serde_json::{Value, json};
 
@@ -24,6 +24,7 @@ fn layout_weight(input: &Value) -> usize {
         + part("/layout").map_or(0, |layout| layout + part("/styles").unwrap_or(2))
 }
 
+// AK-CONTRACT-1, AK-CONTRACT-12, AK-START-5
 #[test]
 fn every_fixture_gets_its_verdict_code_and_weight() {
     let (valid, invalid) = (cases("valid"), cases("invalid"));
@@ -41,7 +42,10 @@ fn every_fixture_gets_its_verdict_code_and_weight() {
             "{name}"
         );
         match command {
-            "end_layout" => assert!(case.get("weight").is_none(), "{name}"),
+            // An end states the weight of its final values when it has them.
+            "end_layout" if case["input"].get("snapshot").is_none() => {
+                assert!(case.get("weight").is_none(), "{name}")
+            }
             _ => assert_eq!(
                 case["weight"],
                 json!(layout_weight(&case["input"])),
@@ -56,6 +60,7 @@ fn every_fixture_gets_its_verdict_code_and_weight() {
     }
 }
 
+// AK-CONTRACT-4, AK-UPDATE-6
 /// Each pair is a start and the update after it, which the Swift layer checks against the stored layout and styles.
 #[test]
 fn every_update_fixture_is_checked_against_its_start() {
@@ -86,6 +91,7 @@ fn every_update_fixture_is_checked_against_its_start() {
     }
 }
 
+// AK-CONTRACT-1
 #[test]
 fn valid_fixtures_keep_their_verdict_and_weight_through_the_typed_models() {
     for case in cases("valid") {
@@ -107,6 +113,7 @@ fn valid_fixtures_keep_their_verdict_and_weight_through_the_typed_models() {
     }
 }
 
+// AK-ERROR-2, AK-START-6
 #[test]
 fn the_weight_limit_is_a_payload_error_only_for_an_otherwise_valid_request() {
     let start = |values: Value| {
@@ -137,6 +144,7 @@ fn the_weight_limit_is_a_payload_error_only_for_an_otherwise_valid_request() {
     );
 }
 
+// AK-CONTRACT-5
 #[test]
 fn only_the_v2_commands_are_taken() {
     let v2 = json!({"activityKey":"job:1","schemaVersion":2,"fallback":"none",
@@ -161,6 +169,7 @@ fn only_the_v2_commands_are_taken() {
     }
 }
 
+// AK-CONTRACT-11
 /// A request read from JSON text keeps every number as the double that was written.
 #[test]
 fn numbers_keep_their_value_when_read_from_json_text() {
@@ -198,4 +207,36 @@ fn numbers_keep_their_value_when_read_from_json_text() {
             "{style} {values}"
         );
     }
+}
+
+// AK-CONTRACT-12, AK-END-6
+/// Each pair is a start and an end with final content, which the Swift layer checks as it checks an update.
+#[test]
+fn every_end_fixture_is_checked_against_its_start() {
+    let ends = cases("ends");
+    assert!(ends.len() >= 4);
+    for case in &ends {
+        let name = case["name"].as_str().unwrap();
+        let start: LayoutStartInput = serde_json::from_value(case["start"].clone()).unwrap();
+        let verdict = validate_request("end_layout", case["end"].clone()).and_then(|()| {
+            let end: EndInput = serde_json::from_value(case["end"].clone()).unwrap();
+            start.validate_end(&end)
+        });
+        match case.get("code") {
+            None => {
+                assert_eq!(code(verdict), None, "{name}");
+                let stored =
+                    layout_weight(&case["start"]) - weight(&case["start"]["snapshot"]["values"]);
+                let total = stored + weight(&case["end"]["snapshot"]["values"]);
+                assert_eq!(case["weight"], json!(total), "{name}");
+            }
+            Some(expected) => assert_eq!(code(verdict), expected.as_str(), "{name}"),
+        }
+    }
+    // An end without final content is checked against the start alone.
+    let start: LayoutStartInput = serde_json::from_value(ends[0]["start"].clone()).unwrap();
+    let plain: EndInput =
+        serde_json::from_value(json!({"id":"opaque-handle-1","policy":{"kind":"default"}}))
+            .unwrap();
+    assert_eq!(code(start.validate_end(&plain)), None);
 }

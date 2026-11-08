@@ -2,7 +2,7 @@ import Foundation
 
 extension LifecycleTests {
     static let sessionLayout = """
-    {"activityKey":"fremen:session","schemaVersion":2,"fallback":"notification","layout":{"lockScreen":{"type":"vstack","children":[
+    {"activityKey":"demo:session","schemaVersion":2,"fallback":"notification","layout":{"lockScreen":{"type":"vstack","children":[
     {"type":"hstack","children":[{"type":"symbol","name":"timer","rendering":"hierarchical","style":"accent"},
     {"type":"text","bind":"title","style":"title"},{"type":"spacer"},{"type":"timerText","start":"from","end":"to","style":"digits"}],
     "spacing":8,"alignment":"center"},{"type":"progress","bind":"progress","kind":"linear","style":"bar"},
@@ -141,7 +141,7 @@ extension LifecycleTests {
             rest: #","styles":{"s":{"size":12}}"#)).fingerprint()), "fingerprint covers the layout and styles")
 
         let attributes = try LiveActivityLayoutAttributes(request: session, instanceID: "la-ios-layout-1")
-        try await verify(attributes.activityKey == "fremen:session" && attributes.schemaVersion == 2 && attributes.fallback == "notification"
+        try await verify(attributes.activityKey == "demo:session" && attributes.schemaVersion == 2 && attributes.fallback == "notification"
             && attributes.instanceID == "la-ios-layout-1" && attributes.initialFingerprint == (try session.fingerprint()), "attributes copy the request")
         let attributeData = try JSONEncoder().encode(attributes)
         let attributeJSON = try JSONSerialization.jsonObject(with: attributeData) as? [String: Any]

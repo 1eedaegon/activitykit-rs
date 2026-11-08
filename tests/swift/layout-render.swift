@@ -23,6 +23,7 @@ extension LifecycleTests {
         try testIslandDefaults()
     }
 
+    // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
     @MainActor private static func testRenderContent() throws {
         let conditions = try layoutDocument(#"{"type":"vstack","children":[{"type":"text","value":"a","if":"flag"},{"type":"text","value":"b","unless":"flag"},"#
             + #"{"type":"text","value":"c","if":"count"},{"type":"text","value":"d","unless":"note"}]}"#)
@@ -111,6 +112,7 @@ extension LifecycleTests {
             && buttons[0].style.buttonStyle == .bordered, "a button carries its action and label; one without a label renders nothing")
     }
 
+    // AK-CONTRACT-7, AK-RENDER-6
     @MainActor private static func testRenderPaths() throws {
         func curve(_ a: Double, _ b: Double, _ c: Double, _ d: Double, _ x: Double, _ y: Double) -> LayoutPathCommand {
             .curve(control1X: a, control1Y: b, control2X: c, control2Y: d, x: x, y: y)
@@ -157,6 +159,7 @@ extension LifecycleTests {
             .path(commands: [.move(x: 0, y: 0), .line(x: 8, y: 8)], width: 24, height: 24, stroke: 1.5)], "path box and stroke; invalid data renders nothing")
     }
 
+    // AK-RENDER-13, AK-RENDER-15
     @MainActor private static func testRenderStyles() throws {
         let styles = ##"{"named":{"font":"headline","weight":"semibold","design":"rounded","monospacedDigit":true,"color":"secondary","lineLimit":2,"##
             + ##""minimumScaleFactor":0.5,"alignment":"trailing","padding":8,"frame":{"maxWidth":"infinity"},"background":"#FF8000","cornerRadius":12,"##
@@ -206,6 +209,7 @@ extension LifecycleTests {
         expect(untinted.background == nil && untinted.keyline == nil, "absent tints stay absent")
     }
 
+    // AK-RENDER-13, AK-RENDER-15, AK-UPDATE-5
     @MainActor private static func testRenderBoundStyles() throws {
         let styles = ##"{"live":{"size":{"bind":"points"},"weight":{"bind":"weight"},"color":{"bind":"tone"},"background":{"bind":"fill"},"##
             + ##""cornerRadius":{"bind":"radius"},"opacity":{"bind":"alpha"},"tint":{"bind":"accent"}}}"##
@@ -238,6 +242,7 @@ extension LifecycleTests {
         expect(literal.style("s", values: values) == literal.style("s") && literal.style("s").opacity == 0.25, "literal members do not depend on the values")
     }
 
+    // AK-RENDER-14
     @MainActor private static func testIslandDefaults() throws {
         func symbolName(_ node: LayoutRenderNode?) -> String? {
             if case let .symbol(name, _, _)? = node?.content { return name } else { return nil }

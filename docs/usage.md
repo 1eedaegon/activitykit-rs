@@ -9,7 +9,8 @@ use activitykit::ActivityKit;
 
 let kit = ActivityKit::new();
 let authorization = kit.authorization();
-// supported: the device has Live Activities. enabled: and they are on for this app. buttons: iOS 17 or later.
+// supported: the device has Live Activities (iPhone with iOS 16.2, iPad with iPadOS 17).
+// enabled: and they are on for this app. buttons: iOS 17 or later.
 ```
 
 Off iOS, `authorization()` reports nothing supported and every other call answers `Error::Unsupported` after it has
@@ -53,16 +54,12 @@ Without an `Island`, the expanded island shows the Lock Screen tree, the compact
 first symbol, and the compact trailing part nothing. `Layout::background` and `Layout::keyline` tint the Lock Screen
 presentation and the island's keyline.
 
-### Styles and bound members
-
 `Style::new()` has a builder for each member: `font`, `size`, `weight`, `design`, `font_family`, `monospaced_digit`,
 `color`, `line_limit`, `minimum_scale_factor`, `alignment`, `padding`, `frame`, `background`, `corner_radius`,
 `opacity`, `tint`, `button_style`. Seven of them, and the layout's `background` and `keyline`, take
 `Bound::key("value")` instead of a literal, so an update changes them: `color`, `background`, `tint` (a color name
 or `#RRGGBB`/`#RRGGBBAA`), `size` (6 to 96), `opacity` (0 to 1), `corner_radius` (0 to 64) and `weight` (a weight
-name). A color takes a `ColorName`, a `Color`, or a string: `"red"` is a name, anything else a hex color.
-
-`font_family` names a font that the widget extension bundles and lists under `UIAppFonts` in its Info.plist.
+name). `font_family` names a font that the widget extension bundles and lists under `UIAppFonts`.
 
 The [request contract](request-contract.md) has every rule and limit: at most 40 nodes on the Lock Screen, 8 levels,
 4 buttons per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
@@ -85,59 +82,77 @@ and the same types as the start.
 use activitykit::{Alert, End, Start, Update, values};
 use std::time::{Duration, SystemTime};
 
-let activity = kit.start(layout, values! { "status" => "Recording", "tone" => "green", "level" => 0.2 }).await?;
+let activity = kit
+    .start_with(Start::new(layout, values! { "status" => "Recording", "tone" => "green", "level" => 0.2 }).relevance(50.0))
+    .await?;
 
 activity.update(values! { "status" => "Too loud", "tone" => "red", "level" => 0.8 }).await?;
 activity
     .update_with(
         Update::new(values! { "status" => "Too loud", "tone" => "red", "level" => 0.9 })
             .alert(Alert::new("Too loud", "The level is high"))
-            .stale_at(SystemTime::now() + Duration::from_secs(600))
-            .relevance(80.0),
+            .stale_at(SystemTime::now() + Duration::from_secs(600)),
     )
     .await?;
 
-activity.end(End::immediately()).await?;   // or End::default(), or End::after(time) within four hours
+activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" => "gray", "level" => 1.0 })).await?;
 ```
 
-- A start needs the app in the foreground. Each `start` is a new activity. `start_with(Start::new(..).key("rec"))`
-  gives it a key: while an activity with that key runs, the same start returns it and a different one is
-  `Error::Conflict`. `Start` also takes `stale_at` and `relevance`.
-- The handle adds the revision. Clones of a handle, and every handle that `activities()` or an event gives for the same
-  activity, share one count, so concurrent updates never reuse a revision. If the activity already shows a newer
-  revision (one that a handle of an earlier launch sent), the update reads the current one and tries once more.
-- `activity.state()`, `values()`, `revision()` and `degraded_features()` give what the last reply or event said.
-- An alert lights up the screen and expands the island. Stale dates, alerts and relevance need iOS 16.2.
+- A start needs the app in the foreground (or a Live Activity intent of the app); otherwise ActivityKit refuses it and
+  the start answers `Error::NotForeground`. Each `start` is a new activity. `Start::key("rec")` gives it a key: while
+  that activity runs, the same start returns it and a different one is `Error::Conflict`.
+- Each update sends every value again; the handle adds the revision, and every content carries the time it was made
+  (`Update::timestamp`, by default when `Update::new` ran), which ActivityKit uses on iOS 17.2 to drop older content.
+  Clones of a handle, and every handle that `activities()` or an event gives for the same activity, share one count. If
+  the activity already shows a newer revision, the update reads it and tries again only when its own content is the
+  newer one; otherwise it answers `Error::StaleRevision`.
+- Relevance and stale date belong to each content, as in ActivityKit: an update or end without a relevance keeps its
+  score, and one without a stale date clears the stale date. The highest score shows in the Dynamic Island.
+- An alert lights up the screen and expands the Dynamic Island (without one, the Lock Screen presentation shows as a
+  banner). Its title and body show only on an Apple Watch.
+- An end carries final content: the values of `End::values`, else the last accepted ones, with an optional stale date
+  and relevance. `End::immediately()` removes the activity at once; `End::default()` and `End::after(time)` keep it on
+  the Lock Screen until the time or four hours after the end, whichever comes first. Ending again is fine.
+- `activity.state()`, `values()`, `revision()`, `stale_at()`, `relevance()` and `degraded_features()` give what the
+  last reply or event said.
+
+The system ends an activity after 8 hours and removes it from the Lock Screen after 12 hours. Dropping a handle,
+every handle and the kit, or ending the process never ends the activity; dropping a future does not cancel its
+request.
 
 ## After a relaunch
 
 ```rust
 for activity in kit.activities().await? {
-    // Active, Stale, Ended (still on screen) or Dismissed; the handle continues from the accepted revision.
+    // Pending, Active, Stale, Ended (still on screen) or Dismissed; the handle continues from the accepted revision.
 }
 ```
 
 The Swift layer keeps receipts of accepted requests in Application Support (`activitykit/receipts-v2.json`), because
-ActivityKit can report an update late. The list merges both.
+ActivityKit can report an update late. Changes while the app was not running are not replayed as events; the list
+gives the current state.
 
 ## Events
 
 ```rust
 use activitykit::Event;
 
-let events = kit.events();               // async_channel::Receiver<Event>
+let events = kit.events();               // async_channel::Receiver<Event>, also a Stream
 while let Ok(event) = events.recv().await {
     match event {
-        Event::Action { activity, action } => { /* a tap on button(action, ..) */ }
-        Event::State { activity, state } => { /* Active, Stale, Ended, Dismissed */ }
-        Event::Authorization { enabled } => { /* turned on or off in Settings */ }
+        Event::Started { activity, .. } => { /* an activity began, the app's or the system's */ }
+        Event::Action { activity, action, .. } => { /* a tap on button(action, ..) */ }
+        Event::State { activity, state, .. } => { /* Pending, Active, Stale, Ended, Dismissed, Unknown */ }
+        Event::Authorization(authorization) => { /* turned on or off in Settings */ }
         _ => {}
     }
 }
 ```
 
-Each call of `events()` is a new receiver that gets every later event. Events that came before the first receiver
-wait for it, at most 16. In a frame loop, read with `try_recv()`; on a thread of your own, `recv_blocking()`.
+The enum and its variants leave room to grow, so match with `..` and a `_` arm. Each call of `events()` is a new
+receiver that gets every later event, in the order the system reported them; events that came before the first
+receiver wait for it, at most 16. Read with `recv().await` in an async runtime, `try_recv()` once per frame in a render
+or game loop, or `recv_blocking()` on a worker thread.
 
 A tap runs the button's App Intent in the app process, also when the app was not running: the system launches it in
 the background. The intent waits, for at most 4 seconds, until every receiver has taken the event, which keeps such
@@ -145,10 +160,9 @@ an app running meanwhile. A tap does not change the activity; update it if the b
 
 ## Threads and executors
 
-The async methods are plain futures; drive them with any executor (Tokio, async-std, smol, Bevy's task pools, a UI
-framework's `spawn`). The Swift side runs each request on the main thread and completes the future from there, so
-never block the main thread waiting for one, for example with `block_on` in a Bevy system or a UI callback: that
-deadlocks. Calls are safe from any thread. Dropping a future does not cancel its request.
+The async methods are plain futures; drive them with any executor. The Swift side runs each request on the main
+thread and completes the future from there, so never block the main thread waiting for one, for example with
+`block_on` in a frame callback or a UI event handler: that deadlocks. Calls are safe from any thread.
 
 ## Drawn images
 
@@ -169,20 +183,15 @@ appears in `degraded_features()` as `layout.custom.ring`.
 ## Errors
 
 `Error` has one variant per code of the contract: `Unsupported`, `InvalidInput`, `PayloadTooLarge`, `NotFound`,
-`Conflict`, `StaleRevision`, `PermissionDenied`, `ConfigurationRequired` (no `NSSupportsLiveActivities`, no widget
-extension with `ActivityKitLayout`, a start from the background, no App Group), `UnsupportedFeature`, `SystemLimit`
-and `Native`. `error.code()` gives the code as text. Messages are constant and never repeat a request.
+`Conflict`, `StaleRevision`, `PermissionDenied`, `NotForeground`, `ConfigurationRequired` (no
+`NSSupportsLiveActivities`, no widget extension with `ActivityKitLayout`, a missing entitlement, no App Group),
+`UnsupportedFeature { feature, minimum_ios }`, `SystemLimit { scope }` (the app's or the device's limit) and `Native`.
+`error.code()` gives the code as text. Messages are constant and never repeat a request. More variants may come.
 
 ## The contract
 
 `activitykit::contract` holds the JSON requests and records and the validator that the Swift layer agrees with:
-`validate_request("start_layout", json)`, `LayoutStartInput::validate_update`, `weight`. Use it to check requests
-that come as JSON, for example from a web view.
+`validate_request("start_layout", json)`, `LayoutStartInput::validate_update` and `validate_end`, `weight`. Use it to
+check requests that come as JSON, for example from a web view.
 
-## Differences from the first sketch
-
-- `kit.activities()` is async and returns a `Result`: the list goes through the Swift lifecycle on the main thread,
-  and a blocking call from the main thread, where UI frameworks call, would deadlock.
-- `Event::Action` and `Event::State` carry an `Activity` handle, not only an id, so the handler can update or end it.
-- `Error::Unsupported` sits beside one variant per other contract code.
-- Each `start` gets a fresh key unless `Start::key` gives one, since the contract needs a key.
+What ActivityKit offers and this crate does not support yet is in [Not yet supported](not-yet-supported.md).

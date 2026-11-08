@@ -62,6 +62,8 @@ final class PresentingBackend: LayoutActivityBackend {
     let presentations: Presentations
     var relevances: [Double?] = []
     var alerts: [AlertText?] = []
+    /// The relevance each end saw, and its final snapshot.
+    var ends: [(relevance: Double?, snapshot: LayoutSnapshot)] = []
     init(presentations: Presentations) { self.presentations = presentations }
     func preflightStart() throws { try base.preflightStart() }
     func preflightLayoutWidget() throws { try base.preflightLayoutWidget() }
@@ -76,7 +78,10 @@ final class PresentingBackend: LayoutActivityBackend {
         alerts.append(presentation?.alert)
         return try await base.update(activity, snapshot: snapshot)
     }
-    func end(_ activity: LayoutActivity, policy: EndPolicy) async throws -> LayoutActivity { try await base.end(activity, policy: policy) }
+    func end(_ activity: LayoutActivity, policy: EndPolicy) async throws -> LayoutActivity {
+        ends.append((presentations.end(id: activity.id), activity.snapshot))
+        return try await base.end(activity, policy: policy)
+    }
 }
 
 /// The system of the host tests: supported, with a fake backend that each new controller gets fresh.
@@ -154,8 +159,11 @@ extension LifecycleTests {
         return system
     }
 
+    // AK-BRIDGE-8
     @MainActor static func testBridge() async throws {
         try await testBridgeLifecycle()
+        try await testBridgeKeyedStart()
+        try await testBridgeEndContent()
         try await testBridgeFromManyThreads()
         try testBridgeAuthorizationAndImages()
         try await testBridgeUnsupported()
@@ -165,6 +173,7 @@ extension LifecycleTests {
         Bridge.shared.reset()
     }
 
+    // AK-AUTH-2, AK-BRIDGE-1, AK-BRIDGE-2, AK-BRIDGE-3, AK-BRIDGE-7, AK-END-1, AK-END-4, AK-START-1, AK-START-4, AK-START-8, AK-UPDATE-1, AK-UPDATE-2, AK-UPDATE-6, AK-UPDATE-7
     @MainActor static func testBridgeLifecycle() async throws {
         let system = install()
         let request = layoutJSON(key: "rec:1", lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0)
@@ -217,6 +226,49 @@ extension LifecycleTests {
         expect(code(denied) == "PERMISSION_DENIED", "a backend failure keeps its code")
     }
 
+    // AK-START-3
+    /// A start with a key returns the running activity of that key for the same request, is CONFLICT for another one,
+    /// and starts a new activity once the first has ended.
+    @MainActor static func testBridgeKeyedStart() async throws {
+        let system = install()
+        let request = layoutJSON(key: "rec:keyed", lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0)
+        let first = data(await call(C.start, #"{"request":\#(request)}"#))["id"] as? String
+        let again = data(await call(C.start, #"{"request":\#(request)}"#))["id"] as? String
+        expect(first != nil && first == again && system.backend?.base.starts == 1, "the same keyed start returns the running activity")
+        let other = layoutJSON(key: "rec:keyed", lockScreen: meterLayout, values: #"{"title":"Other","progress":0.2}"#, revision: 0)
+        let conflict = await call(C.start, #"{"request":\#(other)}"#)
+        expect(code(conflict) == "CONFLICT", "another start under a running key is CONFLICT")
+        _ = await call(C.end, #"{"request":{"id":"\#(first ?? "")","policy":{"kind":"immediate"}}}"#)
+        let fresh = data(await call(C.start, #"{"request":\#(other)}"#))["id"] as? String
+        expect(fresh != nil && fresh != first, "after the end the key starts a new activity with a new handle")
+    }
+
+    // AK-END-5, AK-END-6, AK-UPDATE-11
+    /// An end carries final content, checked like an update, and a relevance for that call only.
+    @MainActor static func testBridgeEndContent() async throws {
+        let system = install()
+        let request = layoutJSON(key: "rec:end", lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0)
+        let id = data(await call(C.start, #"{"request":\#(request)}"#))["id"] as? String ?? ""
+        let changed = await call(C.end, #"{"request":{"id":"\#(id)","policy":{"kind":"immediate"},"snapshot":{"revision":1,"values":{"title":1,"progress":1}}}}"#)
+        expect(code(changed) == "INVALID_INPUT", "final values keep the keys and types of the start")
+        let ended = await call(C.end, #"{"request":{"id":"\#(id)","policy":{"kind":"immediate"},"snapshot":{"revision":1,"values":{"title":"Done","progress":1},"timestamp":1790000000000}},"relevance":10}"#)
+        let record = data(ended)
+        let snapshot = record["snapshot"] as? [String: Any]
+        expect(record["state"] as? String == "ended" && snapshot?["revision"] as? Int == 1
+               && (snapshot?["values"] as? [String: Any])?["title"] as? String == "Done", "the end shows its final content")
+        expect(system.backend?.ends.count == 1 && system.backend?.ends[0].relevance == 10
+               && system.backend?.ends[0].snapshot.timestamp == 1_790_000_000_000, "the backend ends with that content and relevance")
+        expect(Bridge.shared.presentations.end(id: id) == nil, "the end's relevance is forgotten after the call")
+        let other = layoutJSON(key: "rec:end2", lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0)
+        let second = data(await call(C.start, #"{"request":\#(other)}"#))["id"] as? String ?? ""
+        _ = await call(C.update, #"{"request":{"id":"\#(second)","snapshot":{"revision":3,"values":{"title":"a","progress":0}}}}"#)
+        let stale = await call(C.end, #"{"request":{"id":"\#(second)","policy":{"kind":"default"},"snapshot":{"revision":2,"values":{"title":"b","progress":0}}}}"#)
+        expect(code(stale) == "STALE_REVISION", "final content older than the shown one is STALE_REVISION")
+        let plain = await call(C.end, #"{"request":{"id":"\#(second)","policy":{"kind":"default"}}}"#)
+        expect((data(plain)["snapshot"] as? [String: Any])?["revision"] as? Int == 3, "without final content the last accepted one stays")
+    }
+
+    // AK-AUTH-1, AK-BRIDGE-3, AK-THREAD-1
     /// Rust may call from any thread, at the same time.
     @MainActor static func testBridgeFromManyThreads() async throws {
         _ = install()
@@ -241,6 +293,7 @@ extension LifecycleTests {
         expect(data(fromThread)["enabled"] as? Bool == true, "ak_authorization answers on any thread before it returns")
     }
 
+    // AK-AUTH-1, AK-AUTH-2, AK-BRIDGE-3, AK-IMAGE-4, AK-IMAGE-5
     @MainActor static func testBridgeAuthorizationAndImages() throws {
         let system = install()
         expect(data(now(C.authorization)) as NSDictionary == ["supported": true, "enabled": true, "buttons": true],
@@ -252,6 +305,7 @@ extension LifecycleTests {
         expect(data(now(C.imageFolder))["path"] as? String == "/container/activitykit/images", "ak_image_folder names the folder")
     }
 
+    // AK-BRIDGE-6, AK-START-7
     @MainActor static func testBridgeUnsupported() async throws {
         Systems.install(UnsupportedSystem())
         Bridge.shared.reset()
@@ -270,6 +324,7 @@ extension LifecycleTests {
         catch let failure as ActivityFailure { expect(failure.code == "UNSUPPORTED_PLATFORM", "no controller without the platform") }
     }
 
+    // AK-AUTH-3, AK-BRIDGE-5, AK-EVENT-1, AK-EVENT-2, AK-EVENT-4, AK-EVENT-8
     @MainActor static func testBridgeEvents() async throws {
         let system = install()
         system.keys["la-ios-layout-1"] = "rec:1"
@@ -286,18 +341,23 @@ extension LifecycleTests {
         expect(EventLog.shared.events[1]["activityKey"] == nil, "an activity the system no longer lists has no key")
         expect(system.observed.count == 1, "the first handler starts the observation of states")
         system.observed[0].emit(.state(activityId: "la-ios-layout-1", activityKey: "rec:1", state: "dismissed"))
-        system.observed[0].emit(.authorization(enabled: false))
+        system.observed[0].emit(.authorization(AuthorizationReply(supported: true, enabled: false, buttons: true)))
         expect(EventLog.shared.events.count == 4, "state and authorization events reach the handler at once")
         expect(EventLog.shared.events[2] as NSDictionary == ["type": "state", "activityId": "la-ios-layout-1", "activityKey": "rec:1", "state": "dismissed"]
-               && EventLog.shared.events[3] as NSDictionary == ["type": "authorization", "enabled": false], "they keep their wire shape")
+               && EventLog.shared.events[3] as NSDictionary == ["type": "authorization",
+                   "authorization": ["supported": true, "enabled": false, "buttons": true]], "they keep their wire shape")
+        system.observed[0].emit(.started(activityId: "la-ios-layout-2", activityKey: "rec:2"))
+        expect(EventLog.shared.events.count == 5 && EventLog.shared.events[4] as NSDictionary
+               == ["type": "started", "activityId": "la-ios-layout-2", "activityKey": "rec:2"], "a new activity is a started event")
         C.register(logEvent)
         expect(system.observed.count == 1, "a second registration does not observe twice")
         C.register(nil)
-        EventSink.shared.emit(.authorization(enabled: true))
-        expect(EventLog.shared.events.count == 4, "without a handler events are dropped")
+        EventSink.shared.emit(.authorization(AuthorizationReply(supported: true, enabled: true, buttons: true)))
+        expect(EventLog.shared.events.count == 5, "without a handler events are dropped")
         C.register(logEvent)
     }
 
+    // AK-CONTRACT-3, AK-CONTRACT-12, AK-UPDATE-6
     /// Every case of the shared fixtures through the C functions, as Rust sends it: the bridge decodes it, the
     /// controller checks it, and the reply gives the fixture's verdict and code.
     @MainActor static func testBridgeFixtures() async throws {
@@ -324,6 +384,17 @@ extension LifecycleTests {
             guard var update = fixture["update"] as? [String: Any], let id = data(started)["id"] as? String else { fatalError("Malformed update fixture") }
             update["id"] = id
             let reply = await call(C.update, try wrap(update))
+            let expected = fixture["code"] as? String
+            expect(code(reply) == expected && (expected != nil || reply["ok"] as? Bool == true),
+                   "\(fixture["name"] ?? ""): expected \(expected ?? "ok"), got \(code(reply) ?? "ok")")
+            checked += 1
+        }
+        for fixture in fixtures["ends"] ?? [] {
+            _ = install()
+            let started = await call(C.start, try wrap(fixture["start"] ?? NSNull()))
+            guard var end = fixture["end"] as? [String: Any], let id = data(started)["id"] as? String else { fatalError("Malformed end fixture") }
+            end["id"] = id
+            let reply = await call(C.end, try wrap(end))
             let expected = fixture["code"] as? String
             expect(code(reply) == expected && (expected != nil || reply["ok"] as? Bool == true),
                    "\(fixture["name"] ?? ""): expected \(expected ?? "ok"), got \(code(reply) ?? "ok")")

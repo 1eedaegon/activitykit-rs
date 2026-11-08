@@ -9,7 +9,7 @@
     {
       "name": "starts a session layout with styles, an island, conditions and a button",
       "command": "start_layout",
-      "input": { "activityKey": "fremen:session", "schemaVersion": 2, "fallback": "notification", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "hstack", "children": [{ "type": "symbol", "name": "timer", "rendering": "hierarchical", "style": "accent" }, { "type": "text", "bind": "title", "style": "title" }, { "type": "spacer" }, { "type": "timerText", "start": "from", "end": "to", "style": "digits" }], "spacing": 8, "alignment": "center" }, { "type": "progress", "bind": "progress", "kind": "linear", "style": "bar" }, { "type": "text", "bind": "note", "style": "note", "if": "hasNote" }, { "type": "button", "actionId": "session.pause", "child": { "type": "text", "value": "Pause" }, "style": "action", "unless": "paused" }], "spacing": 6, "alignment": "leading", "style": "card" }, "island": { "expanded": { "leading": { "type": "symbol", "name": "timer", "style": "accent" }, "trailing": { "type": "timerText", "start": "from", "end": "to", "style": "digits" }, "center": { "type": "text", "bind": "title", "style": "title" }, "bottom": { "type": "progress", "bind": "progress", "style": "bar" } }, "compactLeading": { "type": "symbol", "name": "timer", "style": "accent" }, "compactTrailing": { "type": "timerText", "start": "from", "end": "to", "style": "digits" }, "minimal": { "type": "symbol", "name": "timer" } }, "background": { "light": "#FFFFFF", "dark": "#111111" }, "keyline": "accent" }, "styles": { "card": { "padding": [12, 16, 12, 16] }, "accent": { "color": "accent" }, "title": { "font": "headline", "lineLimit": 1 }, "digits": { "size": 15, "design": "monospaced", "monospacedDigit": true }, "bar": { "tint": "accent" }, "note": { "font": "caption", "color": "secondary", "lineLimit": 2 }, "action": { "buttonStyle": "bordered", "tint": "accent" } }, "snapshot": { "revision": 0, "values": { "title": "집중 시간", "progress": 0.25, "from": 1790000000000, "to": 1790000600000, "note": "", "hasNote": false, "paused": false }, "staleAt": 1790000900000 }, "android": { "visibility": "private" } },
+      "input": { "activityKey": "demo:session", "schemaVersion": 2, "fallback": "notification", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "hstack", "children": [{ "type": "symbol", "name": "timer", "rendering": "hierarchical", "style": "accent" }, { "type": "text", "bind": "title", "style": "title" }, { "type": "spacer" }, { "type": "timerText", "start": "from", "end": "to", "style": "digits" }], "spacing": 8, "alignment": "center" }, { "type": "progress", "bind": "progress", "kind": "linear", "style": "bar" }, { "type": "text", "bind": "note", "style": "note", "if": "hasNote" }, { "type": "button", "actionId": "session.pause", "child": { "type": "text", "value": "Pause" }, "style": "action", "unless": "paused" }], "spacing": 6, "alignment": "leading", "style": "card" }, "island": { "expanded": { "leading": { "type": "symbol", "name": "timer", "style": "accent" }, "trailing": { "type": "timerText", "start": "from", "end": "to", "style": "digits" }, "center": { "type": "text", "bind": "title", "style": "title" }, "bottom": { "type": "progress", "bind": "progress", "style": "bar" } }, "compactLeading": { "type": "symbol", "name": "timer", "style": "accent" }, "compactTrailing": { "type": "timerText", "start": "from", "end": "to", "style": "digits" }, "minimal": { "type": "symbol", "name": "timer" } }, "background": { "light": "#FFFFFF", "dark": "#111111" }, "keyline": "accent" }, "styles": { "card": { "padding": [12, 16, 12, 16] }, "accent": { "color": "accent" }, "title": { "font": "headline", "lineLimit": 1 }, "digits": { "size": 15, "design": "monospaced", "monospacedDigit": true }, "bar": { "tint": "accent" }, "note": { "font": "caption", "color": "secondary", "lineLimit": 2 }, "action": { "buttonStyle": "bordered", "tint": "accent" } }, "snapshot": { "revision": 0, "values": { "title": "집중 시간", "progress": 0.25, "from": 1790000000000, "to": 1790000600000, "note": "", "hasNote": false, "paused": false }, "staleAt": 1790000900000 }, "android": { "visibility": "private" } },
       "weight": 1663
     },
     {
@@ -1278,6 +1278,30 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "text", "bind": "title" }, { "type": "hstack", "children": [{ "type": "custom", "name": "ring", "props": { "level": { "bind": "done" } } }, { "type": "progress", "bind": "done" }] }, { "type": "symbol", "name": "pawprint.fill" }] } }, "snapshot": { "revision": 0, "values": { "title": "Mochi", "done": 0.4 } } },
       "weight": 295
+    },
+    {
+      "name": "takes an end with its final content",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": { "title": "Done" }, "staleAt": 1790000000000, "timestamp": 1790000000000 } },
+      "weight": 17
+    },
+    {
+      "name": "takes an end whose final content has no values",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "after", "at": 1790000000000 }, "snapshot": { "revision": 3, "values": {} } },
+      "weight": 2
+    },
+    {
+      "name": "takes a timestamp on an update",
+      "command": "update_layout",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": { "title": "a" }, "timestamp": 1790000000000 } },
+      "weight": 14
+    },
+    {
+      "name": "takes a timestamp of 0 on a start",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" }, "timestamp": 0 } },
+      "weight": 130
     }
   ],
   "invalid": [
@@ -5460,7 +5484,7 @@
     {
       "name": "rejects an unknown member on an end",
       "command": "end_layout",
-      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": {} } },
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "content": { "revision": 2, "values": {} } },
       "code": "INVALID_INPUT"
     },
     {
@@ -6284,6 +6308,78 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "compactTrailing": { "type": "hstack", "children": [{ "type": "custom", "name": "a" }, { "type": "custom", "name": "b" }, { "type": "custom", "name": "c" }] } } }, "snapshot": { "revision": 0, "values": {} } },
       "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects null as the final content of an end",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": null },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a string as the final content of an end",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": "Done" },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects final content without a revision",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects final content without values",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an unknown member in the final content",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": {}, "relevance": 1 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a final timestamp below 0",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": {}, "timestamp": -1 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a final timestamp above 8640000000000000",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": {}, "timestamp": 8640000000000001 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a numeric string as a final timestamp",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": {}, "timestamp": "1790000000000" } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects 33 final values",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": { "k0": 0, "k1": 1, "k2": 2, "k3": 3, "k4": 4, "k5": 5, "k6": 6, "k7": 7, "k8": 8, "k9": 9, "k10": 10, "k11": 11, "k12": 12, "k13": 13, "k14": 14, "k15": 15, "k16": 16, "k17": 17, "k18": 18, "k19": 19, "k20": 20, "k21": 21, "k22": 22, "k23": 23, "k24": 24, "k25": 25, "k26": 26, "k27": 27, "k28": 28, "k29": 29, "k30": 30, "k31": 31, "k32": 32 } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects final values over the weight limit",
+      "command": "end_layout",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 2, "values": { "a": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "b": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "c": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "d": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" } } },
+      "code": "PAYLOAD_TOO_LARGE"
+    },
+    {
+      "name": "rejects a fractional timestamp on an update",
+      "command": "update_layout",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": {}, "timestamp": 0.5 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a start timestamp above 8640000000000000",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" }, "timestamp": 8640000000000001 } },
+      "code": "INVALID_INPUT"
     }
   ],
   "updates": [
@@ -6489,6 +6585,32 @@
       "name": "rejects an update whose size for a custom font is out of range",
       "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "hstack", "children": [{ "type": "image", "source": { "file": "badge.png" } }, { "type": "text", "bind": "title", "style": "face" }] } }, "styles": { "face": { "fontFamily": "Pacifico", "size": { "bind": "points" } } }, "snapshot": { "revision": 0, "values": { "title": "Mochi", "points": 20, "badge": 1 } } },
       "update": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": { "title": "Mochi", "points": 97, "badge": 1 } } },
+      "code": "INVALID_INPUT"
+    }
+  ],
+  "ends": [
+    {
+      "name": "ends with final values of the same keys and types",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" } } },
+      "end": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 1, "values": { "status": "On time", "tone": "green" }, "timestamp": 1790000000000 } },
+      "weight": 130
+    },
+    {
+      "name": "rejects final values that change a type",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" } } },
+      "end": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 1, "values": { "status": 1, "tone": "green" }, "timestamp": 1790000000000 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects final values with another key",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" } } },
+      "end": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 1, "values": { "status": "On time", "tone": "green", "extra": 1 }, "timestamp": 1790000000000 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects final values without a key of the start",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" } } },
+      "end": { "id": "opaque-handle-1", "policy": { "kind": "immediate" }, "snapshot": { "revision": 1, "values": { "tone": "green" }, "timestamp": 1790000000000 } },
       "code": "INVALID_INPUT"
     }
   ]

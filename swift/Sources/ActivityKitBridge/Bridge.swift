@@ -117,15 +117,20 @@ final class EventSink: @unchecked Sendable {
 
 /// An event as Rust reads it: `{"type":"action"|"state"|"authorization", …}`.
 enum BridgeEvent: Encodable {
+    case started(activityId: String, activityKey: String)
     case action(LiveActivityAction)
     case state(activityId: String, activityKey: String, state: String)
-    case authorization(enabled: Bool)
+    case authorization(AuthorizationReply)
 
-    private enum Keys: String, CodingKey { case type, activityId, actionId, activityKey, state, enabled }
+    private enum Keys: String, CodingKey { case type, activityId, actionId, activityKey, state, authorization }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: Keys.self)
         switch self {
+        case let .started(activityId, activityKey):
+            try container.encode("started", forKey: .type)
+            try container.encode(activityId, forKey: .activityId)
+            try container.encode(activityKey, forKey: .activityKey)
         case .action(let action):
             try container.encode("action", forKey: .type)
             try container.encode(action.activityId, forKey: .activityId)
@@ -136,9 +141,9 @@ enum BridgeEvent: Encodable {
             try container.encode(activityId, forKey: .activityId)
             try container.encode(activityKey, forKey: .activityKey)
             try container.encode(state, forKey: .state)
-        case .authorization(let enabled):
+        case .authorization(let authorization):
             try container.encode("authorization", forKey: .type)
-            try container.encode(enabled, forKey: .enabled)
+            try container.encode(authorization, forKey: .authorization)
         }
     }
 }
@@ -162,9 +167,10 @@ private struct UpdateCall: Decodable {
     let alert: AlertText?
 }
 
-/// `ak_end`: the contract's `end_layout` request.
+/// `ak_end`: the contract's `end_layout` request and the relevance of its final content.
 private struct EndCall: Decodable {
     let request: LayoutEndRequest
+    let relevance: Double?
 }
 
 private struct ImageFolderReply: Encodable {
@@ -175,7 +181,7 @@ private struct ImageFolderReply: Encodable {
 @MainActor
 final class Bridge {
     static let shared = Bridge()
-    nonisolated static let unsupported = ActivityFailure("UNSUPPORTED_PLATFORM", "Live Activities require iPhone with iOS 16.1 or iPad with iPadOS 17 or later.")
+    nonisolated static let unsupported = ActivityFailure("UNSUPPORTED_PLATFORM", "Live Activities require iPhone with iOS 16.2 or iPad with iPadOS 17 or later.")
 
     let presentations = Presentations()
     private var controller: LayoutActivityController?
@@ -204,7 +210,13 @@ final class Bridge {
     }
 
     func end(_ data: Data) async -> Data {
-        await reply { try await self.lifecycle().end(JSONDecoder().decode(EndCall.self, from: data).request) }
+        await reply {
+            let call = try JSONDecoder().decode(EndCall.self, from: data)
+            let id = call.request.id
+            self.presentations.expectEnd(id: id, relevance: call.relevance)
+            defer { self.presentations.forgetEnd(id: id) }
+            return try await self.lifecycle().end(call.request)
+        }
     }
 
     func list() async -> Data {
@@ -218,7 +230,7 @@ final class Bridge {
         return created
     }
 
-    /// The reply of `operation`, after the platform check that the plugin made before every command.
+    /// The reply of `operation`, after the platform check that comes before every command.
     private func reply<Value: Encodable>(_ operation: () async throws -> Value) async -> Data {
         do {
             guard Systems.current.authorization().supported else { throw Bridge.unsupported }

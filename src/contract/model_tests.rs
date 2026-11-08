@@ -12,6 +12,7 @@ fn start() -> Json {
         "layout":{"lockScreen":{"type":"text","value":"a"}},"snapshot":{"revision":0,"values":{}}})
 }
 
+// AK-CONTRACT-10
 #[test]
 fn every_node_keeps_its_wire_shape() {
     let divider = json!({"type":"divider"});
@@ -58,6 +59,7 @@ fn every_node_keeps_its_wire_shape() {
     );
 }
 
+// AK-CONTRACT-10
 #[test]
 fn every_style_member_keeps_its_wire_shape() {
     let style = json!({"font":"largeTitle","weight":"ultraLight","design":"monospaced","monospacedDigit":true,
@@ -90,6 +92,7 @@ fn every_style_member_keeps_its_wire_shape() {
     );
 }
 
+// AK-CONTRACT-9
 #[test]
 fn bound_members_keep_their_wire_shape() {
     let style = json!({"size":{"bind":"a"},"weight":{"bind":"b"},"color":{"bind":"c"},"background":{"bind":"d"},
@@ -137,6 +140,7 @@ fn bound_members_keep_their_wire_shape() {
     assert_eq!(decoded.layout.background, Some(Bound::key("paper").into()));
 }
 
+// AK-CONTRACT-10
 #[test]
 fn requests_and_records_keep_their_wire_shape() {
     let mut input = start();
@@ -175,6 +179,7 @@ fn requests_and_records_keep_their_wire_shape() {
     );
 }
 
+// AK-CONTRACT-5
 #[test]
 fn models_reject_unknown_members_null_and_wrong_types() {
     for node in [
@@ -266,6 +271,7 @@ fn models_reject_unknown_members_null_and_wrong_types() {
     }
 }
 
+// AK-CONTRACT-5
 #[test]
 fn a_request_must_re_encode_to_itself() {
     // Serde reads each of these on its own; the canonical form check refuses them.
@@ -293,6 +299,7 @@ fn a_request_must_re_encode_to_itself() {
     assert_eq!(validate_request("start_layout", start()), Ok(()));
 }
 
+// AK-CONTRACT-5
 #[test]
 fn numbers_compare_by_value_and_deep_json_is_refused_unread() {
     assert!(same(
@@ -320,6 +327,7 @@ fn numbers_compare_by_value_and_deep_json_is_refused_unread() {
     );
 }
 
+// AK-CONTRACT-6
 #[test]
 fn weight_follows_the_contract_formula() {
     for (value, expected) in [
@@ -348,6 +356,7 @@ fn weight_follows_the_contract_formula() {
     }
 }
 
+// AK-CONTRACT-7
 #[test]
 fn path_data_follows_the_reference_grammar() {
     for d in [
@@ -408,6 +417,7 @@ fn path_data_follows_the_reference_grammar() {
     }
 }
 
+// AK-CUSTOM-1
 #[test]
 fn image_sources_and_custom_props_build_their_wire_shape() {
     assert_eq!(ImageSource::asset("logo").name(), "logo");

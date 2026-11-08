@@ -179,6 +179,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // AK-VALUE-1
     #[test]
     fn the_macro_and_conversions_build_the_wire_map() {
         let values = values! { "tone" => "green", "level" => 0.2, "count" => 3, "live" => true, "name" => String::from("a") };
@@ -197,6 +198,7 @@ mod tests {
         assert_eq!(values! { "a" => 1u8, }, Values::from([("a", 1.0)]));
     }
 
+    // AK-VALUE-1
     #[test]
     fn values_convert_from_and_into_maps_and_pairs() {
         let mut values = Values::from([

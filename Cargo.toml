@@ -1,7 +1,7 @@
 [package]
 name = "activitykit"
 version = "0.1.0"
-description = "iOS Live Activities for any Rust app: Tauri, Dioxus, Bevy, Slint or your own"
+description = "iOS Live Activities from Rust"
 authors = ["1eedaegon"]
 edition = "2024"
 rust-version = "1.90"

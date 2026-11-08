@@ -1,8 +1,8 @@
 # iOS setup
 
 An app that uses activitykit has three parts: the Rust library, which holds activitykit's Swift bridge; the app
-target in Xcode; and a widget extension, a Swift target, that draws the activity. The example's
-[`ios/project.yml`](../examples/dioxus/ios/project.yml) is all of this in one XcodeGen file.
+target in Xcode; and a widget extension, a Swift target, that draws the activity. The test host's
+[`project.yml`](../tests/ios-host/project.yml) is all of this in one XcodeGen file.
 
 ## What build.rs does
 
@@ -16,13 +16,16 @@ xcrun swift build --package-path swift --product ActivityKitBridge --build-path 
   -Xswiftc -target -Xswiftc <arch>-apple-ios<version>[-simulator] -Xcc --target=<same>
 ```
 
+The crate needs iOS 16.2 at run time (iPadOS 17 on an iPad); below it every call answers `Error::Unsupported`. The
+Swift code is built for iOS 15.0 or later so that apps with a lower deployment target still link.
+
 | Rust target | Swift target | SDK |
 | --- | --- | --- |
 | `aarch64-apple-ios` | `arm64-apple-ios15.0` | iphoneos |
 | `aarch64-apple-ios-sim` | `arm64-apple-ios15.0-simulator` | iphonesimulator |
 | `x86_64-apple-ios` | `x86_64-apple-ios15.0-simulator` | iphonesimulator |
 
-These are the flags of the `swift-rs` crate, with which Tauri builds its iOS plugins. `swift-rs` itself is not used:
+These are the flags SwiftPM needs to build for iOS, the same the `swift-rs` crate passes. `swift-rs` itself is not used:
 it builds every target of a package, here also the SwiftUI renderer and the widget, which the app's library must not
 contain, and it needs a static product named like the package. The version is `IPHONEOS_DEPLOYMENT_TARGET`, at least
 15.0; set it to the app's deployment target so the linker does not warn about newer objects. The build is `debug`
@@ -37,7 +40,8 @@ On every other target the script does nothing.
 ## The app target
 
 Most Rust iOS apps build Rust as a static library (`crate-type = ["staticlib"]`) and link it from an Xcode app target
-whose `main` calls into Rust, as Tauri and the example do. The app target then needs:
+whose `main` calls into Rust; an app whose UI framework generates an Xcode project works the same way, and the widget
+extension and the settings below go into that project. The app target needs:
 
 - **The library and its frameworks.** Link the `.a` by its path (`OTHER_LDFLAGS`; with `-l` the linker would prefer a
   dylib of the same name on a Mac), and the frameworks that `cargo rustc --crate-type staticlib -- --print
@@ -50,18 +54,17 @@ whose `main` calls into Rust, as Tauri and the example do. The app target then n
   ```
 
   Xcode adds these paths by itself to a target that compiles Swift, which the app target does anyway for buttons
-  (below), so the example sets nothing. They matter for an app target without Swift whose library holds Swift objects
+  (below), so the test host sets nothing. They matter for an app target without Swift whose library holds Swift objects
   built below iOS 17, which link the toolchain's compatibility libraries. Checked with Xcode 26.3: such an app target
   failed to link (`swiftCompatibility56` not found) with the bridge built for iOS 15, and linked with these paths; the
-  same library linked without them into the example, whose `main` is Swift; built for iOS 17 it linked either way.
-  fremen's Tauri app sets the paths too.
+  same library linked without them into an app target whose `main` is Swift; built for iOS 17 it linked either way.
 - **`IPHONEOS_DEPLOYMENT_TARGET`** set to the app's deployment target while cargo builds, so the Swift bridge and any
   C code of other crates are built for it and the linker does not warn about newer objects.
 - **`NSSupportsLiveActivities`** set to `YES` in the Info.plist.
 - **The `ActivityKitIntent` product**, for buttons. The system runs the button's intent in the app process, so the app
   needs the intent's code and its App Intents metadata. Xcode 26 extracts that metadata from a linked package product,
   but only for a target that compiles Swift: an app whose `main` is Objective-C gets no metadata, and a tap does
-  nothing. Give the app target at least one Swift file; the example's `main.swift` is three lines. Link no other
+  nothing. Give the app target at least one Swift file; a `main.swift` that calls the Rust entry point is three lines. Link no other
   product of the package to the app (except `ActivityKitViews`, below): the bridge's Swift code is in the Rust library
   already, and a second copy would duplicate its symbols. The app must not define its own `ActivityKitActionIntent`:
   Xcode refuses an intent that conflicts with one of a linked package.
@@ -71,7 +74,7 @@ Start activities while the app is in the foreground.
 
 ## The widget extension
 
-Add a Widget Extension target (iOS 16.1 or later), link the `ActivityKitWidget` product of the `swift` package (as a
+Add a Widget Extension target (iOS 16.2 or later), link the `ActivityKitWidget` product of the `swift` package (as a
 local package, or from this repository), and replace its Swift files with
 [`templates/ios/Widget.swift`](../templates/ios/Widget.swift):
 
@@ -106,20 +109,3 @@ others in `degraded_features`. Keep the Objective-C name `ActivityKitCustomViews
 ## Fonts
 
 A `font_family` must be a font that the widget extension bundles and lists under `UIAppFonts` in its Info.plist.
-
-## Names that differ from tauri-plugin-live-activity
-
-The Swift logic is the plugin's; only names that carried "Tauri" changed:
-
-| Plugin | activitykit |
-| --- | --- |
-| `TauriLiveActivityLayout` (widget Info.plist) | `ActivityKitLayout` |
-| `TauriLiveActivityAppGroup` | `ActivityKitAppGroup` |
-| `tauri-live-activity/images`, `tauri-live-activity/receipts-v2.json` | `activitykit/images`, `activitykit/receipts-v2.json` |
-| `TauriLiveActivityCustomViews` | `ActivityKitCustomViews` |
-| `tauri.live-activity.action` (notification) | `activitykit.action` |
-| `LiveActivityActionIntent` (template file in both targets) | `ActivityKitActionIntent` (package product) |
-| modules `LiveActivityShared`, `LiveActivityCore`, `LiveActivityUI`, `LiveActivityPlugin` | `ActivityKitShared`, `ActivityKitCore`, `ActivityKitUI`, `ActivityKitBridge` |
-
-The ActivityKit attributes type is still `LiveActivityLayoutAttributes`, with the same coding, so ActivityKit sees an
-app's layout activities as the same kind after a move from the plugin.

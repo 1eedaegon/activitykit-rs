@@ -15,8 +15,9 @@ extension LifecycleTests {
                 try request.validate()
                 return (nil, request.weight)
             case "end_layout":
-                try decoder.decode(LayoutEndRequest.self, from: input).validate()
-                return (nil, nil)
+                let request = try decoder.decode(LayoutEndRequest.self, from: input)
+                try request.validate()
+                return (nil, request.snapshot.map(\.values.wireWeight))
             case "start":
                 try decoder.decode(StartRequest.self, from: input).validate()
                 return (nil, nil)
@@ -52,6 +53,24 @@ extension LifecycleTests {
         } catch { fatalError("Unexpected error \(error)") }
     }
 
+    /// What this layer answers for an end with final content after a start, as `LayoutActivityController.end` checks it.
+    static func endVerdict(_ start: Data, _ end: Data) -> (code: String?, weight: Int?) {
+        let decoder = JSONDecoder()
+        do {
+            let request = try decoder.decode(LayoutRequest.self, from: start)
+            try request.validate()
+            let next = try decoder.decode(LayoutEndRequest.self, from: end)
+            try next.validate()
+            guard let snapshot = next.snapshot else { return (nil, nil) }
+            try snapshot.validate(replacing: request.snapshot, in: request.document)
+            return (nil, request.document.weight + snapshot.values.wireWeight)
+        } catch let failure as ActivityFailure {
+            return (failure.code, nil)
+        } catch is DecodingError {
+            return ("INVALID_INPUT", nil)
+        } catch { fatalError("Unexpected error \(error)") }
+    }
+
     /// The request decoded and encoded again, for comparing with the wire input.
     static func reencoded(_ command: String, _ input: Data) throws -> Data {
         let decoder = JSONDecoder(), encoder = JSONEncoder()
@@ -68,7 +87,7 @@ extension LifecycleTests {
         return 0
     }
 
-    /// The frozen v1 decoder ignores unknown members (the plugin's Rust layer rejected them before they reached Swift),
+    /// The frozen v1 decoder ignores unknown members (a Rust layer rejects them before they reach Swift),
     /// so a v1 command may accept a body here only by dropping members.
     private static func dropsMembers(_ command: String, _ input: Data) throws -> Bool {
         let encoded: Data
@@ -77,6 +96,7 @@ extension LifecycleTests {
         return try memberCount(JSONSerialization.jsonObject(with: encoded)) < memberCount(JSONSerialization.jsonObject(with: input))
     }
 
+    // AK-CONTRACT-2, AK-CONTRACT-4, AK-CONTRACT-6, AK-CONTRACT-12, AK-END-6
     @MainActor static func testLayoutFixtures() throws {
         guard CommandLine.arguments.count > 1 else { fatalError("Pass the path of tests/fixtures/layout-requests.json") }
         let file = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
@@ -95,7 +115,8 @@ extension LifecycleTests {
             let verdict = layoutVerdict(command, input)
             expect(verdict.code == nil, "fixture must be accepted: \(name), got \(verdict.code ?? "")")
             let weight = fixture["weight"] as? Int
-            expect((weight != nil) == (command != "end_layout"), "fixture states its weight: \(name)")
+            let content = (fixture["input"] as? [String: Any])?["snapshot"] != nil
+            expect((weight != nil) == (command != "end_layout" || content), "fixture states its weight: \(name)")
             expect(verdict.weight == weight, "fixture weight: \(name), expected \(weight ?? -1), got \(verdict.weight ?? -1)")
             let wire = try canonical(reencoded(command, input)) == canonical(input)
             expect(wire, "fixture encodes to its wire shape with absent members omitted: \(name)")
@@ -132,6 +153,18 @@ extension LifecycleTests {
                        "update fixture must be accepted with weight \(weight ?? -1): \(name), got \(verdict.code ?? String(verdict.weight ?? -1))")
             }
         }
-        print("Layout fixtures: \(valid.count) valid and \(invalid.count) invalid requests and \(updates.count) updates match")
+        guard let ends = fixtures["ends"] else { fatalError("Layout fixtures without ends") }
+        expect(ends.count >= 4, "end fixtures are loaded")
+        for fixture in ends {
+            guard let name = fixture["name"] as? String, let start = fixture["start"], let end = fixture["end"] else {
+                fatalError("Malformed end fixture")
+            }
+            guard names.insert(name).inserted else { fatalError("Duplicate fixture name \(name)") }
+            let verdict = endVerdict(try JSONSerialization.data(withJSONObject: start), try JSONSerialization.data(withJSONObject: end))
+            let expected = fixture["code"] as? String, weight = fixture["weight"] as? Int
+            expect(verdict.code == expected && verdict.weight == weight,
+                   "end fixture \(name): expected \(expected ?? String(weight ?? -1)), got \(verdict.code ?? String(verdict.weight ?? -1))")
+        }
+        print("Layout fixtures: \(valid.count) valid and \(invalid.count) invalid requests, \(updates.count) updates and \(ends.count) ends match")
     }
 }

@@ -32,6 +32,7 @@ extension LifecycleTests {
         return condition()
     }
 
+    // AK-EVENT-3, AK-EVENT-4, AK-EVENT-6
     @MainActor static func testActionRelay() async throws {
         let center = NotificationCenter()
         let relay = ActionRelay(center: center) { $0 == "la-1" ? "job:1" : nil }

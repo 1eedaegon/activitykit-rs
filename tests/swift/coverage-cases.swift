@@ -8,6 +8,7 @@ final class RecordingReceiptStore: ActivityReceiptStore {
 }
 
 extension LifecycleTests {
+    // AK-END-3
     @MainActor static func testPlatformCoverageGaps() async throws {
         for key in ["activity\n", "activity\r\n", "\nactivity"] {
             await expectError("INVALID_INPUT") { try request(key).validate() }
@@ -59,10 +60,10 @@ extension LifecycleTests {
         await expectError("NOT_FOUND") {
             _ = try await restored.end(EndRequest(id: ids[0], policy: EndPolicy(kind: "immediate", at: nil)))
         }
-        await expectError("INVALID_INPUT") {
-            try EndPolicy(kind: "after", at: 14_400_001).validate(now: Date(timeIntervalSince1970: 0))
-        }
-        try EndPolicy(kind: "after", at: 14_400_000).validate(now: Date(timeIntervalSince1970: 0))
-        expect(true, "after dismissal accepts exactly the documented four-hour limit")
+        // Any time is a valid dismissal: the system removes the activity at it or four hours after the end.
+        try EndPolicy(kind: "after", at: 14_400_001).validate()
+        try EndPolicy(kind: "after", at: 0).validate()
+        await expectError("INVALID_INPUT") { try EndPolicy(kind: "after", at: -1).validate() }
+        expect(true, "after dismissal takes any time from 1970 on")
     }
 }

@@ -2,13 +2,14 @@
 //! device (`aarch64-apple-ios`) and the simulators (`aarch64-apple-ios-sim`, `x86_64-apple-ios`). Other targets build
 //! no Swift; there every call answers `UNSUPPORTED_PLATFORM`.
 //!
-//! The flags are the ones the `swift-rs` crate passes, which Tauri uses for its iOS plugins: SwiftPM builds for the
+//! These are the flags SwiftPM needs to build for iOS, the same the `swift-rs` crate passes: SwiftPM builds for the
 //! host and `-Xswiftc -sdk/-target` retarget each compile to iOS. `swift-rs` itself is not used because it builds every
 //! target of the package (here also the SwiftUI renderer and the widget, which the app's library must not hold) and
 //! needs a static product named like the package.
 //!
 //! `ACTIVITYKIT_SKIP_SWIFT=1` skips the Swift build, for `cargo check` or `clippy` of the iOS code on a machine without
-//! Xcode; nothing links then. `IPHONEOS_DEPLOYMENT_TARGET` sets the Swift deployment target (15.0 at least).
+//! Xcode; nothing links then. docs.rs (`DOCS_RS`) has no Xcode either, so the build skips Swift there too.
+//! `IPHONEOS_DEPLOYMENT_TARGET` sets the Swift deployment target (15.0 at least).
 
 use std::{
     env,
@@ -25,7 +26,11 @@ fn main() {
     }
     println!("cargo:rerun-if-env-changed=IPHONEOS_DEPLOYMENT_TARGET");
     println!("cargo:rerun-if-env-changed=ACTIVITYKIT_SKIP_SWIFT");
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("ios") {
+        return;
+    }
+    if env::var_os("DOCS_RS").is_some() {
         return;
     }
     if env::var_os("ACTIVITYKIT_SKIP_SWIFT").is_some() {

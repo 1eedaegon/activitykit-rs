@@ -24,6 +24,12 @@ pub(crate) struct FakeActivity {
     pub(crate) revision: u64,
     pub(crate) values: Values,
     pub(crate) state: State,
+    /// What the widget leaves out, as the Swift layer reports it.
+    pub(crate) degraded: Vec<String>,
+    /// The content's timestamp, stale date and relevance score.
+    pub(crate) timestamp: Option<u64>,
+    pub(crate) stale_at: Option<u64>,
+    pub(crate) relevance: f64,
 }
 
 #[derive(Default)]
@@ -37,6 +43,8 @@ pub(crate) struct FakeState {
     pub(crate) delay: Option<Duration>,
     /// The next call fails with this code and message.
     pub(crate) fail: Option<(&'static str, &'static str)>,
+    /// The next call fails with this error object.
+    pub(crate) fail_with: Option<Value>,
     events: Option<Listener>,
     next: u64,
 }
@@ -57,10 +65,17 @@ fn error(code: &str, message: &str) -> Vec<u8> {
 }
 
 fn record(activity: &FakeActivity) -> Value {
-    json!({"id": activity.id, "activityKey": activity.key, "schemaVersion": 2,
-        "snapshot": {"revision": activity.revision, "values": activity.values},
+    let mut snapshot = json!({"revision": activity.revision, "values": activity.values});
+    if let Some(at) = activity.timestamp {
+        snapshot["timestamp"] = at.into();
+    }
+    if let Some(at) = activity.stale_at {
+        snapshot["staleAt"] = at.into();
+    }
+    json!({"id": activity.id, "activityKey": activity.key, "schemaVersion": 2, "relevance": activity.relevance,
+        "snapshot": snapshot,
         "backend": "activityKit", "state": activity.state, "visibility": "unknown",
-        "degradedFeatures": [], "promotionRequested": false, "promotionState": "notApplicable"})
+        "degradedFeatures": activity.degraded, "promotionRequested": false, "promotionState": "notApplicable"})
 }
 
 impl FakeBridge {
@@ -86,6 +101,11 @@ impl FakeBridge {
 
     fn answer(&self, call: Call, request: &Value) -> Vec<u8> {
         let mut state = self.lock();
+        if let Some(failure) = state.fail_with.take() {
+            return json!({"ok": false, "error": failure})
+                .to_string()
+                .into_bytes();
+        }
         if let Some((code, message)) = state.fail.take() {
             return error(code, message);
         }
@@ -93,9 +113,8 @@ impl FakeBridge {
             .as_str()
             .unwrap_or_default()
             .to_owned();
-        let live = |activity: &FakeActivity| {
-            activity.id == id && matches!(activity.state, State::Active | State::Stale)
-        };
+        let relevance = request["relevance"].as_f64();
+        let snapshot = &request["request"]["snapshot"];
         match call {
             Call::Start => {
                 let input: LayoutStartInput =
@@ -107,32 +126,25 @@ impl FakeBridge {
                     revision: input.snapshot.revision,
                     values: input.snapshot.values,
                     state: State::Active,
+                    degraded: Vec::new(),
+                    timestamp: input.snapshot.timestamp,
+                    stale_at: input.snapshot.stale_at,
+                    relevance: relevance.unwrap_or(0.0),
                 };
                 state.activities.push(activity.clone());
                 ok(record(&activity))
             }
             Call::Update => {
-                let Some(activity) = state.activities.iter_mut().find(|activity| live(activity))
-                else {
+                let live = |activity: &&mut FakeActivity| {
+                    activity.id == id && matches!(activity.state, State::Active | State::Stale)
+                };
+                let Some(activity) = state.activities.iter_mut().find(live) else {
                     return error("NOT_FOUND", "The active activity was not found.");
                 };
-                let snapshot = &request["request"]["snapshot"];
-                let revision = snapshot["revision"].as_u64().unwrap();
-                let values: Values = serde_json::from_value(snapshot["values"].clone()).unwrap();
-                if revision < activity.revision {
-                    return error(
-                        "STALE_REVISION",
-                        "The revision is older than the current activity state.",
-                    );
+                match accept(activity, snapshot, relevance) {
+                    Ok(()) => ok(record(activity)),
+                    Err(failure) => failure,
                 }
-                if revision == activity.revision && values != activity.values {
-                    return error(
-                        "CONFLICT",
-                        "This revision already contains different state.",
-                    );
-                }
-                (activity.revision, activity.values) = (revision, values);
-                ok(record(activity))
             }
             Call::End => {
                 let Some(activity) = state
@@ -142,12 +154,46 @@ impl FakeBridge {
                 else {
                     return error("NOT_FOUND", "The active activity was not found.");
                 };
+                // An ended activity ends again with the record it has.
+                if matches!(activity.state, State::Active | State::Stale)
+                    && snapshot.is_object()
+                    && let Err(failure) = accept(activity, snapshot, relevance)
+                {
+                    return failure;
+                }
                 activity.state = State::Ended;
                 ok(record(activity))
             }
             Call::List => ok(state.activities.iter().map(record).collect()),
         }
     }
+}
+
+/// New content under the lifecycle's revision rules. Without a relevance the activity keeps its score.
+fn accept(
+    activity: &mut FakeActivity,
+    snapshot: &Value,
+    relevance: Option<f64>,
+) -> Result<(), Vec<u8>> {
+    let revision = snapshot["revision"].as_u64().unwrap();
+    let values: Values = serde_json::from_value(snapshot["values"].clone()).unwrap();
+    if revision < activity.revision {
+        return Err(error(
+            "STALE_REVISION",
+            "The revision is older than the current activity state.",
+        ));
+    }
+    if revision == activity.revision && values != activity.values {
+        return Err(error(
+            "CONFLICT",
+            "This revision already contains different state.",
+        ));
+    }
+    (activity.revision, activity.values) = (revision, values);
+    activity.timestamp = snapshot["timestamp"].as_u64();
+    activity.stale_at = snapshot["staleAt"].as_u64();
+    activity.relevance = relevance.unwrap_or(activity.relevance);
+    Ok(())
 }
 
 impl Bridge for FakeBridge {

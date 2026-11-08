@@ -58,17 +58,20 @@ public enum LayoutValue: Codable, Hashable, Sendable, LayoutWire {
     }
 }
 
-/// The content state of a layout activity.
+/// The content state of a layout activity. `timestamp` is when the content was made, in epoch milliseconds; ActivityKit
+/// (iOS 17.2) drops content older than what it shows.
 public struct LayoutSnapshot: Codable, Hashable, Sendable {
     public let revision: Int64
     public let values: [String: LayoutValue]
     public let staleAt: Int64?
-    public init(revision: Int64, values: [String: LayoutValue], staleAt: Int64? = nil) {
-        self.revision = revision; self.values = values; self.staleAt = staleAt
+    public let timestamp: Int64?
+    public init(revision: Int64, values: [String: LayoutValue], staleAt: Int64? = nil, timestamp: Int64? = nil) {
+        self.revision = revision; self.values = values; self.staleAt = staleAt; self.timestamp = timestamp
     }
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         revision = try object.need("revision"); values = try object.need("values"); staleAt = try object.take("staleAt")
+        timestamp = try object.take("timestamp")
         try object.finish()
     }
 }

@@ -8,7 +8,7 @@ import ActivityKitCore
 
 /// What `ak_authorization` answers.
 struct AuthorizationReply: Codable, Equatable, Sendable {
-    /// An iPhone with iOS 16.1 or later, or an iPad with iPadOS 17 or later; not an iOS app on a Mac.
+    /// An iPhone with iOS 16.2 or later, or an iPad with iPadOS 17 or later; not an iOS app on a Mac.
     let supported: Bool
     /// Supported, and Live Activities are on for this app.
     let enabled: Bool
@@ -75,6 +75,7 @@ final class Presentations {
 
     private var starts: [String: Double] = [:]
     private var updates: [String: Update] = [:]
+    private var ends: [String: Double] = [:]
 
     func expectStart(key: String, relevance: Double?) { starts[key] = relevance }
     func forgetStart(key: String) { starts[key] = nil }
@@ -87,6 +88,11 @@ final class Presentations {
     func forgetUpdate(id: String, revision: Int64) { updates[Self.key(id, revision)] = nil }
     /// The relevance and the alert of the update of this activity to this revision.
     func update(id: String, revision: Int64) -> Update? { updates[Self.key(id, revision)] }
+
+    func expectEnd(id: String, relevance: Double?) { ends[id] = relevance }
+    func forgetEnd(id: String) { ends[id] = nil }
+    /// The relevance of the end of this activity.
+    func end(id: String) -> Double? { ends[id] }
 
     private static func key(_ id: String, _ revision: Int64) -> String { "\(revision) \(id)" }
 }

@@ -11,12 +11,16 @@ public struct LayoutActivity: Sendable {
     public let state: String
     /// What the widget leaves out, such as `layout.custom.<name>` for a custom view the app does not register.
     public let degradedFeatures: [String]
-    public init(id: String, attributes: LiveActivityLayoutAttributes, snapshot: LayoutSnapshot, state: String, degradedFeatures: [String] = []) {
+    /// The content's relevance score, when the backend knows it.
+    public let relevance: Double?
+    public init(id: String, attributes: LiveActivityLayoutAttributes, snapshot: LayoutSnapshot, state: String, degradedFeatures: [String] = [],
+                relevance: Double? = nil) {
         self.id = id; self.attributes = attributes; self.snapshot = snapshot; self.state = state; self.degradedFeatures = degradedFeatures
+        self.relevance = relevance
     }
     public var record: LayoutActivityRecord {
         LayoutActivityRecord(id: id, activityKey: attributes.activityKey, schemaVersion: attributes.schemaVersion, snapshot: snapshot, state: state,
-                             degradedFeatures: degradedFeatures)
+                             degradedFeatures: degradedFeatures, relevance: relevance)
     }
 }
 
@@ -32,9 +36,12 @@ public struct LayoutActivityRecord: Encodable, Sendable {
     public let degradedFeatures: [String]
     public let promotionRequested = false
     public let promotionState = "notApplicable"
-    init(id: String, activityKey: String, schemaVersion: Int, snapshot: LayoutSnapshot, state: String, degradedFeatures: [String] = []) {
+    /// The relevance score of the content; absent when only a receipt knows the activity.
+    public let relevance: Double?
+    init(id: String, activityKey: String, schemaVersion: Int, snapshot: LayoutSnapshot, state: String, degradedFeatures: [String] = [],
+         relevance: Double? = nil) {
         self.id = id; self.activityKey = activityKey; self.schemaVersion = schemaVersion; self.snapshot = snapshot; self.state = state
-        self.degradedFeatures = degradedFeatures
+        self.degradedFeatures = degradedFeatures; self.relevance = relevance
     }
 }
 
@@ -134,7 +141,7 @@ extension LayoutActivity: LifecycleActivity {
                        fingerprint: attributes.initialFingerprint)
     }
     func with(snapshot: LayoutSnapshot, state: String) -> LayoutActivity {
-        LayoutActivity(id: id, attributes: attributes, snapshot: snapshot, state: state, degradedFeatures: degradedFeatures)
+        LayoutActivity(id: id, attributes: attributes, snapshot: snapshot, state: state, degradedFeatures: degradedFeatures, relevance: relevance)
     }
 }
 
@@ -171,9 +178,15 @@ public final class LayoutActivityController {
             check: { try PayloadLimit.check(attributes: $0.attributes, snapshot: request.snapshot) })
     }
 
+    /// Final content must keep the keys and types accepted at start and satisfy the stored layout, as an update does.
     public func end(_ request: LayoutEndRequest) async throws -> LayoutActivityRecord {
         try request.validate()
-        return try await lifecycle.end(id: request.id, policy: request.policy)
+        let content = request.snapshot.map { snapshot in
+            ActivityLifecycle<LayoutActivity>.FinalContent(snapshot: snapshot,
+                validate: { try snapshot.validate(replacing: $0.snapshot, in: $0.attributes.document) },
+                check: { try PayloadLimit.check(attributes: $0.attributes, snapshot: snapshot) })
+        }
+        return try await lifecycle.end(id: request.id, policy: request.policy, content: content)
     }
 
     public func list() async throws -> [LayoutActivityRecord] {

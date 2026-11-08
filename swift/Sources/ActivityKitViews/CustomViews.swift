@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-// The registry of `custom` layout nodes, from the plugin's LiveActivityCustomRegistry.swift. The widget draws the views;
+// The registry of `custom` layout nodes. The widget draws the views;
 // the app reads which names have one, to report the others in `degraded_features` as `layout.custom.<name>`. Both
 // targets compile the app's subclass, so both link this product. It depends on nothing else of the package, so the app
 // links it without a second copy of the Swift code in the Rust library.
