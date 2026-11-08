@@ -1,0 +1,9 @@
+/target
+**/target
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+node_modules/
+.DS_Store
