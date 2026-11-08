@@ -1,4 +1,4 @@
-# activitykit
+# Activitykit-rs
 
 Live Activities for any Rust iOS app: Tauri, Dioxus, Bevy, Slint or your own.
 
