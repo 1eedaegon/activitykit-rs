@@ -265,6 +265,11 @@ jobs:
             tests/ios-host/DerivedData/SourcePackages
           key: ${{ steps.keys.outputs.products }}
           restore-keys: ${{ steps.keys.outputs.products-prefix }}
+      # Xcode's incremental build over the restored intermediates of other inputs made an app whose Lock Screen taps never
+      # reached it, every time: from those only the module cache and the package state stay, and Xcode builds anew.
+      - name: Keep only the module cache of other inputs' products
+        if: steps.products.outputs.cache-matched-key != '' && steps.products.outputs.cache-hit != 'true'
+        run: rm -rf tests/ios-host/DerivedData/Build
       - if: steps.passed.outputs.found != 'true'
         run: rustup toolchain install "$TOOLCHAIN" --profile minimal --target "$TARGET" && rustup default "$TOOLCHAIN"
         env:
