@@ -65,12 +65,12 @@ passed for the tag's exact commit, and that the crate packages. It publishes not
 - The simulator job caches the test host's Xcode products (`Build/Products` of its DerivedData, with the
   `.xctestrun`) under `simulator-products-v1-<system>-<arch>-xcode<version>-<build>-rust<toolchain>-<files>`.
   `<files>` is a hash of the tracked files under `src/`, `swift/`, `templates/`, `contracts/` and `tests/ios-host/`,
-  `build.rs`, the manifests and the toolchain files. On that exact key `run.sh` (given it as `BUILD_KEY`) skips cargo,
-  XcodeGen and `build-for-testing` and tests the cached products; when any of them is missing it builds. Other inputs
-  build with the Rust dependencies from the cache, and Xcode builds from scratch: checkout gives every file a new
-  modification time, so cargo recompiles the crate and the host and reruns `build.rs`, and Xcode would recompile
-  every Swift source anyway; an incremental Xcode build over restored intermediates also made an app whose Lock Screen
-  taps never reached it.
+  `build.rs`, the manifests and the toolchain files. On that exact key `run.sh` (given it as `BUILD_KEY`) skips cargo
+  and `build-for-testing` and tests the cached products through the project's scheme (XcodeGen takes under a second);
+  when any of them is missing it builds. Other inputs build with the Rust dependencies from the cache, and Xcode
+  builds from scratch: checkout gives every file a new modification time, so cargo recompiles the crate and the host
+  and reruns `build.rs`, and Xcode would recompile every Swift source anyway; an incremental Xcode build over restored
+  intermediates also made an app whose Lock Screen taps never reached it.
 - A suite that passed is not run again for the same inputs: the same files, Xcode, runner image (`ImageOS`,
   `ImageVersion`), Rust and, for the simulator, the runtime (`tests/ci/cache.sh keys`). After a full pass the job
   uploads a record, an artifact named `passed-<suite>-<hash>` that keeps 90 days; a later run that finds it skips the

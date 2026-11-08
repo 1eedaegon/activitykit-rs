@@ -10,8 +10,9 @@
 #
 # BUILD_KEY names the inputs of the build (CI passes a hash of them, from tests/ci/cache.sh). After a build, run.sh
 # writes it next to the products in DERIVED_DATA. When DERIVED_DATA already holds the complete products of a build with
-# the same key, run.sh skips cargo, XcodeGen and build-for-testing and tests those products; when anything is missing,
-# it builds as without the key.
+# the same key, run.sh skips cargo and build-for-testing and tests those products; when anything is missing, it builds
+# as without the key. XcodeGen runs either way: the tests go through the project's scheme, because with the .xctestrun
+# alone xcodebuild took more than 9 minutes to start the tests on a CI runner's new simulator.
 #
 # After a pass of every test, OUT/passed lists the tests that passed only on a retry (often none).
 set -eu
@@ -53,6 +54,7 @@ built() {
 
 if built; then
   echo "the products in $products were built for $BUILD_KEY: no build"
+  xcodegen generate --spec "$here/project.yml" --quiet
 else
   if [ -n "${BUILD_KEY:-}" ]; then echo "no complete products built for $BUILD_KEY: building"; fi
   rm -f "$stamp" "$products"/*.xctestrun
@@ -63,7 +65,6 @@ else
   [ -n "$(xctestrun)" ] || { echo "build-for-testing left no single .xctestrun in $products"; exit 1; }
   if [ -n "${BUILD_KEY:-}" ]; then printf '%s\n' "$BUILD_KEY" >"$stamp"; fi
 fi
-run=$(xctestrun)
 
 status=0
 set --
@@ -78,8 +79,8 @@ fi
 # The status goes through a file: the group runs in a subshell of the pipe, where `set -e` would end it at a failing
 # xcodebuild before the status is written.
 { tested=0
-  TEST_RUNNER_AK_SHOTS="$out" xcodebuild test-without-building -xctestrun "$run" -destination "$destination" \
-    -derivedDataPath "$derived" "$@" 2>&1 || tested=$?
+  TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
+    -destination "$destination" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" 2>&1 || tested=$?
   echo "$tested" >"$out/.status"; } | tee "$out/xcodebuild.log"
 status=$(cat "$out/.status")
 rm -f "$out/.status"
