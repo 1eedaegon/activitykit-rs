@@ -10,7 +10,6 @@ repository = "https://github.com/1eedaegon/activitykit-rs"
 readme = "README.md"
 keywords = ["ios", "live-activities", "activitykit", "dynamic-island", "widgetkit"]
 categories = ["api-bindings", "gui"]
-publish = false
 # One copy of the Swift bridge per app: two versions of this crate would link the same C symbols.
 links = "activitykit"
 include = [
@@ -18,6 +17,11 @@ include = [
     "/swift/Package.swift", "/swift/Sources/**", "/templates/**", "/contracts/**",
     "/tests/contract.rs", "/tests/fixtures/**", "/docs/**",
 ]
+
+# docs.rs documents the iOS build; build.rs skips Swift there.
+[package.metadata.docs.rs]
+default-target = "aarch64-apple-ios"
+targets = ["aarch64-apple-ios"]
 
 [dependencies]
 async-channel = "2"
