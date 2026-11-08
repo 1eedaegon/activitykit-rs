@@ -111,6 +111,47 @@ fn acknowledging_releases_the_tap_before_the_event_is_dropped() {
 }
 
 // AK-EVENT-14
+/// The common handler: it keeps the tap's event while it updates the activity, then drops it. The tap returns once the
+/// update is done, well within the wait.
+#[test]
+fn a_tap_waits_for_a_handler_that_updates_the_activity() {
+    let fake = FakeBridge::default();
+    let kit = ActivityKit::with_bridge(fake.clone(), TAP_WAIT);
+    let activity = block_on(kit.start(
+        super::tests::sketch(),
+        values! { "tone" => "green", "level" => 0.2 },
+    ))
+    .unwrap();
+    fake.lock().delay = Some(Duration::from_millis(200));
+    let events = kit.events();
+    let handler = thread::spawn(move || {
+        let event = events.recv_blocking().unwrap();
+        let Event::Action {
+            activity: ref tapped,
+            ..
+        } = event
+        else {
+            panic!("a tap")
+        };
+        block_on(tapped.update(values! { "tone" => "red", "level" => 0.8 })).unwrap();
+        let updated = Instant::now();
+        drop(event);
+        updated
+    });
+    let started = Instant::now();
+    fake.emit(json!({"type":"action","activityId":activity.id(),"actionId":"stop"}));
+    let returned = Instant::now();
+    let updated = handler.join().unwrap();
+    fake.join();
+    assert!(
+        returned >= updated,
+        "the tap returned before the update was done"
+    );
+    assert!(returned - started < TAP_WAIT, "{:?}", returned - started);
+    assert_eq!(activity.revision(), Some(1));
+}
+
+// AK-EVENT-14
 /// A clone of the event holds the tap as the event does.
 #[test]
 fn a_tap_waits_for_every_clone_of_its_event() {

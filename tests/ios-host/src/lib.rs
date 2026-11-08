@@ -292,7 +292,10 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     });
     let (tapped, action, acknowledgement) = tapped.ok_or("no tap within 3 minutes")?;
     reporter.say(format!("action {action} from {}", tapped.id()));
-    // AK-EVENT-14: a handler that takes a second; the tap's intent waits for it.
+    // AK-EVENT-14: the handler updates the activity and takes a second in all, holding the acknowledgement; the tap's
+    // intent waits for it.
+    let stopping = values! { "status" => "Stopping", "tone" => "gray", "level" => 1.0 };
+    block_on(tapped.update(stopping)).map_err(|error| format!("update in the handler: {error}"))?;
     thread::sleep(Duration::from_secs(1));
     let early = *TAP_ACKNOWLEDGED
         .lock()
@@ -314,7 +317,7 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
         "the intent was acknowledged before the handler was done",
     )?;
     reporter.say(format!(
-        "the intent was acknowledged {:?} after the handler of 1 s was done",
+        "the intent was acknowledged {:?} after the handler (an update and 1 s) was done",
         acknowledged - handled
     ));
     check(
@@ -322,8 +325,8 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
         "the tap names the button and the activity",
     )?;
     check(
-        tapped.revision() == Some(2),
-        "the tapped handle shares the started one's revision",
+        tapped.revision() == Some(3) && activity.revision() == Some(3),
+        "the tapped handle shares the started one's revision, and the handler's update",
     )?;
     // AK-END-6: the end carries its final values.
     let last = End::immediately()
@@ -331,7 +334,7 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     block_on(tapped.end(last)).map_err(|error| format!("end: {error}"))?;
     check(activity.state() == State::Ended, "the record of the end")?;
     check(
-        activity.revision() == Some(3)
+        activity.revision() == Some(4)
             && activity.values().get("status") == Some(&Value::from("Stopped")),
         "the end shows its final values",
     )?;

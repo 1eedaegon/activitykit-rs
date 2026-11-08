@@ -127,7 +127,9 @@ pub enum Receipts {
     #[default]
     Full,
     /// A SHA-256 digest of the accepted content instead of the values. After a relaunch, [`ActivityKit::activities`]
-    /// then gives the values that ActivityKit shows. A digest of guessable values can be guessed.
+    /// then gives the values that ActivityKit shows. A digest of guessable values can be guessed, and so can the
+    /// start's fingerprint (of the layout and the first values) that the receipt and ActivityKit's attributes keep in
+    /// either mode; ActivityKit itself keeps the values in the activity's content.
     Redacted,
 }
 
@@ -194,7 +196,11 @@ impl Builder {
     /// before any `build`, this answers [`Error::Conflict`] and changes nothing; the same settings again are fine. Off
     /// iOS it succeeds, and every call of the kit answers [`Error::Unsupported`].
     pub fn build(self) -> Result<ActivityKit> {
-        let kit = ActivityKit::new();
+        self.build_on(ActivityKit::new())
+    }
+
+    /// `kit` once the bridge took these settings; [`build`](Self::build) with the process's kit.
+    pub(crate) fn build_on(self, kit: ActivityKit) -> Result<ActivityKit> {
         kit.settle(&self)?;
         Ok(kit)
     }

@@ -174,7 +174,10 @@ The Swift layer keeps receipts of accepted requests in Application Support (`act
 ActivityKit can report an update late. By default a receipt holds the activity's key and its last accepted values in
 plain text, in a file only the app's user can read, which iOS protects until the device is first unlocked after a
 restart. With `Receipts::Redacted` it holds the key, the state, the accepted revision and a SHA-256 digest of the
-content instead of the values; a digest of guessable values, such as a flag or a short word, can be guessed. After a
+content without its timestamp instead of the values; a digest of guessable values, such as a flag or a short word, can
+be guessed. So can the start's fingerprint, a SHA-256 of the layout and the first values, which the receipt and
+ActivityKit's attributes (`initialFingerprint`) keep in either mode; and ActivityKit itself keeps the values in the
+activity's content. After a
 relaunch the list then gives what ActivityKit shows: its values and its revision, which is older than the accepted
 one only while ActivityKit lags behind an update. An ended activity that ActivityKit no longer lists is not listed in
 either mode, and ending it again answers its record without values. Changes while the app was not running are not
@@ -211,7 +214,9 @@ the background. The intent posts the tap for at most 5 seconds, and the tap wait
 receiver has handled it, which keeps such an app running meanwhile: until the receiver's event, and every clone of
 it, is dropped, or `acknowledgement.acknowledge()` is called. An app that hands a tap to another thread, for example
 to start recording, keeps the event or its acknowledgement until that thread is done; an app that drops the event as
-soon as it reads it lets the intent return at once. A tap for an activity that ActivityKit no longer
+soon as it reads it lets the intent return at once. Keep the event only while you act on it: taps reach the app one at
+a time, so a held tap holds the later ones behind it, and a later tap's intent can give up after its 5 seconds before
+the app has taken that tap, which then arrives late, when nothing may keep the app running. A tap for an activity that ActivityKit no longer
 lists comes with a handle whose `key()` is empty and whose update answers `Error::NotFound`. A tap does not change the
 activity; update it if the button should change.
 

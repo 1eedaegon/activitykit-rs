@@ -32,7 +32,7 @@ extension LifecycleTests {
         return condition()
     }
 
-    // AK-EVENT-3, AK-EVENT-4, AK-EVENT-6
+    // AK-EVENT-3, AK-EVENT-4, AK-EVENT-6, AK-EVENT-14
     @MainActor static func testActionRelay() async throws {
         let center = NotificationCenter()
         let relay = ActionRelay(center: center) { $0 == "la-1" ? "job:1" : nil }
@@ -92,6 +92,21 @@ extension LifecycleTests {
         let given = try await ActionPost.post(activityId: "la-3", actionId: "lost", center: unheard, attempts: 3, interval: 10_000_000)
         expect(!given && Date().timeIntervalSince(began) >= 0.03, "without an acknowledgement the intent gives up after its attempts")
         withExtendedLifetime(deaf) {}
+
+        // AK-EVENT-14: taps go through one queue. While a sink holds one, a later tap waits behind it, and an intent that
+        // waits less than that gives up before its tap is taken; the tap still arrives afterwards.
+        let line = NotificationCenter()
+        let queued = ActionRelay(center: line) { _ in nil }
+        let handled = TapLog()
+        queued.register { action in
+            if action.actionId == "held" { Thread.sleep(forTimeInterval: 0.3) }
+            handled.record(action)
+        }
+        let held = post(line, "held")
+        let behind = try await ActionPost.post(activityId: "la-1", actionId: "behind", center: line, attempts: 5, interval: 20_000_000)
+        expect(!behind, "an intent that waits 100 ms gives up while an earlier tap is held for 300 ms")
+        await verify(await eventually { handled.ids == ["held", "behind"] && held.isFinished },
+                     "the later tap arrives once the held one is done")
 
         let quiet = NotificationCenter()
         var gone: ActionRelay? = ActionRelay(center: quiet) { _ in nil }

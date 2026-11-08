@@ -61,7 +61,9 @@ pub enum Event {
 
 /// Says that one receiver has handled a tap. The tap's intent, and so an app that the system launched for the tap,
 /// waits until every receiver's acknowledgement is dropped, with every clone, or [`acknowledge`](Self::acknowledge)
-/// is called, for at most 4 seconds: iOS gives the intent 5. Clones share one acknowledgement.
+/// is called, for at most 4 seconds: iOS gives the intent 5. Clones share one acknowledgement. Keep it only while the
+/// app acts on the tap: taps reach the app one at a time, so a held tap holds the later ones behind it, and a later
+/// tap's intent can give up before its tap is taken.
 #[derive(Clone)]
 pub struct Acknowledgement(Arc<Handled>);
 

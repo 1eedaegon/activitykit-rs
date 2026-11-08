@@ -40,6 +40,22 @@ fn the_first_settings_hold_and_others_conflict() {
 }
 
 // AK-KIT-3
+/// `build` hands its settings to the bridge before it returns the kit, and fails as the bridge does.
+#[test]
+fn build_hands_its_settings_to_the_bridge() {
+    let (kit, fake) = kit();
+    let built = redacted().build_on(kit.clone()).unwrap();
+    assert_eq!(fake.lock().configured, [json!({"receipts":"redacted"})]);
+    assert!(Arc::ptr_eq(&built.inner, &kit.inner));
+    let error = ActivityKit::builder().build_on(kit).unwrap_err();
+    assert_eq!(
+        error,
+        Error::Conflict("The Swift layer already runs with other settings.".into())
+    );
+    assert_eq!(fake.lock().configured.len(), 2);
+}
+
+// AK-KIT-3
 #[test]
 fn the_first_use_fixes_the_default_settings() {
     let (kit, _fake) = kit();
@@ -148,12 +164,14 @@ fn updates_and_ends_send_the_revision_the_caller_chose() {
     assert_eq!(error.code(), "CONFLICT");
     let error = block_on(activity.update_with(Update::new(red).revision(2))).unwrap_err();
     assert_eq!(error.code(), "STALE_REVISION");
+    // A lower revision chosen and refused does not lower the count: the next automatic one is above the highest sent.
+    block_on(activity.update(values! { "tone" => "red", "level" => 0.7 })).unwrap();
     let revisions: Vec<_> = sent(&fake, Call::Update)
         .iter()
         .map(|snapshot| snapshot["revision"].as_u64().unwrap())
         .collect();
-    assert_eq!(revisions, [7, 8, 8, 8, 2]);
-    assert_eq!(activity.revision(), Some(8));
+    assert_eq!(revisions, [7, 8, 8, 8, 2, 9]);
+    assert_eq!(activity.revision(), Some(9));
     let end = End::immediately()
         .values(values! { "tone" => "gray", "level" => 1.0 })
         .revision(12);
