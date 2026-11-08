@@ -18,7 +18,16 @@ final class Report: ObservableObject {
 private let reportLine: @convention(c) (UnsafePointer<UInt8>?, Int) -> Void = { bytes, count in
     guard let bytes else { return }
     let line = String(decoding: UnsafeBufferPointer(start: bytes, count: count), as: UTF8.self)
-    DispatchQueue.main.async { Report.shared.lines.append(line) }
+    DispatchQueue.main.async {
+        Report.shared.lines.append(line)
+        // The scenario is over: the UI test, which cannot see the app while it is in the background, hears it by a
+        // Darwin notification, and the app may be suspended.
+        if line.hasPrefix("PASS") || line.hasPrefix("FAIL") {
+            CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+                                                 CFNotificationName("dev.activitykit.host.finished" as CFString), nil, nil, true)
+            MainActor.assumeIsolated { Background.end() }
+        }
+    }
 }
 
 @main
@@ -58,9 +67,12 @@ enum Background {
 
     static func begin() {
         guard task == .invalid else { return }
-        task = UIApplication.shared.beginBackgroundTask {
-            UIApplication.shared.endBackgroundTask(task)
-            task = .invalid
-        }
+        task = UIApplication.shared.beginBackgroundTask { end() }
+    }
+
+    static func end() {
+        guard task != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(task)
+        task = .invalid
     }
 }

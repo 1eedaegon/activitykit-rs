@@ -150,8 +150,8 @@ extension LifecycleTests {
             expect(LayoutPath.commands(data) == nil, "path data \(data.debugDescription) is invalid")
         }
         expect(LayoutPath.commands("M1e999 0") == nil, "path numbers must be finite to draw")
-        try layoutRequest(layoutJSON(lockScreen: #"{"type":"path","d":"M1e999 0","box":[8,8]}"#, values: "{}")).validate()
-        expect(true, "validation checks the syntax of path data only")
+        let unbounded = try layoutRequest(layoutJSON(lockScreen: #"{"type":"path","d":"M1e999 0","box":[8,8]}"#, values: "{}"))
+        expect((try? unbounded.validate()) != nil, "validation checks the syntax of path data only")
 
         let path = try layoutDocument(#"{"type":"hstack","children":[{"type":"path","d":"M0 0L8 8","box":[8,16]},{"type":"path","d":"M0 0L8 8","box":[24,24],"stroke":1.5},{"type":"path","d":"L1 1","box":[8,8]}]}"#)
         expect(children(path.render(.lockScreen, values: [:])).map(\.content) == [

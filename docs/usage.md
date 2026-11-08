@@ -10,8 +10,12 @@ use activitykit::ActivityKit;
 let kit = ActivityKit::new();
 let authorization = kit.authorization();
 // supported: the device has Live Activities (iPhone with iOS 16.2, iPad with iPadOS 17).
-// enabled: and they are on for this app. buttons: iOS 17 or later.
+// enabled: and they are on for this app. buttons: iOS 17 or later, where the OS runs a button's intent.
 ```
+
+`authorization()` says what the device and the person allow. It does not check the app's setup: with `enabled` true a
+start still answers `Error::ConfigurationRequired` when `NSSupportsLiveActivities` or the widget extension is missing,
+and `buttons` does not check that the app links `ActivityKitIntent`.
 
 Off iOS, `authorization()` reports nothing supported and every other call answers `Error::Unsupported` after it has
 checked the request, so an invalid layout fails the same way on a Mac or Linux as on a phone.
@@ -101,18 +105,25 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
 - A start needs the app in the foreground (or a Live Activity intent of the app); otherwise ActivityKit refuses it and
   the start answers `Error::NotForeground`. Each `start` is a new activity. `Start::key("rec")` gives it a key: while
   that activity runs, the same start returns it and a different one is `Error::Conflict`.
-- Each update sends every value again; the handle adds the revision, and every content carries the time it was made
-  (`Update::timestamp`, by default when `Update::new` ran), which ActivityKit uses on iOS 17.2 to drop older content.
-  Clones of a handle, and every handle that `activities()` or an event gives for the same activity, share one count. If
-  the activity already shows a newer revision, the update reads it and tries again only when its own content is the
-  newer one; otherwise it answers `Error::StaleRevision`.
+- Each update sends every value again; the handle adds the revision and a timestamp: the time it sends the content,
+  unless `Update::timestamp` gives one. ActivityKit uses it on iOS 17.2 to drop older content: an update with a
+  timestamp older than the shown content's still succeeds, and the handle and the list report its values, but the
+  activity keeps showing the newer content. Clones of a handle, and every handle that `activities()` or an event gives
+  for the same activity, share one count. If the activity already shows a newer revision, the update reads it and tries
+  again only when its own content is the newer one; otherwise it answers `Error::StaleRevision`.
+- Updates and ends of one activity go out one at a time, in the order they were called: each waits until the one
+  before has its answer, which the handle takes even when nobody awaits it. A write that fails keeps its revision
+  taken, so the next one skips it; no revision is sent twice.
 - Relevance and stale date belong to each content, as in ActivityKit: an update or end without a relevance keeps its
   score, and one without a stale date clears the stale date. The highest score shows in the Dynamic Island.
 - An alert lights up the screen and expands the Dynamic Island (without one, the Lock Screen presentation shows as a
   banner). Its title and body show only on an Apple Watch.
-- An end carries final content: the values of `End::values`, else the last accepted ones, with an optional stale date
-  and relevance. `End::immediately()` removes the activity at once; `End::default()` and `End::after(time)` keep it on
-  the Lock Screen until the time or four hours after the end, whichever comes first. Ending again is fine.
+- An end carries final content: the values of `End::values`, else the last accepted ones (those of the updates called
+  before it, which it waits for), with an optional stale date and relevance. `End::immediately()` removes the activity
+  at once; `End::default()` keeps it on the Lock Screen for up to four hours, and `End::after(time)` until the time or
+  four hours after the end, whichever comes first; a time in the past removes it at once. Times run to
+  8 640 000 000 000 000 ms after 1970; a later one, like one before 1970, is `Error::InvalidInput`. Ending again is
+  fine.
 - `activity.state()`, `values()`, `revision()`, `stale_at()`, `relevance()` and `degraded_features()` give what the
   last reply or event said.
 
@@ -129,8 +140,10 @@ for activity in kit.activities().await? {
 ```
 
 The Swift layer keeps receipts of accepted requests in Application Support (`activitykit/receipts-v2.json`), because
-ActivityKit can report an update late. Changes while the app was not running are not replayed as events; the list
-gives the current state.
+ActivityKit can report an update late. A receipt holds the activity's key and its last accepted values in plain text,
+in a file only the app's user can read, which iOS protects until the device is first unlocked after a restart; values
+that must not rest on the device in plain text do not belong in an activity. Changes while the app was not running are
+not replayed as events; the list gives the current state.
 
 ## Events
 
@@ -151,12 +164,16 @@ while let Ok(event) = events.recv().await {
 
 The enum and its variants leave room to grow, so match with `..` and a `_` arm. Each call of `events()` is a new
 receiver that gets every later event, in the order the system reported them; events that came before the first
-receiver wait for it, at most 16. Read with `recv().await` in an async runtime, `try_recv()` once per frame in a render
-or game loop, or `recv_blocking()` on a worker thread.
+receiver wait for it, at most 16, and so do the events after every receiver was dropped. A receiver keeps every event
+until it is read, without a limit, and a tap waits for every receiver: keep reading the receivers you create, or drop
+them. Read with `recv().await` in an async runtime, `try_recv()` once per frame in a render or game loop, or
+`recv_blocking()` on a worker thread.
 
 A tap runs the button's App Intent in the app process, also when the app was not running: the system launches it in
-the background. The intent waits, for at most 4 seconds, until every receiver has taken the event, which keeps such
-an app running meanwhile. A tap does not change the activity; update it if the button should change.
+the background. The intent posts the tap for at most 5 seconds, and the tap waits for at most 4 of them until every
+receiver has taken it, which keeps such an app running meanwhile. A tap for an activity that ActivityKit no longer
+lists comes with a handle whose `key()` is empty and whose update answers `Error::NotFound`. A tap does not change the
+activity; update it if the button should change.
 
 ## Threads and executors
 

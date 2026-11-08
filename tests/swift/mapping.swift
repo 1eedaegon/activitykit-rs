@@ -84,8 +84,19 @@ extension LifecycleTests {
         expect(log.replies == [AuthorizationReply(supported: true, enabled: false, buttons: true),
                                AuthorizationReply(supported: true, enabled: true, buttons: true)], "as the whole authorization, in order")
         watcher = nil
+        await verify(await eventually { held == nil }, "a released watcher lets its source go")
+        // A released watcher reports nothing more, also while its source lives on.
+        let kept = FakeAuthorizationSource()
+        var second: AuthorizationWatcher? = AuthorizationWatcher(source: kept, read: { AuthorizationReply(supported: true, enabled: $0, buttons: true) },
+                                                                 emit: { log.append($0) })
+        second?.start()
+        kept.send(false)
+        await verify(await eventually { log.replies.count == 3 }, "a second watcher reports")
+        second = nil
         try await Task.sleep(nanoseconds: 50_000_000)
-        expect(watcher == nil, "a released watcher stops")
+        kept.send(true)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        expect(log.replies.count == 3 && second == nil, "a released watcher reports nothing more")
     }
 
     // AK-UPDATE-11

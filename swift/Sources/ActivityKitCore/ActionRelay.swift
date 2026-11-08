@@ -10,7 +10,7 @@ public struct LiveActivityAction: Encodable, Equatable, Sendable {
     }
 }
 
-/// Receives the taps that `ActivityKitActionIntent.perform()` (templates/ios) posts in the app process and hands them
+/// Receives the taps that `ActivityKitActionIntent.perform()` posts in the app process (`ActionPost`) and hands them
 /// to the registered sink on its own serial queue, never the main thread. It observes from its creation and keeps the
 /// latest 16 taps until a sink is registered. A tap is acknowledged when the sink has returned from it: until then the
 /// intent posts it again every 100 ms and keeps an app that the system launched for the tap running. A post of a tap

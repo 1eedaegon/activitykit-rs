@@ -40,6 +40,7 @@ use activitykit::{ActivityKit, Bound, End, Event, Layout, Style, values};
 use activitykit::layout::{button, hstack, progress, symbol, text, vstack};
 
 let kit = ActivityKit::new();
+// Whether the device and Settings allow activities; the app's own setup a start reports, as ConfigurationRequired.
 if !kit.authorization().enabled {
     return Ok(());
 }
@@ -92,6 +93,8 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 - The widget extension must be a Swift target in Xcode; a widget cannot be written in Rust.
 - With Rust as a static library, the app target must compile some Swift, for the button's App Intents metadata and the
   bridge's Swift runtime.
+- The Swift layer keeps each activity's last accepted values in plain text in the app's Application Support, which iOS
+  protects until the first unlock after a restart: leave out of activities what must not rest on the device.
 - No push updates, no Android. [Not yet supported](docs/not-yet-supported.md) lists what ActivityKit has and the crate
   does not.
 

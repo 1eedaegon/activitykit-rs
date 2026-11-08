@@ -21,17 +21,10 @@ public struct ActivityKitActionIntent: LiveActivityIntent {
         self.actionId = actionId
     }
 
-    /// Runs in the app process. Posts the tap for activitykit's bridge every 100 ms for up to 5 s until the bridge
-    /// acknowledges it, which it does once the app has taken the event. Waiting keeps an app that the system launched
-    /// for this tap running meanwhile.
+    /// Runs in the app process and hands the tap to activitykit's bridge (`ActionPost`): every 100 ms for up to 5 s
+    /// until the bridge acknowledges it, which it does once the app has taken the event.
     public func perform() async throws -> some IntentResult {
-        let acknowledgement = Progress.discreteProgress(totalUnitCount: 1)
-        let info: [AnyHashable: Any] = ["activityId": activityId, "actionId": actionId, "acknowledgement": acknowledgement]
-        for _ in 0..<50 {
-            NotificationCenter.default.post(name: Notification.Name("activitykit.action"), object: nil, userInfo: info)
-            if acknowledgement.isFinished { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
+        try await ActionPost.post(activityId: activityId, actionId: actionId)
         return .result()
     }
 }

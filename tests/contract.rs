@@ -24,7 +24,7 @@ fn layout_weight(input: &Value) -> usize {
         + part("/layout").map_or(0, |layout| layout + part("/styles").unwrap_or(2))
 }
 
-// AK-CONTRACT-1, AK-CONTRACT-12, AK-START-5
+// AK-CONTRACT-1, AK-CONTRACT-12, AK-END-7, AK-START-5
 #[test]
 fn every_fixture_gets_its_verdict_code_and_weight() {
     let (valid, invalid) = (cases("valid"), cases("invalid"));
@@ -239,4 +239,34 @@ fn every_end_fixture_is_checked_against_its_start() {
         serde_json::from_value(json!({"id":"opaque-handle-1","policy":{"kind":"default"}}))
             .unwrap();
     assert_eq!(code(start.validate_end(&plain)), None);
+}
+
+/// Every string value in `value`, at any depth.
+fn strings(value: &Value) -> Vec<&str> {
+    match value {
+        Value::String(text) => vec![text.as_str()],
+        Value::Array(items) => items.iter().flat_map(strings).collect(),
+        Value::Object(members) => members.values().flat_map(strings).collect(),
+        _ => Vec::new(),
+    }
+}
+
+// AK-ERROR-2
+/// An error's message is one of a few constant texts: it never repeats what the request held.
+#[test]
+fn every_fixture_error_is_a_constant_text() {
+    let mut messages = std::collections::BTreeSet::new();
+    for case in cases("invalid") {
+        let (name, command) = (&case["name"], case["command"].as_str().unwrap());
+        let error = validate_request(command, case["input"].clone()).unwrap_err();
+        let message = error.message();
+        for text in strings(&case["input"]) {
+            assert!(
+                text.chars().count() < 4 || !message.contains(text),
+                "{name}: {message} repeats {text}"
+            );
+        }
+        messages.insert(message.to_owned());
+    }
+    assert!(messages.len() <= 4, "{messages:?}");
 }

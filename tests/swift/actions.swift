@@ -76,6 +76,23 @@ extension LifecycleTests {
         await verify(await eventually { later.ids.count == ActionRelay.pendingLimit }, "16 waiting taps reach the sink")
         expect(later.ids == (1...ActionRelay.pendingLimit).map { "tap\($0)" }, "waiting taps keep their order")
 
+        // The intent's side: it posts until the relay acknowledges the tap, for at most 5 s.
+        expect(ActionPost.notification == ActionRelay.notification, "the intent posts what the relay observes")
+        expect(UInt64(ActionPost.attempts) * ActionPost.interval == 5_000_000_000, "the intent posts a tap for at most 5 s")
+        let posting = NotificationCenter()
+        let listening = ActionRelay(center: posting) { $0 == "la-2" ? "job:2" : nil }
+        let heard = TapLog()
+        listening.register(heard.record)
+        let acknowledged = try await ActionPost.post(activityId: "la-2", actionId: "go", center: posting)
+        expect(acknowledged && heard.actions == [LiveActivityAction(activityId: "la-2", actionId: "go", activityKey: "job:2")],
+               "the intent's tap is delivered once and acknowledged")
+        let unheard = NotificationCenter()
+        let deaf = ActionRelay(center: unheard) { _ in nil }
+        let began = Date()
+        let given = try await ActionPost.post(activityId: "la-3", actionId: "lost", center: unheard, attempts: 3, interval: 10_000_000)
+        expect(!given && Date().timeIntervalSince(began) >= 0.03, "without an acknowledgement the intent gives up after its attempts")
+        withExtendedLifetime(deaf) {}
+
         let quiet = NotificationCenter()
         var gone: ActionRelay? = ActionRelay(center: quiet) { _ in nil }
         gone?.register { _ in }

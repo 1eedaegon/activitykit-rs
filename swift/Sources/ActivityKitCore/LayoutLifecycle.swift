@@ -24,7 +24,7 @@ public struct LayoutActivity: Sendable {
     }
 }
 
-/// The result of the layout commands. It carries no template and does not echo the layout.
+/// The result of the layout commands. It does not echo the layout.
 public struct LayoutActivityRecord: Encodable, Sendable {
     public let id: String
     public let activityKey: String
@@ -137,8 +137,7 @@ extension LayoutActivity: LifecycleActivity {
                              snapshot: snapshot(in: entry.content) ?? LayoutSnapshot(revision: entry.revision, values: [:]), state: entry.state)
     }
     var summary: ReceiptSummary {
-        ReceiptSummary(activityKey: attributes.activityKey, schemaVersion: attributes.schemaVersion, template: nil,
-                       fingerprint: attributes.initialFingerprint)
+        ReceiptSummary(activityKey: attributes.activityKey, schemaVersion: attributes.schemaVersion, fingerprint: attributes.initialFingerprint)
     }
     func with(snapshot: LayoutSnapshot, state: String) -> LayoutActivity {
         LayoutActivity(id: id, attributes: attributes, snapshot: snapshot, state: state, degradedFeatures: degradedFeatures, relevance: relevance)
@@ -153,7 +152,7 @@ extension LifecycleBackend where Activity == LayoutActivity {
     }
 }
 
-/// The lifecycle of layout activities: the v1 rules over the v2 payload.
+/// The lifecycle of layout activities.
 @MainActor
 public final class LayoutActivityController {
     private let lifecycle: ActivityLifecycle<LayoutActivity>

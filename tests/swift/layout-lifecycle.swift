@@ -54,7 +54,7 @@ extension LifecycleTests {
         LayoutEndRequest(id: id, policy: EndPolicy(kind: kind, at: at))
     }
 
-    // AK-END-3, AK-END-4, AK-END-5, AK-START-5, AK-START-9, AK-UPDATE-3, AK-UPDATE-4, AK-UPDATE-10
+    // AK-END-3, AK-END-4, AK-END-5, AK-LIST-3, AK-START-5, AK-START-9, AK-UPDATE-3, AK-UPDATE-4, AK-UPDATE-10
     @MainActor static func testLayoutLifecycle() async throws {
         let backend = FakeLayoutBackend()
         let controller = LayoutActivityController(backend: backend)
@@ -165,8 +165,14 @@ extension LifecycleTests {
         try await verify(try await afterRestart.end(layoutEnd(terminal.id, "default")).state == "ended", "OS terminal layout activity end is idempotent without receipts")
         try await verify(try await afterRestart.list().first?.state == "ended", "a terminal receipt wins over the OS state")
 
+        // AK-LIST-3: an activity that the system no longer lists is never reported active.
+        let vanishing = FakeLayoutBackend()
+        let watcher = LayoutActivityController(backend: vanishing)
+        _ = try await watcher.start(meterRequest("vanishing"))
+        vanishing.activities = []
+        try await verify(try await watcher.list().allSatisfy { $0.state != "active" }, "a missing OS activity is never reported active")
+
         try await testBoundStyleUpdates()
-        try await testContractIsolation()
         try testLayoutWidgetPreflight()
         try await testActionRelay()
         try await testNativeSizeCheck()
@@ -217,37 +223,6 @@ extension LifecycleTests {
         _ = try await controller.start(letters)
         expect(controls.weight == 747 && slashes.weight == 3063 && letters.weight == 3063 && backend.starts == 1,
                "the same weight without escapes fits the encoded limit")
-    }
-
-    // AK-CONTRACT-5
-    /// v1 and v2 share one receipt file and never see each other's activities.
-    @MainActor private static func testContractIsolation() async throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("receipts-v2.json")
-        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-        let store = FileReceiptStore(url: url)
-        let templateBackend = FakeBackend(), layoutBackend = FakeLayoutBackend()
-        let template = LiveActivityController(backend: templateBackend, store: store)
-        let layout = LayoutActivityController(backend: layoutBackend, store: store)
-        let v1 = try await template.start(request("shared:key"))
-        let v2 = try await layout.start(meterRequest("shared:key"))
-        expect(v1.id != v2.id && v1.schemaVersion == 1 && v2.schemaVersion == 2, "one activity key lives once per contract version")
-        await expectError("NOT_FOUND") { _ = try await template.update(UpdateRequest(id: v2.id, snapshot: snapshot(1))) }
-        await expectError("NOT_FOUND") { _ = try await template.end(EndRequest(id: v2.id, policy: EndPolicy(kind: "immediate", at: nil))) }
-        await expectError("NOT_FOUND") { _ = try await layout.update(layoutUpdate(v1.id, meter(1))) }
-        await expectError("NOT_FOUND") { _ = try await layout.end(layoutEnd(v1.id)) }
-        _ = try await template.update(UpdateRequest(id: v1.id, snapshot: snapshot(1, 0.5)))
-        _ = try await layout.update(layoutUpdate(v2.id, meter(1, 0.5)))
-        _ = try await layout.end(layoutEnd(v2.id))
-        let stored = try FileReceiptStore(url: url).load()
-        expect(stored.count == 2 && Set(stored.map(\.summary.schemaVersion)) == [1, 2], "the receipt file holds both contract versions")
-        let restartedTemplate = LiveActivityController(backend: templateBackend, store: FileReceiptStore(url: url))
-        let restartedLayout = LayoutActivityController(backend: layoutBackend, store: FileReceiptStore(url: url))
-        try await verify(try await restartedTemplate.list().map(\.id) == [v1.id], "v1 lists only v1 activities")
-        try await verify(try await restartedLayout.list().isEmpty, "v2 lists only v2 activities")
-        try await verify(try await restartedLayout.end(layoutEnd(v2.id)).state == "ended", "the v2 tombstone survives v1 saves")
-        await expectError("NOT_FOUND") { _ = try await restartedTemplate.end(EndRequest(id: v2.id, policy: EndPolicy(kind: "immediate", at: nil))) }
-        try await verify(NativeActivity(id: "x", attributes: try LiveActivityAttributes(request: request(), instanceID: "x"), snapshot: snapshot(), state: "active").record.template == "progress",
-               "a v1 activity still projects to its record")
     }
 
     // AK-START-9, AK-WIDGET-2

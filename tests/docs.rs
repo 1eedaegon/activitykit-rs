@@ -41,6 +41,14 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     ] {
         says(&rustdoc, phrase, "the rustdoc of src/kit.rs");
     }
+    says(&usage, "plain text", "docs/usage.md");
+    says(&usage, "does not check the app's setup", "docs/usage.md");
+    says(&read("README.md"), "plain text", "README.md");
+    says(
+        &rustdoc,
+        "does not check the app's setup",
+        "the rustdoc of src/kit.rs",
+    );
     let later = read("docs/not-yet-supported.md");
     for phrase in [
         "Push updates",
@@ -56,5 +64,39 @@ fn the_docs_state_the_system_limits_and_behaviors() {
         "Left out",
     ] {
         says(&later, phrase, "docs/not-yet-supported.md");
+    }
+}
+
+// AK-DOCS-1
+/// What earlier versions said and is no longer true appears nowhere a reader looks.
+#[test]
+fn no_doc_says_what_is_no_longer_true() {
+    let files = [
+        "README.md",
+        "docs/usage.md",
+        "docs/request-contract.md",
+        "docs/bridge.md",
+        "docs/ios-setup.md",
+        "docs/testing.md",
+        "docs/not-yet-supported.md",
+        "src/kit.rs",
+        "src/events.rs",
+    ];
+    let stale = [
+        "within the next four hours",
+        "by default when its builder was made",
+        "by default when `Update::new` ran",
+        "the constructors take the current time",
+        "iOS 16.1 or later",
+        "applicationState",
+        "LiveActivityController",
+        "receipts-v1.json",
+        "not one of the three below",
+    ];
+    for file in files {
+        let text = read(file);
+        for phrase in stale {
+            assert!(!text.contains(phrase), "{file} still says {phrase:?}");
+        }
     }
 }

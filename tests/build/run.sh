@@ -1,12 +1,14 @@
 #!/bin/sh
-# What build.rs does on each target. Off a Mac, or without an iOS Rust target, the iOS checks say "skip". Uses its own
-# target folders under CARGO_TARGET_DIR (default ./target).
+# What build.rs does on each target: `run.sh host` the host and the type check without Swift, `run.sh` (all) also each
+# iOS target. A check that cannot run here (no Xcode, a Rust target not installed) says "skip", and fails when CI is
+# set. Uses its own target folders under CARGO_TARGET_DIR (default ./target).
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 work=${CARGO_TARGET_DIR:-$root/target}/build-checks
 failures=0
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
 pass() { echo "ok   $*"; }
+skip() { if [ -n "${CI:-}" ]; then fail "$* (a check that cannot run fails under CI)"; else echo "skip $*"; fi; }
 # The folder SwiftPM built into, when build.rs ran a Swift build.
 swift_output() { find "$1" -type d -path '*/build/activitykit-*/out/swift' 2>/dev/null | head -1; }
 installed() { [ -d "$(rustc --print sysroot)/lib/rustlib/$1" ]; }
@@ -20,7 +22,7 @@ check_host() {
 
 # AK-BUILD-5: docs.rs (DOCS_RS) and ACTIVITYKIT_SKIP_SWIFT type-check the iOS code without a Swift build.
 check_skip() {
-  if ! installed aarch64-apple-ios; then echo "skip AK-BUILD-5: no aarch64-apple-ios target"; return; fi
+  if ! installed aarch64-apple-ios; then skip "AK-BUILD-5: no aarch64-apple-ios target"; return; fi
   for variable in DOCS_RS ACTIVITYKIT_SKIP_SWIFT; do
     dir=$work/skip-$variable
     if ! env "$variable=1" cargo check --manifest-path "$root/Cargo.toml" --target aarch64-apple-ios --lib --target-dir "$dir" --quiet 2>/dev/null; then
@@ -37,8 +39,8 @@ check_skip() {
 # deployment target (IPHONEOS_DEPLOYMENT_TARGET, raised to 15.0). AK-BRIDGE-8: the library exports the seven C functions.
 check_ios() {
   id=$1 target=$2 platform=$3 arch=$4 requested=$5 expected=$6
-  if ! command -v xcrun >/dev/null 2>&1; then echo "skip $id $target: no Xcode"; return; fi
-  if ! installed "$target"; then echo "skip $id $target: the Rust target is not installed"; return; fi
+  if ! command -v xcrun >/dev/null 2>&1; then skip "$id $target: no Xcode"; return; fi
+  if ! installed "$target"; then skip "$id $target: the Rust target is not installed"; return; fi
   dir=$work/$target
   IPHONEOS_DEPLOYMENT_TARGET=$requested cargo build --manifest-path "$root/Cargo.toml" --target "$target" --target-dir "$dir" --quiet
   library=$(find "$dir" -name libActivityKitBridge.a -path '*/out/swift/*' | head -1)
@@ -60,7 +62,9 @@ check_ios() {
 
 check_host
 check_skip
-check_ios "AK-BUILD-1 AK-BUILD-6" aarch64-apple-ios IOS arm64 16.4 16.4
-check_ios "AK-BUILD-2" aarch64-apple-ios-sim IOSSIMULATOR arm64 17.0 17.0
-check_ios "AK-BUILD-3 AK-BUILD-6" x86_64-apple-ios IOSSIMULATOR x86_64 12.0 15.0
+if [ "${1:-all}" != host ]; then
+  check_ios "AK-BUILD-1 AK-BUILD-6" aarch64-apple-ios IOS arm64 16.4 16.4
+  check_ios "AK-BUILD-2" aarch64-apple-ios-sim IOSSIMULATOR arm64 17.0 17.0
+  check_ios "AK-BUILD-3 AK-BUILD-6" x86_64-apple-ios IOSSIMULATOR x86_64 12.0 15.0
+fi
 [ "$failures" = 0 ] || { echo "$failures build check(s) failed"; exit 1; }

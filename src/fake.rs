@@ -8,9 +8,10 @@ use crate::{
 };
 use serde_json::{Value, json};
 use std::{
+    collections::VecDeque,
     path::PathBuf,
     sync::{Arc, Mutex},
-    thread,
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
@@ -45,6 +46,10 @@ pub(crate) struct FakeState {
     pub(crate) fail: Option<(&'static str, &'static str)>,
     /// The next call fails with this error object.
     pub(crate) fail_with: Option<Value>,
+    /// The next calls of these kinds fail with these codes and messages, in this order.
+    pub(crate) fail_on: VecDeque<(Call, &'static str, &'static str)>,
+    /// The threads that deliver delayed replies; [`FakeBridge::join`] waits for them.
+    threads: Vec<JoinHandle<()>>,
     events: Option<Listener>,
     next: u64,
 }
@@ -80,7 +85,23 @@ fn record(activity: &FakeActivity) -> Value {
 
 impl FakeBridge {
     pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, FakeState> {
-        self.state.lock().unwrap()
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Waits until every delayed reply is delivered, and fails the test if delivering one panicked: a panic on a
+    /// reply thread is otherwise lost.
+    pub(crate) fn join(&self) {
+        loop {
+            let threads = std::mem::take(&mut self.lock().threads);
+            if threads.is_empty() {
+                return;
+            }
+            for thread in threads {
+                assert!(thread.join().is_ok(), "delivering a reply panicked");
+            }
+        }
     }
 
     /// Sends `event` as the Swift layer would, on the calling thread.
@@ -107,6 +128,14 @@ impl FakeBridge {
                 .into_bytes();
         }
         if let Some((code, message)) = state.fail.take() {
+            return error(code, message);
+        }
+        if state
+            .fail_on
+            .front()
+            .is_some_and(|(kind, ..)| *kind == call)
+        {
+            let (_, code, message) = state.fail_on.pop_front().unwrap();
             return error(code, message);
         }
         let id = request["request"]["id"]
@@ -201,13 +230,15 @@ impl Bridge for FakeBridge {
         let request: Value = serde_json::from_slice(&request).unwrap();
         self.lock().requests.push((call, request.clone()));
         let answer = self.answer(call, &request);
-        match self.lock().delay {
+        let delay = self.lock().delay;
+        match delay {
             None => reply(answer),
             Some(delay) => {
-                thread::spawn(move || {
+                let thread = thread::spawn(move || {
                     thread::sleep(delay);
                     reply(answer);
                 });
+                self.lock().threads.push(thread);
             }
         }
     }

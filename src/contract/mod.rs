@@ -150,7 +150,30 @@ pub enum Backend {
     Unsupported,
 }
 
-/// The lifecycle of an activity as ActivityKit reports it. More states may come.
+/// The lifecycle of an activity as ActivityKit reports it. More states may come, so a match needs a `_` arm:
+///
+/// ```compile_fail,E0004
+/// // AK-STATE-1: without a `_` arm the match does not compile.
+/// use activitykit::State;
+/// fn on_screen(state: State) -> bool {
+///     match state {
+///         State::Pending | State::Ended | State::Dismissed | State::Unknown => false,
+///         State::Active | State::Stale => true,
+///     }
+/// }
+/// ```
+///
+/// ```
+/// // AK-STATE-1: with one it does.
+/// use activitykit::State;
+/// fn on_screen(state: State) -> bool {
+///     match state {
+///         State::Pending | State::Ended | State::Dismissed | State::Unknown => false,
+///         State::Active | State::Stale => true,
+///         _ => false,
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

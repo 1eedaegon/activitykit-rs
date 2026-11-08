@@ -8,8 +8,8 @@ start, update or end with final content states its weight and an `invalid` case 
 and `ends` hold a `start` and the `update` or `end` after it, checked the way the Swift layer checks new content
 against the activity it started. The Rust tests
 (`tests/contract.rs`) and the Swift tests (`tests/swift/run.sh`, through the validators and through the C bridge) give
-every case its result. Cases whose command is not one of the three below (`start`, `update`, `startLayout`,
-`list_layout`) are `INVALID_INPUT`.
+every case its result. A command other than `start_layout`, `update_layout` and `end_layout` is `INVALID_INPUT`; the
+fixtures try `start` and `update` (the commands of contract v1), `startLayout` and `list_layout`.
 
 The crate builds these requests from `Layout`, `Values` and the handle; `activitykit::contract` has the types and
 `validate_request` for requests that come as JSON.
@@ -31,9 +31,9 @@ Unknown members, `null` and numbers in strings are rejected. Input is never corr
 | id | The opaque handle of 1–256 characters that the Swift layer returned. Never read as a path or URL |
 | fallback | `none` or `notification`; required on start. iOS ignores it; the crate sends `none` |
 | revision | An integer in 0..9007199254740991, not a string |
-| Times | Integer UTC Unix epoch milliseconds in 0..8640000000000000; no local time strings, no seconds |
+| Times | Integer UTC Unix epoch milliseconds in 0..8640000000000000; no local time strings, no seconds. A time outside that range, in a policy, a stale date or a timestamp, is `INVALID_INPUT` |
 | staleAt | An optional time. A past value is allowed: the activity may already be stale. Each snapshot has its own; one without it clears the date |
-| timestamp | An optional time: when the snapshot's content was made. ActivityKit (iOS 17.2) drops content older than what it shows |
+| timestamp | An optional time: when the snapshot's content was made; the crate sends the time it sends the content unless the app gives one. ActivityKit (iOS 17.2) drops content older than what it shows, while the request still succeeds |
 
 An end takes `id`, `policy` and, optionally, `snapshot`: the final content, checked like an update. Without it the
 activity ends showing its last accepted content. The policy is `{ "kind": "immediate" }`, `{ "kind": "default" }` or

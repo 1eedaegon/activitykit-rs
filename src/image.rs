@@ -135,6 +135,58 @@ pub(crate) mod tests {
         assert_eq!(code("large.png", &largest), None);
     }
 
+    // AK-IMAGE-3, AK-IMAGE-7
+    /// The size is checked first and exactly: one byte over is too large, whatever the bytes are.
+    #[test]
+    fn the_size_limit_is_exact_and_comes_first() {
+        let over = png(16, 16, MAX_IMAGE_BYTES + 1 - png(16, 16, 0).len());
+        assert_eq!(over.len(), MAX_IMAGE_BYTES + 1);
+        assert_eq!(
+            code("over.png", &over).as_deref(),
+            Some("PAYLOAD_TOO_LARGE")
+        );
+        let not_a_png = vec![0u8; MAX_IMAGE_BYTES + 1];
+        assert_eq!(
+            code("noise.png", &not_a_png).as_deref(),
+            Some("PAYLOAD_TOO_LARGE")
+        );
+        assert_eq!(
+            code("noise.png", &not_a_png[..64]).as_deref(),
+            Some("INVALID_INPUT")
+        );
+    }
+
+    // AK-IMAGE-4, AK-IMAGE-7
+    /// A write that fails leaves no hidden file behind, and writes of one name from many threads leave one whole PNG.
+    #[test]
+    fn failed_and_concurrent_writes_leave_whole_files_only() {
+        let folder = std::env::temp_dir().join(format!("activitykit-write-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&folder);
+        fs::create_dir_all(folder.join("taken.png")).unwrap();
+        fs::write(folder.join("taken.png").join("inside"), b"x").unwrap();
+        let bytes = png(8, 8, 4);
+        assert_eq!(
+            write(&folder, "taken.png", &bytes).unwrap_err().code(),
+            "NATIVE_ERROR"
+        );
+        let pictures: Vec<_> = (0..8).map(|index| png(8, 8, 100 * (index + 1))).collect();
+        std::thread::scope(|scope| {
+            for picture in &pictures {
+                let folder = &folder;
+                scope.spawn(move || write(folder, "shared.png", picture).unwrap());
+            }
+        });
+        let written = fs::read(folder.join("shared.png")).unwrap();
+        assert!(pictures.contains(&written));
+        let hidden: Vec<_> = fs::read_dir(&folder)
+            .unwrap()
+            .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+            .filter(|name| name.starts_with('.'))
+            .collect();
+        assert!(hidden.is_empty(), "{hidden:?}");
+        fs::remove_dir_all(&folder).unwrap();
+    }
+
     // AK-IMAGE-1
     #[test]
     fn rejects_names_outside_the_file_rule() {

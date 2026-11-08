@@ -39,7 +39,20 @@ pub(crate) struct Inner {
     images: OnceLock<PathBuf>,
 }
 
-/// Whether this device can show the app's activities right now.
+/// Whether this device and the person allow the app's activities right now. It does not check the app's setup
+/// (`NSSupportsLiveActivities`, the widget extension): with `enabled` true a start can still answer
+/// [`Error::ConfigurationRequired`]. More members may come, so a pattern needs `..`:
+///
+/// ```compile_fail,E0638
+/// // AK-AUTH-7: without `..` the pattern does not compile.
+/// let activitykit::Authorization { supported, enabled, buttons } = activitykit::ActivityKit::new().authorization();
+/// ```
+///
+/// ```
+/// // AK-AUTH-7: with it, it does.
+/// let activitykit::Authorization { supported, enabled, buttons, .. } = activitykit::ActivityKit::new().authorization();
+/// assert!(!supported && !enabled && !buttons);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[non_exhaustive]
 pub struct Authorization {
@@ -47,12 +60,16 @@ pub struct Authorization {
     pub supported: bool,
     /// Supported, and turned on for this app in Settings.
     pub enabled: bool,
-    /// Supported, and buttons work: iOS 17 and later.
+    /// Supported, and the OS runs a button's intent: iOS 17 and later. It does not check that the app links the
+    /// intent (`ActivityKitIntent`).
     pub buttons: bool,
 }
 
 /// A started activity. Clones, and every handle that [`ActivityKit::activities`] or an [`Event`] gives for the same
 /// activity, share its revision and its last known state.
+///
+/// Updates and ends of one activity go to the Swift layer one at a time, in the order they were called: each waits
+/// until the one before has its answer, which the handle takes even when nobody awaits it.
 ///
 /// Dropping a handle, every handle and the kit, or ending the process never ends the activity: only [`Activity::end`],
 /// the person or the system does (the system ends an activity after 8 hours and removes it from the Lock Screen after
@@ -67,6 +84,18 @@ pub(crate) struct Shared {
     id: String,
     key: String,
     known: Mutex<Known>,
+    /// The turn to write: one token, which a write takes and its reply gives back.
+    turns: (async_channel::Sender<()>, async_channel::Receiver<()>),
+}
+
+/// The turn of one write. Dropping it gives the turn to the next write: the reply does, after the handle took what it
+/// says, and so does a write that never sent its request.
+struct Turn(async_channel::Sender<()>);
+
+impl Drop for Turn {
+    fn drop(&mut self) {
+        let _ = self.0.try_send(());
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +121,6 @@ pub struct Start {
     key: Option<String>,
     stale_at: Option<SystemTime>,
     relevance: Option<f64>,
-    timestamp: SystemTime,
 }
 
 /// An update with options: [`Activity::update_with`].
@@ -102,7 +130,7 @@ pub struct Update {
     stale_at: Option<SystemTime>,
     relevance: Option<f64>,
     alert: Option<Alert>,
-    timestamp: SystemTime,
+    timestamp: Option<SystemTime>,
 }
 
 /// The alert of an update: the device lights up, the Dynamic Island expands (or, without one, the Lock Screen
@@ -122,7 +150,7 @@ pub struct End {
     values: Option<Values>,
     stale_at: Option<SystemTime>,
     relevance: Option<f64>,
-    timestamp: SystemTime,
+    timestamp: Option<SystemTime>,
 }
 
 impl ActivityKit {
@@ -179,7 +207,7 @@ impl ActivityKit {
                 revision: 0,
                 values: start.values,
                 stale_at: start.stale_at.map(millis).transpose()?,
-                timestamp: Some(millis(start.timestamp)?),
+                timestamp: Some(millis(SystemTime::now())?),
             },
             android: None,
         };
@@ -280,29 +308,32 @@ impl Activity {
     /// a handle of an earlier launch sent, the handle reads the list and tries once more if this content is the newer
     /// one, and answers [`Error::StaleRevision`] otherwise.
     pub async fn update_with(&self, update: Update) -> Result<()> {
-        let timestamp = millis(update.timestamp)?;
-        self.write(Call::Update, timestamp, |revision, _known| {
-            let input = LayoutUpdateInput {
-                id: self.shared.id.clone(),
-                snapshot: LayoutSnapshot {
-                    revision,
-                    values: update.values.clone(),
-                    stale_at: update.stale_at.map(millis).transpose()?,
-                    timestamp: Some(timestamp),
-                },
-            };
-            input.validate()?;
-            envelope(&input, update.relevance, update.alert.as_ref())
-        })
+        self.write(
+            Call::Update,
+            update.timestamp,
+            |revision, timestamp, _known| {
+                let input = LayoutUpdateInput {
+                    id: self.shared.id.clone(),
+                    snapshot: LayoutSnapshot {
+                        revision,
+                        values: update.values.clone(),
+                        stale_at: update.stale_at.map(millis).transpose()?,
+                        timestamp: Some(timestamp),
+                    },
+                };
+                input.validate()?;
+                envelope(&input, update.relevance, update.alert.as_ref())
+            },
+        )
         .await
     }
 
     /// Ends the activity with final content: the values of [`End::values`], else the last accepted ones, at the next
-    /// revision. Ending it again is fine.
+    /// revision. An end waits for the updates called before it, so their values are the last accepted ones. Ending it
+    /// again is fine.
     pub async fn end(&self, end: End) -> Result<()> {
         let policy = end.policy.clone()?;
-        let timestamp = millis(end.timestamp)?;
-        self.write(Call::End, timestamp, |revision, known| {
+        self.write(Call::End, end.timestamp, |revision, timestamp, known| {
             let input = EndInput {
                 id: self.shared.id.clone(),
                 policy: policy.clone(),
@@ -319,54 +350,57 @@ impl Activity {
         .await
     }
 
-    /// Sends new content that `request` builds for the next revision, after reading the list when the handle does not
-    /// know its revision yet. After `STALE_REVISION` it reads the list and tries once more when this content, made at
-    /// `timestamp`, is newer than the shown one.
+    /// Sends new content that `request` builds for the next revision and its timestamp, after reading the list when
+    /// the handle does not know its revision yet. The timestamp is `made`, else the time of sending. After
+    /// `STALE_REVISION` it reads the list and tries once more when this content is newer than the shown one.
     async fn write(
         &self,
         call: Call,
-        timestamp: u64,
-        request: impl Fn(u64, &Known) -> Result<Vec<u8>>,
+        made: Option<SystemTime>,
+        request: impl Fn(u64, u64, &Known) -> Result<Vec<u8>>,
     ) -> Result<()> {
+        let mut timestamp = made.map(millis).transpose()?;
         if self.shared.known().reserved.is_none() {
             self.inner.list().await?;
         }
-        match self.send(call, &request).await {
+        match self.send(call, &mut timestamp, &request).await {
             Err(Error::StaleRevision(message)) => {
                 self.inner.list().await?;
-                if self
-                    .shared
-                    .known()
-                    .timestamp
-                    .is_some_and(|shown| shown >= timestamp)
-                {
+                let shown = self.shared.known().timestamp;
+                if shown.is_some_and(|shown| timestamp.is_none_or(|made| shown >= made)) {
                     return Err(Error::StaleRevision(message));
                 }
-                self.send(call, &request).await
+                self.send(call, &mut timestamp, &request).await
             }
             other => other,
         }
     }
 
+    /// One request, in this activity's turn. Its revision follows the last one sent and its timestamp is taken now
+    /// unless `timestamp` holds one, so both grow in the order of the writes. A request that fails here reserves
+    /// nothing.
     async fn send(
         &self,
         call: Call,
-        request: &impl Fn(u64, &Known) -> Result<Vec<u8>>,
+        timestamp: &mut Option<u64>,
+        request: &impl Fn(u64, u64, &Known) -> Result<Vec<u8>>,
     ) -> Result<()> {
-        let reply = {
-            // The revision is taken and the request handed to the bridge under one lock, so concurrent writes reach
-            // the Swift layer in the order of their revisions. A request that fails here reserves nothing.
+        let turn = self.shared.turn().await;
+        let bytes = {
             let mut known = self.shared.known();
             let current = known
                 .reserved
                 .ok_or_else(|| Error::NotFound("The activity is no longer available.".into()))?;
-            let bytes = request(current + 1, &known)?;
+            let made = match *timestamp {
+                Some(made) => made,
+                None => *timestamp.insert(millis(SystemTime::now())?),
+            };
+            let bytes = request(current + 1, made, &known)?;
             known.reserved = Some(current + 1);
-            self.inner.send(call, bytes)
+            bytes
         };
-        let record: LayoutActivityRecord = Inner::answer(reply).await?;
-        self.shared.apply(&record);
-        Ok(())
+        let reply = self.inner.write(call, bytes, self.shared.clone(), turn);
+        reply.recv().await.map_err(|_| Error::native())?
     }
 }
 
@@ -402,7 +436,6 @@ impl Start {
             key: None,
             stale_at: None,
             relevance: None,
-            timestamp: SystemTime::now(),
         }
     }
 
@@ -434,14 +467,16 @@ impl Update {
             stale_at: None,
             relevance: None,
             alert: None,
-            timestamp: SystemTime::now(),
+            timestamp: None,
         }
     }
 
-    /// When this content was made; [`Update::new`] takes the current time. ActivityKit (iOS 17.2) drops content older
-    /// than what it shows.
+    /// When this content was made. Without it the handle takes the time it sends the content, so timestamps grow with
+    /// the revisions. ActivityKit (iOS 17.2 and later) drops content older than what it shows: with a timestamp older
+    /// than the shown content's, the update still succeeds and the handle reports its values, but the activity keeps
+    /// showing the newer content.
     pub fn timestamp(mut self, at: SystemTime) -> Self {
-        self.timestamp = at;
+        self.timestamp = Some(at);
         self
     }
 
@@ -481,7 +516,7 @@ impl End {
             values: None,
             stale_at: None,
             relevance: None,
-            timestamp: SystemTime::now(),
+            timestamp: None,
         }
     }
 
@@ -514,9 +549,9 @@ impl End {
         self
     }
 
-    /// When the final content was made; the constructors take the current time.
+    /// When the final content was made; without it, the time the handle sends the end. See [`Update::timestamp`].
     pub fn timestamp(mut self, at: SystemTime) -> Self {
-        self.timestamp = at;
+        self.timestamp = Some(at);
         self
     }
 }
@@ -598,6 +633,30 @@ impl Inner {
         receiver
     }
 
+    /// Hands a write of `shared` to the bridge. Its reply goes to the handle first, then the turn passes on, then the
+    /// receiver gets the result: the handle learns the answer even when nobody awaits it.
+    fn write(
+        &self,
+        call: Call,
+        request: Vec<u8>,
+        shared: Arc<Shared>,
+        turn: Turn,
+    ) -> async_channel::Receiver<Result<()>> {
+        let (sender, receiver) = async_channel::bounded(1);
+        self.bridge.call(
+            call,
+            request,
+            Box::new(move |reply| {
+                let result = bridge::decode::<LayoutActivityRecord>(&reply)
+                    .map(|record| shared.apply(&record));
+                drop(turn);
+                // A dropped future no longer waits; the write still happened.
+                let _ = sender.try_send(result);
+            }),
+        );
+        receiver
+    }
+
     async fn answer<T: DeserializeOwned>(reply: async_channel::Receiver<Vec<u8>>) -> Result<T> {
         let reply = reply.recv().await.map_err(|_| Error::native())?;
         bridge::decode(&reply)
@@ -622,7 +681,10 @@ impl Inner {
             };
         }
         activities.retain(|_, shared| shared.strong_count() > 0);
+        let turns = async_channel::bounded(1);
+        let _ = turns.0.try_send(());
         let shared = Arc::new(Shared {
+            turns,
             id: id.to_owned(),
             key: key.unwrap_or_default().to_owned(),
             known: Mutex::new(Known {
@@ -733,6 +795,12 @@ impl Shared {
         self.known.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Waits for this activity's turn to write. The channel never closes: `turns` holds both ends.
+    async fn turn(&self) -> Turn {
+        let _ = self.turns.1.recv().await;
+        Turn(self.turns.0.clone())
+    }
+
     /// Takes what a reply says. Values of an older revision than the shown one, from a reply that arrived late,
     /// are not taken.
     fn apply(&self, record: &LayoutActivityRecord) {
@@ -752,4 +820,8 @@ impl Shared {
 }
 
 #[cfg(test)]
+mod event_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod write_tests;

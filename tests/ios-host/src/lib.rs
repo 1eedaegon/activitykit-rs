@@ -12,11 +12,11 @@ use activitykit::{
     },
     values,
 };
-use futures_lite::future::block_on;
+use futures_lite::future::{block_on, poll_once};
 use std::{
     io::Write,
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 /// Set by the host app once it is in the background (App/Host.swift).
@@ -80,6 +80,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "relaunch-check" => relaunch_check(&reporter),
             "background-start" => background_start(&reporter),
             "every-node" => every_node(&reporter),
+            "policies" => policies(&reporter),
             other => Err(format!("no scenario {other}")),
         };
         match outcome {
@@ -134,6 +135,26 @@ fn prepared(reporter: &Reporter) -> Result<ActivityKit, String> {
     Ok(kit)
 }
 
+/// The first value `probe` gives within `limit`, asked every 200 ms.
+fn wait_until<T>(limit: Duration, mut probe: impl FnMut() -> Option<T>) -> Option<T> {
+    let deadline = Instant::now() + limit;
+    loop {
+        if let Some(found) = probe() {
+            return Some(found);
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+}
+
+/// The activity as `activities()` lists it now.
+fn listed(kit: &ActivityKit, activity: &Activity) -> Result<Option<Activity>, String> {
+    let all = block_on(kit.activities()).map_err(|error| format!("activities: {error}"))?;
+    Ok(all.into_iter().find(|listed| listed == activity))
+}
+
 /// The next event that `accept` takes, within `limit`.
 fn next_event<T>(
     events: &activitykit::async_channel::Receiver<Event>,
@@ -181,30 +202,28 @@ fn start(kit: &ActivityKit, reporter: &Reporter, key: &str) -> Result<Activity, 
 }
 
 /// Start, turn the bound color red, wait for the Stop button on the Lock Screen (the UI test taps it), then end.
-// AK-AUTH-1, AK-CUSTOM-3, AK-END-1, AK-END-6, AK-EVENT-1, AK-EVENT-2, AK-EVENT-8, AK-HANDLE-3, AK-KIT-1, AK-START-1, AK-STATE-2, AK-THREAD-2, AK-UPDATE-1, AK-UPDATE-5, AK-UPDATE-11, AK-UPDATE-12
+// AK-AUTH-1, AK-CUSTOM-3, AK-END-1, AK-END-6, AK-EVENT-1, AK-EVENT-2, AK-EVENT-8, AK-HANDLE-3, AK-KIT-1, AK-START-1, AK-STATE-2, AK-THREAD-2, AK-UPDATE-1, AK-UPDATE-5, AK-UPDATE-11, AK-UPDATE-12, AK-UPDATE-16
 fn lock_screen(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let events = kit.events();
     let activity = start(&kit, reporter, "host:lockscreen")?;
+    // AK-UPDATE-16: content made an hour before the shown one. The call succeeds, ActivityKit (iOS 17.2) drops it: the
+    // UI test finds "Too loud" on the Lock Screen and no "Old news".
+    let old = Update::new(values! { "status" => "Old news", "tone" => "green", "level" => 0.1 })
+        .timestamp(SystemTime::now() - Duration::from_secs(3600));
+    block_on(activity.update_with(old)).map_err(|error| format!("old update: {error}"))?;
+    check(activity.revision() == Some(2), "the old update's revision")?;
     // AK-KIT-1: every kit of the process talks to the same Swift layer.
-    let listed = block_on(ActivityKit::new().activities())
+    let seen = block_on(ActivityKit::new().activities())
         .map_err(|error| format!("activities: {error}"))?;
-    check(
-        listed.contains(&activity),
-        "a second kit lists the activity",
-    )?;
+    check(seen.contains(&activity), "a second kit lists the activity")?;
     // AK-CUSTOM-3: the app registers no custom views, so the custom node is reported.
     check(
         activity.degraded_features() == ["layout.custom.ring"],
         format!("degraded features {:?}", activity.degraded_features()),
     )?;
-    // AK-UPDATE-12: ActivityKit itself kept the score, read again a moment later.
-    thread::sleep(Duration::from_secs(1));
-    let relisted = block_on(kit.activities()).map_err(|error| format!("activities: {error}"))?;
-    let shown = relisted
-        .iter()
-        .find(|listed| **listed == activity)
-        .map(Activity::relevance);
+    // AK-UPDATE-12: ActivityKit itself kept the score.
+    let shown = listed(&kit, &activity)?.map(|listed| listed.relevance());
     check(
         shown == Some(50.0),
         format!("ActivityKit's relevance after the update: {shown:?}"),
@@ -239,7 +258,7 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
         "the tap names the button and the activity",
     )?;
     check(
-        tapped.revision() == Some(1),
+        tapped.revision() == Some(2),
         "the tapped handle shares the started one's revision",
     )?;
     // AK-END-6: the end carries its final values.
@@ -248,7 +267,7 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     block_on(tapped.end(last)).map_err(|error| format!("end: {error}"))?;
     check(activity.state() == State::Ended, "the record of the end")?;
     check(
-        activity.revision() == Some(2)
+        activity.revision() == Some(3)
             && activity.values().get("status") == Some(&Value::from("Stopped")),
         "the end shows its final values",
     )?;
@@ -323,7 +342,6 @@ fn background_start(reporter: &Reporter) -> Outcome {
         )?;
         thread::sleep(Duration::from_millis(100));
     }
-    thread::sleep(Duration::from_secs(1));
     let start = activitykit::Start::new(
         layout(),
         values! { "status" => "Late", "tone" => "green", "level" => 0.1 },
@@ -397,4 +415,182 @@ fn every_node(reporter: &Reporter) -> Outcome {
     block_on(activity.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
     reporter.say(format!("ended {}", activity.id()));
     Ok(())
+}
+
+/// A layout without buttons: the ended activities that this scenario leaves on the Lock Screen take no taps.
+fn plain() -> Layout {
+    Layout::new(vstack([text("Policy check"), text(Bound::key("status"))]).spacing(4.0))
+}
+
+fn start_plain(kit: &ActivityKit, start: activitykit::Start) -> Result<Activity, String> {
+    block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))
+}
+
+/// The outcome of several checks: each one is reported, and the scenario fails at the end if one failed.
+struct Checks<'a> {
+    reporter: &'a Reporter,
+    failed: Vec<String>,
+}
+
+impl Checks<'_> {
+    fn check(&mut self, condition: bool, what: impl Into<String>) {
+        let what = what.into();
+        self.reporter
+            .say(format!("{} {what}", if condition { "ok" } else { "not" }));
+        if !condition {
+            self.failed.push(what);
+        }
+    }
+
+    fn outcome(self) -> Outcome {
+        if self.failed.is_empty() {
+            Ok(())
+        } else {
+            Err(self.failed.join("; "))
+        }
+    }
+}
+
+/// The state of `activity` that an event or the list reports first, within `limit`.
+fn reaches(
+    kit: &ActivityKit,
+    events: &activitykit::async_channel::Receiver<Event>,
+    activity: &Activity,
+    state: State,
+    limit: Duration,
+) -> Option<&'static str> {
+    wait_until(limit, || {
+        while let Ok(event) = events.try_recv() {
+            if let Event::State {
+                activity: changed,
+                state: reported,
+                ..
+            } = event
+                && changed == *activity
+                && reported == state
+            {
+                return Some("event");
+            }
+        }
+        match listed(kit, activity) {
+            Ok(Some(shown)) if shown.state() == state => Some("list"),
+            Ok(None) if state == State::Dismissed => Some("gone from the list"),
+            _ => None,
+        }
+    })
+}
+
+/// What ActivityKit does with the content and the end of an activity, without the Lock Screen: an end without a
+/// relevance, the system's default dismissal, a dismissal at a time or in the past, and a reply that nobody awaits. It
+/// leaves ended activities on the Lock Screen, so its UI test runs after the others.
+// AK-BRIDGE-9, AK-END-2, AK-END-3, AK-END-6, AK-UPDATE-12
+fn policies(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let events = kit.events();
+    let status = |text: &str| values! { "status" => text };
+    let mut checks = Checks {
+        reporter,
+        failed: Vec::new(),
+    };
+
+    let first = activitykit::Start::new(plain(), status("Fresh")).relevance(50.0);
+    let activity = start_plain(&kit, first)?;
+
+    // AK-BRIDGE-9: an update whose future is dropped; its reply still reaches the handle.
+    let update = activity.update(status("Updated"));
+    checks.check(
+        block_on(poll_once(Box::pin(update))).is_none(),
+        "the update waits for the main thread",
+    );
+    let replied = wait_until(Duration::from_secs(10), || {
+        (activity.revision() == Some(1)).then_some(())
+    });
+    checks.check(
+        replied.is_some(),
+        "the reply of a dropped update reaches the handle",
+    );
+
+    // AK-UPDATE-12, AK-END-2: the system's default end without a relevance keeps the score and leaves the activity on
+    // the Lock Screen.
+    block_on(activity.end(End::default())).map_err(|error| format!("end: {error}"))?;
+    checks.check(
+        activity.state() == State::Ended && activity.relevance() == 50.0,
+        format!(
+            "the end keeps the score: {:?} {}",
+            activity.state(),
+            activity.relevance()
+        ),
+    );
+    let kept = listed(&kit, &activity)?.map(|listed| (listed.state(), listed.relevance()));
+    checks.check(
+        kept == Some((State::Ended, 50.0)),
+        format!("the list shows it ended with its score: {kept:?}"),
+    );
+    let dismissed = reaches(
+        &kit,
+        &events,
+        &activity,
+        State::Dismissed,
+        Duration::from_secs(5),
+    );
+    checks.check(
+        dismissed.is_none(),
+        format!("a default end is not dismissed within 5 s ({dismissed:?})"),
+    );
+
+    // AK-END-6: an end with a relevance gives the final content that score.
+    let scored = start_plain(
+        &kit,
+        activitykit::Start::new(plain(), status("Scored")).relevance(50.0),
+    )?;
+    block_on(scored.end(End::default().relevance(70.0)))
+        .map_err(|error| format!("end: {error}"))?;
+    let score = listed(&kit, &scored)?.map(|listed| listed.relevance());
+    checks.check(
+        score == Some(70.0),
+        format!("the end's relevance reaches ActivityKit: {score:?}"),
+    );
+
+    // AK-END-3: dismissed at the time of `End::after`, not before.
+    let at = SystemTime::now() + Duration::from_secs(8);
+    let later = start_plain(&kit, activitykit::Start::new(plain(), status("Later")))?;
+    block_on(later.end(End::after(at))).map_err(|error| format!("end: {error}"))?;
+    let waiting = listed(&kit, &later)?.map(|listed| listed.state());
+    checks.check(
+        waiting == Some(State::Ended),
+        format!("ended and still shown before its time: {waiting:?}"),
+    );
+    let gone = reaches(
+        &kit,
+        &events,
+        &later,
+        State::Dismissed,
+        Duration::from_secs(60),
+    );
+    let early = at.duration_since(SystemTime::now()).unwrap_or_default();
+    checks.check(
+        gone.is_some() && early < Duration::from_secs(2),
+        format!("dismissed at its time ({gone:?}, {early:?} early)"),
+    );
+
+    // AK-END-3: a time in the past.
+    let past = start_plain(&kit, activitykit::Start::new(plain(), status("Past")))?;
+    let asked = Instant::now();
+    block_on(past.end(End::after(SystemTime::now() - Duration::from_secs(60))))
+        .map_err(|error| format!("end: {error}"))?;
+    let gone = reaches(
+        &kit,
+        &events,
+        &past,
+        State::Dismissed,
+        Duration::from_secs(30),
+    );
+    checks.check(
+        gone.is_some(),
+        format!(
+            "a past time dismisses it ({gone:?} after {:?})",
+            asked.elapsed()
+        ),
+    );
+    checks.outcome()
 }

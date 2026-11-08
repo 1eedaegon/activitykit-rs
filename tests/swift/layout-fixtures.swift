@@ -18,13 +18,6 @@ extension LifecycleTests {
                 let request = try decoder.decode(LayoutEndRequest.self, from: input)
                 try request.validate()
                 return (nil, request.snapshot.map(\.values.wireWeight))
-            case "start":
-                try decoder.decode(StartRequest.self, from: input).validate()
-                return (nil, nil)
-            case "update":
-                let snapshot = try decoder.decode(UpdateRequest.self, from: input).snapshot
-                try snapshot.validate(template: snapshot.timer == nil ? "progress" : "timer")
-                return (nil, nil)
             default:
                 return ("INVALID_INPUT", nil)
             }
@@ -81,22 +74,7 @@ extension LifecycleTests {
         }
     }
 
-    private static func memberCount(_ value: Any) -> Int {
-        if let object = value as? [String: Any] { return object.values.reduce(object.count) { $0 + memberCount($1) } }
-        if let list = value as? [Any] { return list.reduce(0) { $0 + memberCount($1) } }
-        return 0
-    }
-
-    /// The frozen v1 decoder ignores unknown members (a Rust layer rejects them before they reach Swift),
-    /// so a v1 command may accept a body here only by dropping members.
-    private static func dropsMembers(_ command: String, _ input: Data) throws -> Bool {
-        let encoded: Data
-        if command == "start" { encoded = try JSONEncoder().encode(JSONDecoder().decode(StartRequest.self, from: input)) }
-        else { encoded = try JSONEncoder().encode(JSONDecoder().decode(UpdateRequest.self, from: input)) }
-        return try memberCount(JSONSerialization.jsonObject(with: encoded)) < memberCount(JSONSerialization.jsonObject(with: input))
-    }
-
-    // AK-CONTRACT-2, AK-CONTRACT-4, AK-CONTRACT-6, AK-CONTRACT-12, AK-END-6
+    // AK-CONTRACT-2, AK-CONTRACT-4, AK-CONTRACT-5, AK-CONTRACT-6, AK-CONTRACT-12, AK-END-6
     @MainActor static func testLayoutFixtures() throws {
         guard CommandLine.arguments.count > 1 else { fatalError("Pass the path of tests/fixtures/layout-requests.json") }
         let file = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
@@ -121,20 +99,12 @@ extension LifecycleTests {
             let wire = try canonical(reencoded(command, input)) == canonical(input)
             expect(wire, "fixture encodes to its wire shape with absent members omitted: \(name)")
         }
-        var lenient = 0
         for fixture in invalid {
             let (name, command, input) = try read(fixture)
             guard let code = fixture["code"] as? String else { fatalError("Fixture without a code: \(name)") }
             let verdict = layoutVerdict(command, input)
-            if verdict.code == nil, ["start", "update"].contains(command) {
-                let dropped = try dropsMembers(command, input)
-                expect(dropped, "v1 accepts only by ignoring unknown members: \(name)")
-                lenient += 1
-            } else {
-                expect(verdict.code == code, "fixture must be rejected with \(code): \(name), got \(verdict.code ?? "accepted")")
-            }
+            expect(verdict.code == code, "fixture must be rejected with \(code): \(name), got \(verdict.code ?? "accepted")")
         }
-        expect(lenient <= 2, "only the v1 bodies with added v2 members pass the frozen v1 decoder")
         guard let updates = fixtures["updates"] else { fatalError("Layout fixtures without updates") }
         expect(updates.count >= 20, "update fixtures are loaded")
         for fixture in updates {

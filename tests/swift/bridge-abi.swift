@@ -20,6 +20,8 @@ let replyToBox: AKReply = { context, bytes, count in
 /// What the C event handler got, in order.
 final class EventLog: @unchecked Sendable {
     static let shared = EventLog()
+    /// What a second handler got.
+    static let other = EventLog()
     private let lock = NSLock()
     private var entries: [[String: Any]] = []
     func append(_ data: Data) {
@@ -53,6 +55,11 @@ enum C {
 let logEvent: AKEventHandler = { bytes, count in
     guard let bytes else { return }
     EventLog.shared.append(Data(bytes: bytes, count: count))
+}
+
+let logOtherEvent: AKEventHandler = { bytes, count in
+    guard let bytes else { return }
+    EventLog.other.append(Data(bytes: bytes, count: count))
 }
 
 /// A layout backend that also records what the presentations held for each call.
@@ -140,6 +147,14 @@ extension LifecycleTests {
 
     static func code(_ reply: [String: Any]) -> String? {
         (reply["error"] as? [String: Any])?["code"] as? String
+    }
+
+    /// Every string value in a decoded JSON value, at any depth.
+    static func strings(_ value: Any) -> [String] {
+        if let text = value as? String { return [text] }
+        if let list = value as? [Any] { return list.flatMap(strings) }
+        if let object = value as? [String: Any] { return object.values.flatMap(strings) }
+        return []
     }
 
     static func data(_ reply: [String: Any]) -> [String: Any] {
@@ -324,7 +339,7 @@ extension LifecycleTests {
         catch let failure as ActivityFailure { expect(failure.code == "UNSUPPORTED_PLATFORM", "no controller without the platform") }
     }
 
-    // AK-AUTH-3, AK-BRIDGE-5, AK-EVENT-1, AK-EVENT-2, AK-EVENT-4, AK-EVENT-8
+    // AK-AUTH-3, AK-BRIDGE-5, AK-EVENT-1, AK-EVENT-2, AK-EVENT-4, AK-EVENT-8, AK-EVENT-12
     @MainActor static func testBridgeEvents() async throws {
         let system = install()
         system.keys["la-ios-layout-1"] = "rec:1"
@@ -351,13 +366,17 @@ extension LifecycleTests {
                == ["type": "started", "activityId": "la-ios-layout-2", "activityKey": "rec:2"], "a new activity is a started event")
         C.register(logEvent)
         expect(system.observed.count == 1, "a second registration does not observe twice")
+        // A different handler replaces the first: only it gets the next event.
+        C.register(logOtherEvent)
+        EventSink.shared.emit(.authorization(AuthorizationReply(supported: true, enabled: true, buttons: true)))
+        expect(EventLog.other.events.count == 1 && EventLog.shared.events.count == 5, "a later handler replaces the earlier one")
         C.register(nil)
         EventSink.shared.emit(.authorization(AuthorizationReply(supported: true, enabled: true, buttons: true)))
         expect(EventLog.shared.events.count == 5, "without a handler events are dropped")
         C.register(logEvent)
     }
 
-    // AK-CONTRACT-3, AK-CONTRACT-12, AK-UPDATE-6
+    // AK-CONTRACT-3, AK-CONTRACT-12, AK-END-3, AK-ERROR-2, AK-UPDATE-6
     /// Every case of the shared fixtures through the C functions, as Rust sends it: the bridge decodes it, the
     /// controller checks it, and the reply gives the fixture's verdict and code.
     @MainActor static func testBridgeFixtures() async throws {
@@ -365,10 +384,23 @@ extension LifecycleTests {
         guard let fixtures = try JSONSerialization.jsonObject(with: file) as? [String: [[String: Any]]] else { fatalError("Unreadable fixtures") }
         let functions: [String: Call] = ["start_layout": C.start, "update_layout": C.update, "end_layout": C.end]
         var checked = 0
+        var messages = Set<String>()
         for fixture in fixtures["valid"] ?? [] where fixture["command"] as? String == "start_layout" {
             _ = install()
             let reply = await call(C.start, try wrap(fixture["input"] ?? NSNull()))
             expect(reply["ok"] as? Bool == true, "a valid start starts through the bridge: \(fixture["name"] ?? "")")
+            checked += 1
+        }
+        // AK-END-3: the valid end policies, the past and the largest time among them, end a running activity.
+        for fixture in fixtures["valid"] ?? [] where fixture["command"] as? String == "end_layout" {
+            guard var end = fixture["input"] as? [String: Any], end["snapshot"] == nil else { continue }
+            _ = install()
+            let meter = layoutJSON(key: "end:policy", lockScreen: meterLayout, values: #"{"title":"Run","progress":0}"#)
+            let started = await call(C.start, #"{"request":\#(meter)}"#)
+            end["id"] = data(started)["id"]
+            let reply = await call(C.end, try wrap(end))
+            expect(reply["ok"] as? Bool == true && data(reply)["state"] as? String == "ended",
+                   "a valid end policy ends through the bridge: \(fixture["name"] ?? "")")
             checked += 1
         }
         for fixture in fixtures["invalid"] ?? [] {
@@ -376,8 +408,15 @@ extension LifecycleTests {
             _ = install()
             let reply = await call(function, try wrap(fixture["input"] ?? NSNull()))
             expect(code(reply) == fixture["code"] as? String, "\(fixture["name"] ?? ""): expected \(fixture["code"] ?? ""), got \(code(reply) ?? "ok")")
+            // AK-ERROR-2: the message is constant text, never a piece of the request.
+            let message = ((reply["error"] as? [String: Any])?["message"] as? String) ?? ""
+            for text in strings(fixture["input"] ?? NSNull()) where text.count >= 4 {
+                expect(!message.contains(text), "\(fixture["name"] ?? ""): the message repeats \(text)")
+            }
+            messages.insert(message)
             checked += 1
         }
+        expect(messages.count <= 12, "a few constant messages answer every invalid fixture: \(messages.sorted())")
         for fixture in fixtures["updates"] ?? [] {
             _ = install()
             let started = await call(C.start, try wrap(fixture["start"] ?? NSNull()))

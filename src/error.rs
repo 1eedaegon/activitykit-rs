@@ -2,7 +2,35 @@
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// What went wrong. Each variant is one stable code of the request contract, shared with the Swift layer;
-/// [`Error::code`] gives it. A message is constant text and never repeats a request. More variants may come.
+/// [`Error::code`] gives it. A message is constant text and never repeats a request. More variants may come, so a match
+/// needs a `_` arm:
+///
+/// ```compile_fail,E0004
+/// // AK-ERROR-5: without a `_` arm the match does not compile.
+/// use activitykit::Error;
+/// fn retry(error: &Error) -> bool {
+///     match error {
+///         Error::StaleRevision(_) | Error::Native(_) => true,
+///         Error::Unsupported | Error::InvalidInput(_) | Error::PayloadTooLarge(_) | Error::NotFound(_) => false,
+///         Error::Conflict(_) | Error::PermissionDenied(_) | Error::NotForeground(_) => false,
+///         Error::ConfigurationRequired(_) | Error::UnsupportedFeature { .. } | Error::SystemLimit { .. } => false,
+///     }
+/// }
+/// ```
+///
+/// ```
+/// // AK-ERROR-5: with one it does.
+/// use activitykit::Error;
+/// fn retry(error: &Error) -> bool {
+///     match error {
+///         Error::StaleRevision(_) | Error::Native(_) => true,
+///         Error::Unsupported | Error::InvalidInput(_) | Error::PayloadTooLarge(_) | Error::NotFound(_) => false,
+///         Error::Conflict(_) | Error::PermissionDenied(_) | Error::NotForeground(_) => false,
+///         Error::ConfigurationRequired(_) | Error::UnsupportedFeature { .. } | Error::SystemLimit { .. } => false,
+///         _ => false,
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
@@ -50,7 +78,30 @@ pub enum Error {
     Native(String),
 }
 
-/// Whose limit of running activities a start ran into.
+/// Whose limit of running activities a start ran into. More may come:
+///
+/// ```compile_fail,E0004
+/// // AK-ERROR-5: without a `_` arm the match does not compile.
+/// use activitykit::LimitScope;
+/// fn mine(scope: LimitScope) -> bool {
+///     match scope {
+///         LimitScope::App => true,
+///         LimitScope::Device => false,
+///     }
+/// }
+/// ```
+///
+/// ```
+/// // AK-ERROR-5: with one it does.
+/// use activitykit::LimitScope;
+/// fn mine(scope: LimitScope) -> bool {
+///     match scope {
+///         LimitScope::App => true,
+///         LimitScope::Device => false,
+///         _ => false,
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LimitScope {

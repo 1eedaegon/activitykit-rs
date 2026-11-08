@@ -1,11 +1,12 @@
 #!/bin/sh
 # The iOS end-to-end test of activitykit, in one command: builds the test host (Rust scenarios in src/lib.rs, a SwiftUI
-# shell, the template widget), creates a simulator of its own, runs the UI test (start, a bound color turning red, Stop
-# tapped on the Lock Screen and its event in Rust, end, and activities() after a relaunch), copies the screenshots and
-# the host's log to OUT, deletes the simulator, and exits with the test's status.
+# shell, the template widget), creates a simulator of its own, runs the UI tests (UITests/: the Lock Screen, every node
+# type, a start from the background, activities() after a relaunch, and ActivityKit's stale dates, dismissals and
+# relevance), copies the screenshots and the host's log to OUT, deletes the simulator, and exits with the tests' status.
 #
 # Needs Xcode, XcodeGen and the Rust target of this Mac's simulator. Optional: OUT (default ./output), CARGO_TARGET_DIR
-# (default ./target), DERIVED_DATA, RUNTIME and DEVICE_TYPE (simctl identifiers; default the newest iOS and iPhone Pro).
+# (default ./target), DERIVED_DATA, RUNTIME and DEVICE_TYPE (simctl identifiers; default the newest iOS and iPhone Pro),
+# ONLY (one test, such as PolicyTests/testStaleDatesDismissalsAndRelevance).
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 out=${OUT:-$here/output}
@@ -28,8 +29,10 @@ echo "simulator $udid: $device_type, $runtime"
 xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost -destination "id=$udid" \
   -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" build-for-testing -quiet
 status=0
+set --
+if [ -n "${ONLY:-}" ]; then set -- "-only-testing:ActivityKitHostUITests/$ONLY"; fi
 TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
-  -destination "id=$udid" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building || status=$?
+  -destination "id=$udid" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" || status=$?
 
 log=$(find "$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/Containers/Data/Application" -name activitykit-host.log 2>/dev/null | head -1)
 if [ -n "$log" ]; then cp "$log" "$out/host.log"; cat "$out/host.log"; fi

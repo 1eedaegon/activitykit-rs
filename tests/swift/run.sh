@@ -5,7 +5,11 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/activitykit-swift.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-set -- "$root"/swift/Sources/ActivityKitShared/*.swift "$root"/swift/Sources/ActivityKitCore/*.swift "$root"/swift/Sources/ActivityKitBridge/*.swift
+# The iOS-only files (#if os(iOS): the ActivityKit adapter, system, backend and observers) compile to nothing here, so
+# the coverage below counts the code that the Mac runs; the simulator host (tests/ios-host) runs the rest. From the
+# intent product only its Foundation part, ActionPost.swift.
+set -- "$root"/swift/Sources/ActivityKitShared/*.swift "$root"/swift/Sources/ActivityKitCore/*.swift "$root"/swift/Sources/ActivityKitBridge/*.swift \
+  "$root"/swift/Sources/ActivityKitIntent/ActionPost.swift
 xcrun swiftc -parse-as-library -swift-version 5 -profile-generate -profile-coverage-mapping "$@" "$root"/tests/swift/*.swift -o "$work/tests"
 LLVM_PROFILE_FILE="$work/tests.profraw" "$work/tests" "$root/tests/fixtures/layout-requests.json"
 xcrun llvm-profdata merge -sparse "$work/tests.profraw" -o "$work/tests.profdata"

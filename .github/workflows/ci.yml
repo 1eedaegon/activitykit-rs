@@ -17,8 +17,9 @@ concurrency:
 
 jobs:
   # Which parts the push or pull request changed. A change to docs alone ends here, and the run still succeeds.
-  # The repository is private and a macOS minute costs ten Linux minutes, so the macOS job runs only for the Swift
-  # side and what builds or tests it.
+  # The repository is private and a macOS minute costs ten Linux minutes, so the macOS job runs only for what reaches
+  # the Swift layer: the Swift package, every Rust source and manifest, and what builds or tests them.
+  # tests/ci/run.sh checks these patterns.
   changes:
     name: What changed
     runs-on: ubuntu-latest
@@ -45,10 +46,11 @@ jobs:
           # The workflows and the fixtures that both languages read concern every part.
           if grep -qE '^(\.github/workflows/|tests/fixtures/|contracts/)' <<< "$files"; then all "workflow or shared fixtures"; exit 0; fi
           area() { grep -qE "$2" <<< "$files" && echo "$1=true" >> "$GITHUB_OUTPUT" || echo "$1=false" >> "$GITHUB_OUTPUT"; }
-          area rust '^(src/|tests/[^/]+\.rs$|tests/ios-host/(src/|Cargo\.)|build\.rs$|Cargo\.(toml|lock)$)'
-          # The Swift package, the build script that compiles it, the bridge's Rust side, the templates, the Swift
-          # tests and the iOS test host.
-          area apple '^(swift/|build\.rs$|src/native\.rs$|src/bridge\.rs$|templates/|tests/swift/|tests/ios-host/|tests/build/)'
+          area rust '^(src/|tests/[^/]+\.rs$|tests/ios-host/(src/|Cargo\.)|tests/build/|build\.rs$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|\.cargo/)'
+          # The Swift package and the build script that compiles it, every Rust source and manifest (the requests, the
+          # envelope, and the fake bridge that mirrors the Swift layer's keys), the templates, the Swift tests, the
+          # build checks and the iOS test host.
+          area apple '^(src/|swift/|build\.rs$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|\.cargo/|templates/|tests/swift/|tests/ios-host/|tests/build/)'
           # The specification and its tests, and the docs that tests/docs.rs reads: a light check on any of them.
           area spec '^(src/|tests/|swift/|build\.rs$|docs/|tools/|README\.md$)'
           cat "$GITHUB_OUTPUT"
@@ -64,6 +66,7 @@ jobs:
         with:
           persist-credentials: false
       - run: sh tools/spec-coverage.sh
+      - run: sh tests/ci/run.sh
       - run: rustup toolchain install 1.95.0 --profile minimal && rustup default 1.95.0
       - run: cargo test --locked --test docs
 
@@ -92,8 +95,22 @@ jobs:
       - run: cargo install cargo-llvm-cov --version 0.8.7 --locked
       - run: cargo llvm-cov --locked --summary-only --fail-under-lines 80
       - run: cargo test --locked --doc
-      # What build.rs does off Apple platforms, and for iOS under docs.rs and ACTIVITYKIT_SKIP_SWIFT.
-      - run: sh tests/build/run.sh
+      # What build.rs does off Apple platforms, and for iOS under docs.rs and ACTIVITYKIT_SKIP_SWIFT. Under CI a check
+      # that cannot run fails.
+      - run: sh tests/build/run.sh host
+
+  # The oldest Rust the crate supports, rust-version in Cargo.toml.
+  msrv:
+    name: Rust 1.90 (Linux)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install 1.90.0 --profile minimal
+      - run: cargo +1.90.0 test --locked
 
   apple:
     name: Swift, iOS builds and the simulator test (macOS)
@@ -111,16 +128,18 @@ jobs:
           xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
           sudo xcode-select -s "$xcode"
           xcodebuild -version
-      - run: rustup toolchain install 1.95.0 --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim
+      - run: rustup toolchain install 1.95.0 --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim --target x86_64-apple-ios
       - run: rustup default 1.95.0
       - run: brew install xcodegen
       # The shared models, the lifecycle and the C bridge on the Mac, with every fixture; at least 80 % coverage.
       - run: bash tests/swift/run.sh
-      # build.rs for the device and the simulator: platform, architecture, deployment target, the seven C functions.
+      # build.rs for the device and both simulators: platform, architecture, deployment target (12.0 raised to 15.0 on
+      # x86_64), the seven C functions. Under CI a check that cannot run fails.
       - run: sh tests/build/run.sh
-      # On a simulator that the script creates and deletes: start, a bound color turning red, Stop tapped on the Lock
-      # Screen and its event in Rust, an end with final values, every node type drawn, a start from the background,
-      # and activities() after a relaunch.
+      # On a simulator that the script creates and deletes: start, a bound color turning red, content older than the
+      # shown one dropped, Stop tapped on the Lock Screen and its event in Rust, an end with final values, every node
+      # type drawn, a start from the background, activities() after a relaunch, and a stale date, the default and
+      # timed dismissals and the end's relevance.
       - name: End to end on the simulator
         run: tests/ios-host/run.sh
         env:

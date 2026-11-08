@@ -14,7 +14,7 @@ use std::{
 };
 
 /// A kit on a fake bridge. A tap waits only briefly for subscribers that read later in the test.
-fn kit() -> (ActivityKit, FakeBridge) {
+pub(super) fn kit() -> (ActivityKit, FakeBridge) {
     let fake = FakeBridge::default();
     (
         ActivityKit::with_bridge(fake.clone(), Duration::from_millis(20)),
@@ -22,7 +22,7 @@ fn kit() -> (ActivityKit, FakeBridge) {
     )
 }
 
-fn sketch() -> Layout {
+pub(super) fn sketch() -> Layout {
     Layout::new(vstack([
         hstack([
             symbol("mic.fill"),
@@ -34,16 +34,16 @@ fn sketch() -> Layout {
     .style("status", Style::new().color(Bound::key("tone")))
 }
 
-fn started(kit: &ActivityKit) -> Activity {
+pub(super) fn started(kit: &ActivityKit) -> Activity {
     block_on(kit.start(sketch(), values! { "tone" => "green", "level" => 0.2 })).unwrap()
 }
 
-fn at(millis: u64) -> SystemTime {
+pub(super) fn at(millis: u64) -> SystemTime {
     UNIX_EPOCH + Duration::from_millis(millis)
 }
 
 /// A request without its snapshot's timestamp, the time it was made, which every snapshot carries.
-fn untimed(mut request: Json) -> Json {
+pub(super) fn untimed(mut request: Json) -> Json {
     let snapshot = request["request"]["snapshot"]
         .as_object_mut()
         .expect("a snapshot");
@@ -280,7 +280,7 @@ fn a_handle_after_a_relaunch_continues_from_the_listed_revision() {
     );
 }
 
-// AK-UPDATE-7, AK-UPDATE-8
+// AK-EVENT-12, AK-UPDATE-7, AK-UPDATE-8
 #[test]
 fn a_handle_that_only_an_event_named_learns_its_revision_from_the_list() {
     let (kit, fake) = kit();
@@ -519,7 +519,7 @@ fn every_subscriber_gets_every_event_with_the_shared_handle() {
     assert!(fake.sent(Call::List).is_empty());
 }
 
-// AK-EVENT-3, AK-EVENT-4, AK-EVENT-7
+// AK-EVENT-3, AK-EVENT-4, AK-EVENT-7, AK-EVENT-11
 #[test]
 fn events_before_the_first_subscriber_wait_for_it() {
     let (kit, fake) = kit();
@@ -556,16 +556,16 @@ fn a_tap_returns_once_every_subscriber_has_taken_it() {
     let events = kit.events();
     let taker = thread::spawn(move || {
         thread::sleep(Duration::from_millis(100));
-        events.recv_blocking().unwrap()
+        let ready = Instant::now();
+        (events.recv_blocking().unwrap(), ready)
     });
     let started = Instant::now();
     fake.emit(json!({"type":"action","activityId":"la-1","actionId":"stop"}));
-    let waited = started.elapsed();
-    assert!(
-        waited >= Duration::from_millis(100) && waited < Duration::from_secs(5),
-        "{waited:?}"
-    );
-    assert!(matches!(taker.join().unwrap(), Event::Action { .. }));
+    let returned = Instant::now();
+    let (event, ready) = taker.join().unwrap();
+    assert!(matches!(event, Event::Action { .. }));
+    // The tap returned after the receiver began to take it, and long before the wait was over.
+    assert!(returned >= ready && returned - started < Duration::from_secs(5));
     // States and authorization changes do not wait.
     let _idle = kit.events();
     let started = Instant::now();
@@ -577,13 +577,14 @@ fn a_tap_returns_once_every_subscriber_has_taken_it() {
 #[test]
 fn the_wait_for_a_tap_is_bounded() {
     let fake = FakeBridge::default();
-    let kit = ActivityKit::with_bridge(fake.clone(), Duration::from_millis(150));
+    let kit = ActivityKit::with_bridge(fake.clone(), Duration::from_millis(300));
     let idle = kit.events();
     let started = Instant::now();
     fake.emit(json!({"type":"action","activityId":"la-1","actionId":"stop"}));
     let waited = started.elapsed();
+    // The wait, and not much more.
     assert!(
-        waited >= Duration::from_millis(150) && waited < Duration::from_secs(2),
+        waited >= Duration::from_millis(300) && waited < Duration::from_millis(550),
         "{waited:?}"
     );
     assert_eq!(idle.len(), 1);
@@ -658,7 +659,10 @@ fn debug_output_names_the_activity_without_its_values() {
     let activity = started(&kit);
     let debug = format!("{activity:?} {kit:?}");
     assert!(
-        debug.contains("la-fake-1") && debug.contains("Active") && !debug.contains("green"),
+        debug.contains(r#"id: "la-fake-1""#)
+            && debug.contains("state: Active")
+            && debug.contains("revision: Some(0)")
+            && !debug.contains("green"),
         "{debug}"
     );
 }
@@ -811,14 +815,15 @@ fn dropping_a_future_does_not_cancel_its_request() {
     let start = kit.start(sketch(), values! { "tone" => "green", "level" => 0.2 });
     // Polled once, the request is on its way; then the caller loses interest.
     assert!(block_on(futures_lite::future::poll_once(Box::pin(start))).is_none());
-    thread::sleep(Duration::from_millis(100));
-    // The reply came to a dropped receiver and went nowhere; the activity runs, and the kit works on.
+    // The reply comes to a dropped receiver and goes nowhere, without a panic on the replying thread; the activity
+    // runs, and the kit works on.
+    fake.join();
     let listed = block_on(kit.activities()).unwrap();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].state(), State::Active);
     let update = listed[0].update(values! { "tone" => "red", "level" => 0.8 });
     assert!(block_on(futures_lite::future::poll_once(Box::pin(update))).is_none());
-    thread::sleep(Duration::from_millis(100));
+    fake.join();
     assert_eq!(fake.lock().activities[0].revision, 1);
 }
 
@@ -891,8 +896,8 @@ fn starts_updates_and_ends_carry_their_timestamp() {
     let before = millis(SystemTime::now()).unwrap();
     let activity = started(&kit);
     let update = Update::new(values! { "tone" => "red", "level" => 0.8 });
-    let after = millis(SystemTime::now()).unwrap();
     block_on(activity.update_with(update)).unwrap();
+    let after = millis(SystemTime::now()).unwrap();
     let explicit =
         Update::new(values! { "tone" => "red", "level" => 0.9 }).timestamp(at(1_790_000_000_000));
     block_on(activity.update_with(explicit)).unwrap();

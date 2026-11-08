@@ -68,8 +68,9 @@ or a push started (from `activityUpdates`). `authorization` carries the whole au
 observer holds its `ActivityAuthorizationInfo` for as long as it watches.
 
 `activityKey` of an action is absent once ActivityKit no longer lists the activity. The handler runs on whichever
-thread reports the event. For a tap that is the action relay's queue, and the tap's intent waits until the handler
-returns; Rust returns once every receiver has taken the event, or after 4 seconds.
+thread reports the event. For a tap that is the action relay's queue: the tap's intent posts it every 100 ms for up to
+5 seconds until the handler returns (`ActionPost`), and Rust returns once every receiver has taken the event, or after
+4 seconds.
 
 ## What is Swift and what is Rust
 

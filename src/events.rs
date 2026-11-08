@@ -15,11 +15,21 @@ use std::{
 /// What the system reports about the app's activities. More kinds, and more members of these, may come: match with
 /// `..`.
 ///
-/// ```compile_fail
+/// ```compile_fail,E0638
 /// // AK-EVENT-10: the variants leave room for members, so a pattern needs `..`.
 /// fn tapped(event: activitykit::Event) -> Option<String> {
 ///     match event {
 ///         activitykit::Event::Action { activity: _, action } => Some(action),
+///         _ => None,
+///     }
+/// }
+/// ```
+///
+/// ```
+/// // AK-EVENT-10: with `..` the same pattern compiles.
+/// fn tapped(event: activitykit::Event) -> Option<String> {
+///     match event {
+///         activitykit::Event::Action { activity: _, action, .. } => Some(action),
 ///         _ => None,
 ///     }
 /// }

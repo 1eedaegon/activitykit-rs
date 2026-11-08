@@ -3,58 +3,6 @@ import Foundation
 import ActivityKitShared
 #endif
 
-public struct NativeActivity: Codable, Sendable {
-    public let id: String
-    public let attributes: LiveActivityAttributes
-    public let snapshot: ActivitySnapshot
-    public let state: String
-    public init(id: String, attributes: LiveActivityAttributes, snapshot: ActivitySnapshot, state: String) {
-        self.id = id; self.attributes = attributes; self.snapshot = snapshot; self.state = state
-    }
-    public var record: ActivityRecord { ActivityRecord(activity: self) }
-}
-
-public struct ActivityRecord: Encodable, Sendable {
-    public let id: String
-    public let activityKey: String
-    public let schemaVersion: Int
-    public let template: String
-    public let snapshot: ActivitySnapshot
-    public let backend = "activityKit"
-    public let state: String
-    public let visibility = "unknown"
-    public let degradedFeatures: [String] = []
-    public let promotionRequested = false
-    public let promotionState = "notApplicable"
-    public init(activity: NativeActivity) {
-        id = activity.id; activityKey = activity.attributes.activityKey
-        schemaVersion = activity.attributes.schemaVersion; template = activity.attributes.template
-        snapshot = activity.snapshot; state = activity.state
-    }
-    init(entry: StoredReceipt, snapshot: ActivitySnapshot) {
-        id = entry.id; activityKey = entry.summary.activityKey; schemaVersion = entry.summary.schemaVersion
-        template = entry.summary.template ?? ""; self.snapshot = snapshot; state = entry.state
-    }
-}
-
-@MainActor
-public protocol ActivityBackend: AnyObject {
-    func preflightStart() throws
-    func list() async -> [NativeActivity]
-    func start(_ attributes: LiveActivityAttributes, snapshot: ActivitySnapshot) async throws -> NativeActivity
-    func update(_ activity: NativeActivity, snapshot: ActivitySnapshot) async throws -> NativeActivity
-    func end(_ activity: NativeActivity, policy: EndPolicy) async throws -> NativeActivity
-    /// Ends the activity without new content, so the system keeps what it last published.
-    func endKeepingContent(_ activity: NativeActivity, policy: EndPolicy) async throws -> NativeActivity
-}
-
-extension ActivityBackend {
-    /// A backend that does not implement it ends with `activity.snapshot`.
-    public func endKeepingContent(_ activity: NativeActivity, policy: EndPolicy) async throws -> NativeActivity {
-        try await end(activity, policy: policy)
-    }
-}
-
 /// Holds the lock across suspension points; an actor alone would permit reentrant updates.
 @MainActor
 final class SerialOperationQueue {
@@ -70,7 +18,7 @@ final class SerialOperationQueue {
     }
 }
 
-/// What the shared lifecycle needs from one contract version's activity.
+/// What the lifecycle needs from an activity of the contract.
 protocol LifecycleActivity: Sendable {
     associatedtype Attributes
     associatedtype Snapshot: Equatable & Encodable & Sendable
@@ -90,29 +38,7 @@ protocol LifecycleActivity: Sendable {
     func with(snapshot: Snapshot, state: String) -> Self
 }
 
-extension NativeActivity: LifecycleActivity {
-    typealias Attributes = LiveActivityAttributes
-    static let schemaVersion = 1
-    static let instancePrefix = "la-ios-"
-    static func content(_ snapshot: ActivitySnapshot) -> StoredReceipt.Content { .template(snapshot) }
-    static func snapshot(in content: StoredReceipt.Content) -> ActivitySnapshot? {
-        if case .template(let snapshot) = content { return snapshot } else { return nil }
-    }
-    static func revision(of snapshot: ActivitySnapshot) -> Int64 { snapshot.revision }
-    static func record(_ entry: StoredReceipt) -> ActivityRecord {
-        ActivityRecord(entry: entry, snapshot: snapshot(in: entry.content)
-            ?? ActivitySnapshot(revision: entry.revision, title: "", status: "", progress: nil, timer: nil, staleAt: nil))
-    }
-    var summary: ReceiptSummary {
-        ReceiptSummary(activityKey: attributes.activityKey, schemaVersion: attributes.schemaVersion, template: attributes.template,
-                       fingerprint: attributes.initialFingerprint)
-    }
-    func with(snapshot: ActivitySnapshot, state: String) -> NativeActivity {
-        NativeActivity(id: id, attributes: attributes, snapshot: snapshot, state: state)
-    }
-}
-
-/// The system calls of one contract version.
+/// The system calls the lifecycle makes.
 struct LifecycleBackend<Activity: LifecycleActivity> {
     let preflight: @MainActor () throws -> Void
     let list: @MainActor () async -> [Activity]
@@ -121,14 +47,6 @@ struct LifecycleBackend<Activity: LifecycleActivity> {
     let end: @MainActor (Activity, EndPolicy) async throws -> Activity
     /// Ends without new content: the system keeps what it last published.
     let endKeepingContent: @MainActor (Activity, EndPolicy) async throws -> Activity
-}
-
-extension LifecycleBackend where Activity == NativeActivity {
-    init(_ backend: ActivityBackend) {
-        self.init(preflight: { try backend.preflightStart() }, list: { await backend.list() },
-                  start: { try await backend.start($0, snapshot: $1) }, update: { try await backend.update($0, snapshot: $1) },
-                  end: { try await backend.end($0, policy: $1) }, endKeepingContent: { try await backend.endKeepingContent($0, policy: $1) })
-    }
 }
 
 /// What the lifecycle remembers about one activity: the whole activity when this process or a custom
@@ -146,8 +64,7 @@ struct Receipt<Activity: LifecycleActivity> {
 private func isLive(_ state: String) -> Bool { ["active", "stale"].contains(state) }
 private func isTerminal(_ state: String) -> Bool { ["ended", "dismissed"].contains(state) }
 
-/// The rules both contract versions share: idempotent start by fingerprint, revisions, tombstones and
-/// receipts. One instance serves one contract version, so the versions never see each other's activities.
+/// The rules of the lifecycle: idempotent start by fingerprint, revisions, tombstones and receipts.
 @MainActor
 final class ActivityLifecycle<Activity: LifecycleActivity> {
     private let backend: LifecycleBackend<Activity>
@@ -306,41 +223,5 @@ final class ActivityLifecycle<Activity: LifecycleActivity> {
             throw ActivityFailure("NOT_FOUND", "The active activity was not found.")
         }
         return activity
-    }
-}
-
-@MainActor
-public final class LiveActivityController {
-    private let lifecycle: ActivityLifecycle<NativeActivity>
-    /// Keeps receipts in a custom store of v1 activities, or only in memory.
-    public init(backend: ActivityBackend, store: ActivityReceiptStore? = nil) {
-        lifecycle = ActivityLifecycle(backend: LifecycleBackend(backend), storage: store.map { .custom($0) } ?? .memory())
-    }
-    /// Keeps receipts in the shared receipt file.
-    public init(backend: ActivityBackend, store: FileReceiptStore) {
-        lifecycle = ActivityLifecycle(backend: LifecycleBackend(backend), storage: .file(store))
-    }
-
-    public func start(_ request: StartRequest) async throws -> ActivityRecord {
-        try request.validate()
-        return try await lifecycle.start(key: request.activityKey, fingerprint: request.fingerprint, snapshot: request.snapshot) { id in
-            let attributes = try LiveActivityAttributes(request: request, instanceID: id)
-            try PayloadLimit.check(attributes: attributes, snapshot: request.snapshot)
-            return attributes
-        }
-    }
-
-    public func update(_ request: UpdateRequest) async throws -> ActivityRecord {
-        try await lifecycle.update(id: request.id, snapshot: request.snapshot,
-            validate: { try request.snapshot.validate(template: $0.attributes.template) },
-            check: { try PayloadLimit.check(attributes: $0.attributes, snapshot: request.snapshot) })
-    }
-
-    public func end(_ request: EndRequest) async throws -> ActivityRecord {
-        try await lifecycle.end(id: request.id, policy: request.policy)
-    }
-
-    public func list() async throws -> [ActivityRecord] {
-        try await lifecycle.list()
     }
 }
