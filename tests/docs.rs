@@ -49,6 +49,10 @@ fn the_docs_state_the_system_limits_and_behaviors() {
         "does not check the app's setup",
         "the rustdoc of src/kit.rs",
     );
+    for phrase in ["however long that takes", "first polled", "no timeout"] {
+        says(&usage, phrase, "docs/usage.md");
+        says(&rustdoc, phrase, "the rustdoc of src/kit.rs");
+    }
     let later = read("docs/not-yet-supported.md");
     for phrase in [
         "Push updates",
@@ -92,6 +96,7 @@ fn no_doc_says_what_is_no_longer_true() {
         "LiveActivityController",
         "receipts-v1.json",
         "not one of the three below",
+        "in the order they were called",
     ];
     for file in files {
         let text = read(file);

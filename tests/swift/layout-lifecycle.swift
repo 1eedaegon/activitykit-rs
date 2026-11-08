@@ -12,6 +12,9 @@ final class FakeLayoutBackend: LayoutActivityBackend {
     var delayObservation = false
     var startError: ActivityFailure?
     var widgetError: ActivityFailure?
+    /// While set, an update hangs in ActivityKit until `held` is resumed.
+    var holdUpdates = false
+    var held: CheckedContinuation<Void, Never>?
     func preflightStart() throws { preflights.append("start"); if let error = startError { throw error } }
     func preflightLayoutWidget() throws { preflights.append("widget"); if let error = widgetError { throw error } }
     func list() async -> [LayoutActivity] { activities }
@@ -23,6 +26,7 @@ final class FakeLayoutBackend: LayoutActivityBackend {
     }
     func update(_ activity: LayoutActivity, snapshot: LayoutSnapshot) async throws -> LayoutActivity {
         updates += 1
+        if holdUpdates { await withCheckedContinuation { held = $0 } }
         await Task.yield()
         if failUpdate { throw ActivityFailure("NATIVE_ERROR", "update failed") }
         let next = LayoutActivity(id: activity.id, attributes: activity.attributes, snapshot: snapshot, state: "active")
@@ -172,10 +176,36 @@ extension LifecycleTests {
         vanishing.activities = []
         try await verify(try await watcher.list().allSatisfy { $0.state != "active" }, "a missing OS activity is never reported active")
 
+        try await testOneCallAtATime()
         try await testBoundStyleUpdates()
         try testLayoutWidgetPreflight()
         try await testActionRelay()
         try await testNativeSizeCheck()
+    }
+
+    // AK-UPDATE-17
+    /// While one ActivityKit call hangs, every later call of every activity waits in the lifecycle's queue: a timeout
+    /// in Rust would move such a wait, not end it.
+    @MainActor private static func testOneCallAtATime() async throws {
+        let backend = FakeLayoutBackend()
+        let controller = LayoutActivityController(backend: backend)
+        let first = try await controller.start(meterRequest("hung"))
+        let other = try await controller.start(meterRequest("other"))
+        backend.holdUpdates = true
+        let update = Task { try await controller.update(layoutUpdate(first.id, meter(1, 0.5))) }
+        await verify(await eventually { backend.held != nil }, "the update hangs in ActivityKit")
+        backend.holdUpdates = false
+        let end = Task { try await controller.end(layoutEnd(first.id)) }
+        let otherEnd = Task { try await controller.end(layoutEnd(other.id)) }
+        let third = Task { try await controller.start(meterRequest("third")) }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        expect(backend.ends.isEmpty && backend.starts == 2, "every later call, of this activity or another, waits")
+        backend.held?.resume()
+        _ = try await update.value
+        _ = try await end.value
+        _ = try await otherEnd.value
+        _ = try await third.value
+        expect(Set(backend.ends) == ["end 1", "end 0"] && backend.starts == 3, "then they run")
     }
 
     // AK-UPDATE-5

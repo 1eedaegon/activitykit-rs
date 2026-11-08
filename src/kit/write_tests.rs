@@ -21,6 +21,23 @@ fn now() -> u64 {
     millis(SystemTime::now()).unwrap()
 }
 
+/// The output of `future` if it is ready within `limit`, so that a test fails where a broken queue would hang it.
+fn within<T>(
+    mut future: std::pin::Pin<&mut impl std::future::Future<Output = T>>,
+    limit: Duration,
+) -> Option<T> {
+    let deadline = std::time::Instant::now() + limit;
+    loop {
+        if let Some(output) = block_on(poll_once(future.as_mut())) {
+            return Some(output);
+        }
+        if std::time::Instant::now() >= deadline {
+            return None;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+}
+
 // AK-BRIDGE-9, AK-THREAD-3
 #[test]
 fn a_dropped_writes_reply_still_reaches_the_handle() {
@@ -290,4 +307,101 @@ fn starts_from_eight_worker_threads_get_one_activity_each() {
     ids.dedup();
     assert_eq!(ids.len(), 8);
     assert_eq!(fake.sent(Call::Start).len(), 8);
+}
+
+// AK-UPDATE-17
+/// However long a reply takes, the next write of the activity waits for it, and then goes out.
+#[test]
+fn a_held_reply_holds_every_later_write_until_it_comes() {
+    let (kit, fake) = kit();
+    let activity = started(&kit);
+    fake.lock().hold = true;
+    let mut update = Box::pin(activity.update(values! { "tone" => "red", "level" => 0.8 }));
+    assert!(block_on(poll_once(&mut update)).is_none());
+    let mut end = Box::pin(activity.end(End::immediately()));
+    for _ in 0..3 {
+        assert!(block_on(poll_once(&mut end)).is_none());
+        thread::sleep(Duration::from_millis(20));
+    }
+    assert!(
+        fake.sent(Call::End).is_empty(),
+        "the end waits for the update's answer"
+    );
+    fake.lock().hold = false;
+    fake.release();
+    block_on(update).unwrap();
+    within(end.as_mut(), Duration::from_secs(2))
+        .expect("the end goes out once the reply came")
+        .unwrap();
+    let [ended] = snapshots(&fake, Call::End).try_into().unwrap();
+    assert_eq!(
+        (ended["revision"].clone(), ended["values"].clone()),
+        (json!(2), json!({"level":0.8,"tone":"red"}))
+    );
+}
+
+// AK-BRIDGE-9, AK-UPDATE-17
+/// A reply that never comes because the bridge dropped it (the kit going away) fails its write, and the next write
+/// goes out.
+#[test]
+fn a_dropped_reply_fails_its_write_and_passes_the_turn_on() {
+    let (kit, fake) = kit();
+    let activity = started(&kit);
+    fake.lock().hold = true;
+    let mut update = Box::pin(activity.update(values! { "tone" => "red", "level" => 0.8 }));
+    assert!(block_on(poll_once(&mut update)).is_none());
+    let mut end = Box::pin(activity.end(End::immediately()));
+    assert!(block_on(poll_once(&mut end)).is_none());
+    fake.lock().hold = false;
+    fake.drop_held();
+    assert_eq!(block_on(update).unwrap_err().code(), "NATIVE_ERROR");
+    within(end.as_mut(), Duration::from_secs(2))
+        .expect("the end goes out once the dropped reply let it")
+        .unwrap();
+    // The handle never learned the update's answer; its revision stays taken.
+    let [ended] = snapshots(&fake, Call::End).try_into().unwrap();
+    assert_eq!(ended["revision"], json!(2));
+    assert_eq!(activity.state(), State::Ended);
+}
+
+// AK-UPDATE-3
+/// The order of writes is the order in which their futures are first polled, not the order they were made.
+#[test]
+fn writes_go_out_in_the_order_their_futures_are_first_polled() {
+    let (kit, fake) = kit();
+    let activity = started(&kit);
+    let made_first = activity.update(values! { "tone" => "red", "level" => 0.1 });
+    let made_second = activity.update(values! { "tone" => "red", "level" => 0.2 });
+    let (second, first) = block_on(zip(made_second, made_first));
+    second.unwrap();
+    first.unwrap();
+    let sent: Vec<_> = snapshots(&fake, Call::Update)
+        .iter()
+        .map(|snapshot| {
+            (
+                snapshot["revision"].clone(),
+                snapshot["values"]["level"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(sent, [(json!(1), json!(0.2)), (json!(2), json!(0.1))]);
+    assert_eq!(activity.values()["level"], Value::Number(0.1));
+}
+
+// AK-UPDATE-16
+/// After an update older than the shown content, which ActivityKit (17.2) drops, the handle holds its values, and an
+/// end without values carries them, made now: ActivityKit then shows them. `End::values` ends with others.
+#[test]
+fn an_end_without_values_after_an_older_update_carries_that_updates_values() {
+    let (kit, fake) = kit();
+    let activity = started(&kit);
+    block_on(activity.update(values! { "tone" => "red", "level" => 0.8 })).unwrap();
+    let hour_ago = SystemTime::now() - Duration::from_secs(3600);
+    let old = Update::new(values! { "tone" => "gray", "level" => 0.1 }).timestamp(hour_ago);
+    block_on(activity.update_with(old)).unwrap();
+    assert_eq!(activity.values()["tone"], Value::from("gray"));
+    block_on(activity.end(End::immediately())).unwrap();
+    let [ended] = snapshots(&fake, Call::End).try_into().unwrap();
+    assert_eq!(ended["values"], json!({"level":0.1,"tone":"gray"}));
+    assert!(ended["timestamp"].as_u64().unwrap() > millis(hour_ago).unwrap());
 }

@@ -68,8 +68,12 @@ pub struct Authorization {
 /// A started activity. Clones, and every handle that [`ActivityKit::activities`] or an [`Event`] gives for the same
 /// activity, share its revision and its last known state.
 ///
-/// Updates and ends of one activity go to the Swift layer one at a time, in the order they were called: each waits
-/// until the one before has its answer, which the handle takes even when nobody awaits it.
+/// Updates and ends of one activity go to the Swift layer one at a time, in the order their futures are first polled:
+/// a write waits for the answer of the one before it, however long that takes, and the handle takes that answer even
+/// when nobody awaits it. There is no timeout: the Swift layer runs the calls of all activities one at a time too, so
+/// a later end would wait there for a hung call all the same, and a write that overtook one in flight could end the
+/// activity with older values. A reply that the bridge drops unanswered fails its write with [`Error::Native`] and
+/// lets the next one go.
 ///
 /// Dropping a handle, every handle and the kit, or ending the process never ends the activity: only [`Activity::end`],
 /// the person or the system does (the system ends an activity after 8 hours and removes it from the Lock Screen after
@@ -474,7 +478,8 @@ impl Update {
     /// When this content was made. Without it the handle takes the time it sends the content, so timestamps grow with
     /// the revisions. ActivityKit (iOS 17.2 and later) drops content older than what it shows: with a timestamp older
     /// than the shown content's, the update still succeeds and the handle reports its values, but the activity keeps
-    /// showing the newer content.
+    /// showing the newer content. An [`End`] without values then ends with those dropped values, made at the time of
+    /// the end, so ActivityKit shows them: give the end its values to end with others.
     pub fn timestamp(mut self, at: SystemTime) -> Self {
         self.timestamp = Some(at);
         self

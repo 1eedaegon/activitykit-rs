@@ -88,8 +88,8 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 ## Limits
 
 - iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons need iOS 17.
-- An activity starts only while the app is in the foreground. The system ends it after 8 hours and removes it from the
-  Lock Screen after 12.
+- An activity starts only while the app is in the foreground, or a short while after it left it. The system ends it
+  after 8 hours and removes it from the Lock Screen after 12.
 - The widget extension must be a Swift target in Xcode; a widget cannot be written in Rust.
 - With Rust as a static library, the app target must compile some Swift, for the button's App Intents metadata and the
   bridge's Swift runtime.

@@ -10,10 +10,10 @@ The first version: iOS Live Activities from Rust. Split out of tauri-plugin-live
   `Error::Unsupported`. iOS 16.2 or later.
 - `Activity`: `update` and `update_with` (alert, stale date, relevance, timestamp) with the revision kept by the
   handle, `end` with final values, stale date, relevance and timestamp, and `state`, `values`, `revision`, `stale_at`,
-  `relevance`. Writes of one activity go out one at a time, so an end without values ends with the values of the
-  updates called before it; the handle takes a reply that nobody awaits. Timestamps are taken when the content is
-  sent. An update or end without a relevance keeps the score; a retry after `STALE_REVISION` happens only for newer
-  content.
+  `relevance`. Writes of one activity go out one at a time, in the order their futures are first polled and without a
+  timeout, so an end without values ends with the values of the updates before it; the handle takes a reply that
+  nobody awaits. Timestamps are taken when the content is sent. An update or end without a relevance keeps the score;
+  a retry after `STALE_REVISION` happens only for newer content.
 - `Error` with one variant per contract code, `NotForeground` for a start ActivityKit refuses outside the foreground,
   `UnsupportedFeature { feature, minimum_ios }` and `SystemLimit { scope }`.
 - The layout DSL of request contract v2 with builders: nodes, styles, bound style members, `fontFamily`, drawn images

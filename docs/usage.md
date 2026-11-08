@@ -103,17 +103,25 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
 ```
 
 - A start needs the app in the foreground (or a Live Activity intent of the app); otherwise ActivityKit refuses it and
-  the start answers `Error::NotForeground`. Each `start` is a new activity. `Start::key("rec")` gives it a key: while
-  that activity runs, the same start returns it and a different one is `Error::Conflict`.
+  the start answers `Error::NotForeground`. Starts made right after the app leaves the foreground may still succeed:
+  ActivityKit treats the app as visible for a short while after that. Each `start` is a new activity.
+  `Start::key("rec")` gives it a key: while that activity runs, the same start returns it and a different one is
+  `Error::Conflict`.
 - Each update sends every value again; the handle adds the revision and a timestamp: the time it sends the content,
   unless `Update::timestamp` gives one. ActivityKit uses it on iOS 17.2 to drop older content: an update with a
   timestamp older than the shown content's still succeeds, and the handle and the list report its values, but the
   activity keeps showing the newer content. Clones of a handle, and every handle that `activities()` or an event gives
   for the same activity, share one count. If the activity already shows a newer revision, the update reads it and tries
   again only when its own content is the newer one; otherwise it answers `Error::StaleRevision`.
-- Updates and ends of one activity go out one at a time, in the order they were called: each waits until the one
-  before has its answer, which the handle takes even when nobody awaits it. A write that fails keeps its revision
-  taken, so the next one skips it; no revision is sent twice.
+- Updates and ends of one activity go out one at a time, in the order their futures are first polled (a future does
+  nothing until polled): a write waits for the answer of the one before it, however long that takes, and the handle
+  takes that answer even when nobody awaits it. There is no timeout. The Swift layer runs the calls of all activities
+  one at a time as well, so an end would wait there for a hung ActivityKit call anyway, and a write that overtook one
+  still in flight could end the activity with older values. A write that fails keeps its revision taken, so the next
+  one skips it; no revision is sent twice.
+- After an update with a timestamp older than the shown content's, which ActivityKit drops, the handle holds the
+  dropped values, and an end without values ends with them under the time of the end, so ActivityKit shows them. Give
+  that end its values.
 - Relevance and stale date belong to each content, as in ActivityKit: an update or end without a relevance keeps its
   score, and one without a stale date clears the stale date. The highest score shows in the Dynamic Island.
 - An alert lights up the screen and expands the Dynamic Island (without one, the Lock Screen presentation shows as a

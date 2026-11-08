@@ -104,7 +104,9 @@ final class HostTests: HostCase {
         waitFor("updated")
         goHome()
         showLockScreen(until: "Too loud")
-        XCTAssertFalse(springboard.staticTexts["Old news"].exists, "ActivityKit drops content older than the shown one")
+        // Rendering may lag behind: the older content must not show within 2 s either, and the newer one stays.
+        XCTAssertFalse(springboard.staticTexts["Old news"].waitForExistence(timeout: 2), "ActivityKit drops content older than the shown one")
+        XCTAssertTrue(springboard.staticTexts["Too loud"].exists, "the newer content still shows")
         let stop = springboard.buttons["Stop"].firstMatch
         XCTAssertTrue(stop.waitForExistence(timeout: 10), "the Stop button shows on the Lock Screen")
         XCTAssertTrue(waitUntil(5) { stop.isHittable }, "the Stop button can be tapped")
@@ -134,7 +136,7 @@ final class HostTests: HostCase {
         waitFor("PASS every-node", timeout: 60)
     }
 
-    // AK-START-10
+    // AK-START-10, AK-START-11
     /// A start from the background reaches ActivityKit, which refuses it; the crate reports NotForeground. The app says
     /// by a Darwin notification when the scenario is over.
     func testBackgroundStartIsNotForeground() throws {

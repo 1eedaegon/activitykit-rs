@@ -50,6 +50,10 @@ pub(crate) struct FakeState {
     pub(crate) fail_on: VecDeque<(Call, &'static str, &'static str)>,
     /// The threads that deliver delayed replies; [`FakeBridge::join`] waits for them.
     threads: Vec<JoinHandle<()>>,
+    /// While set, replies wait in `held` until [`FakeBridge::release`] delivers them or [`FakeBridge::drop_held`]
+    /// drops them unanswered, as a bridge that goes away would.
+    pub(crate) hold: bool,
+    held: Vec<(Reply, Vec<u8>)>,
     events: Option<Listener>,
     next: u64,
 }
@@ -102,6 +106,19 @@ impl FakeBridge {
                 assert!(thread.join().is_ok(), "delivering a reply panicked");
             }
         }
+    }
+
+    /// Delivers the held replies, in the order of their calls, on the calling thread.
+    pub(crate) fn release(&self) {
+        let held = std::mem::take(&mut self.lock().held);
+        for (reply, answer) in held {
+            reply(answer);
+        }
+    }
+
+    /// Drops the held replies without calling them.
+    pub(crate) fn drop_held(&self) {
+        drop(std::mem::take(&mut self.lock().held));
     }
 
     /// Sends `event` as the Swift layer would, on the calling thread.
@@ -230,6 +247,14 @@ impl Bridge for FakeBridge {
         let request: Value = serde_json::from_slice(&request).unwrap();
         self.lock().requests.push((call, request.clone()));
         let answer = self.answer(call, &request);
+        let answer = {
+            let mut state = self.lock();
+            if state.hold {
+                state.held.push((reply, answer));
+                return;
+            }
+            answer
+        };
         let delay = self.lock().delay;
         match delay {
             None => reply(answer),

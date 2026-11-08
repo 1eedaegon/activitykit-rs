@@ -6,7 +6,7 @@
 #
 # Needs Xcode, XcodeGen and the Rust target of this Mac's simulator. Optional: OUT (default ./output), CARGO_TARGET_DIR
 # (default ./target), DERIVED_DATA, RUNTIME and DEVICE_TYPE (simctl identifiers; default the newest iOS and iPhone Pro),
-# ONLY (one test, such as PolicyTests/testStaleDatesDismissalsAndRelevance).
+# ONLY (one test, such as PolicyTests/testDismissalsAndRelevance) and REPEAT (run the tests that many times in a row).
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 out=${OUT:-$here/output}
@@ -31,6 +31,7 @@ xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost -d
 status=0
 set --
 if [ -n "${ONLY:-}" ]; then set -- "-only-testing:ActivityKitHostUITests/$ONLY"; fi
+if [ -n "${REPEAT:-}" ]; then set -- "$@" -test-iterations "$REPEAT"; fi
 TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
   -destination "id=$udid" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" || status=$?
 

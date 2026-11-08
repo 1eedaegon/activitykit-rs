@@ -329,8 +329,15 @@ fn relaunch_check(reporter: &Reporter) -> Outcome {
     Ok(())
 }
 
-// AK-START-10
-/// The UI test sends the app to the background before this starts: ActivityKit refuses, and the crate says why.
+/// How long the background scenario keeps trying a start, and how often.
+const REFUSAL_WITHIN: Duration = Duration::from_secs(20);
+const RETRY_EVERY: Duration = Duration::from_secs(1);
+
+// AK-START-10, AK-START-11
+/// The UI test sends the app to the background, then this tries a start every second. ActivityKit treats the app as
+/// visible for a short while after it left the foreground, so the first attempts may succeed (each such activity is
+/// ended at once); the scenario passes at the first refusal, `NotForeground` from `visibility`, and fails if none comes
+/// within 20 s.
 fn background_start(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     reporter.say("waiting: send the app to the background");
@@ -342,21 +349,38 @@ fn background_start(reporter: &Reporter) -> Outcome {
         )?;
         thread::sleep(Duration::from_millis(100));
     }
-    let start = activitykit::Start::new(
-        layout(),
-        values! { "status" => "Late", "tone" => "green", "level" => 0.1 },
-    );
-    match block_on(kit.start_with(start)) {
-        Err(Error::NotForeground(message)) => {
-            reporter.say(format!("not in the foreground: {message}"));
-            Ok(())
+    let left = Instant::now();
+    for attempt in 1.. {
+        let start = activitykit::Start::new(
+            layout(),
+            values! { "status" => "Late", "tone" => "green", "level" => 0.1 },
+        );
+        let tried = left.elapsed();
+        match block_on(kit.start_with(start)) {
+            Err(Error::NotForeground(message)) => {
+                reporter.say(format!(
+                    "not in the foreground at attempt {attempt}, {tried:.1?} after the background signal: {message}"
+                ));
+                return Ok(());
+            }
+            Err(error) => return Err(format!("expected NotForeground, got {error}")),
+            Ok(activity) => {
+                block_on(activity.end(End::immediately())).map_err(|error| {
+                    format!("ending the activity of attempt {attempt}: {error}")
+                })?;
+                reporter.say(format!(
+                    "attempt {attempt}, {tried:.1?} after the background signal: started, and ended"
+                ));
+            }
         }
-        Err(error) => Err(format!("expected NotForeground, got {error}")),
-        Ok(activity) => {
-            let _ = block_on(activity.end(End::immediately()));
-            Err("the start succeeded in the background".into())
+        if left.elapsed() + RETRY_EVERY > REFUSAL_WITHIN {
+            return Err(format!(
+                "no start was refused within {REFUSAL_WITHIN:?} of the background signal ({attempt} attempts)"
+            ));
         }
+        thread::sleep(RETRY_EVERY);
     }
+    unreachable!("the attempts end with a return")
 }
 
 // AK-RENDER-16
