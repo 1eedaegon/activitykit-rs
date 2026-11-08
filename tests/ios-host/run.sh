@@ -38,7 +38,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 echo "simulator $udid: $device_type, $runtime"
 created=$(date +%s)
-xcrun simctl bootstatus "$udid" -b >"$out/boot.log" 2>&1 &
+{ xcrun simctl bootstatus "$udid" -b && echo "simulator booted $(($(date +%s) - created)) s after it was created"; } >"$out/boot.log" 2>&1 &
 booting=$!
 # The arch picks one of the simulator's two destinations on Apple silicon.
 destination="platform=iOS Simulator,id=$udid,arch=$arch"
@@ -75,7 +75,7 @@ fi
 run=$(xctestrun)
 
 if wait "$booting"; then
-  echo "simulator booted $(($(date +%s) - created)) s after it was created"
+  tail -1 "$out/boot.log"
 else
   echo "simctl bootstatus failed; xcodebuild boots the simulator"
   cat "$out/boot.log"

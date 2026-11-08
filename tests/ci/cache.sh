@@ -39,6 +39,27 @@ files() {
   printf '%s\n' "$list" | git hash-object --stdin
 }
 
+# The newest iOS simulator runtime, read from CoreSimulator's list of runtime images: the first simctl call on a fresh
+# runner starts CoreSimulator, which took from 18 s to 2 minutes. simctl's newest available iOS when no image lists one.
+newest_runtime() {
+  images=/Library/Developer/CoreSimulator/Images/images.plist
+  if [ -r "$images" ]; then
+    python3 -I - "$images" <<'PYTHON'
+import plistlib, re, sys
+with open(sys.argv[1], "rb") as file:
+    images = plistlib.load(file).get("images", [])
+found = []
+for image in images:
+    identifier = image.get("runtimeInfo", {}).get("bundleIdentifier", "")
+    match = re.fullmatch(r"com\.apple\.CoreSimulator\.SimRuntime\.iOS-(\d+)-(\d+)(?:-(\d+))?", identifier)
+    if match:
+        found.append((tuple(int(part or 0) for part in match.groups()), identifier))
+if found:
+    print(max(found)[1])
+PYTHON
+  fi | grep . || xcrun simctl list runtimes | awk '/^iOS/ && !/unavailable/ { id = $NF } END { print id }'
+}
+
 keys() {
   xcode=$(xcodebuild -version | awk '/^Xcode / { v = $2 } /^Build version / { b = $3 } END { print v "-" b }')
   system=${RUNNER_OS:-$(uname -s)}-${RUNNER_ARCH:-$(uname -m)}
@@ -55,8 +76,8 @@ runner $system ${ImageOS:-local} ${ImageVersion:-local}"
 rust ${TOOLCHAIN:?TOOLCHAIN names the Rust toolchain}"
     fi
     if [ "$suite" = simulator ]; then
-      # The newest iOS runtime, as tests/ios-host/run.sh picks it; CI passes it on as RUNTIME.
-      runtime=${RUNTIME:-$(xcrun simctl list runtimes | awk '/^iOS/ && !/unavailable/ { id = $NF } END { print id }')}
+      # CI passes it on to tests/ios-host/run.sh as RUNTIME.
+      runtime=${RUNTIME:-$(newest_runtime)}
       [ -n "$runtime" ] || { echo "no iOS simulator runtime" >&2; exit 1; }
       inputs="$inputs
 runtime $runtime"
