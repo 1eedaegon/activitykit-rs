@@ -97,14 +97,18 @@ extension LifecycleTests {
         // waits less than that gives up before its tap is taken; the tap still arrives afterwards.
         let line = NotificationCenter()
         let queued = ActionRelay(center: line) { _ in nil }
-        let handled = TapLog()
+        // The first tap is held until the later intent has given up, not for a fixed time: a slow runner cannot let it go
+        // early and turn the give-up into an acknowledgement.
+        let handled = TapLog(), letGo = DispatchSemaphore(value: 0)
         queued.register { action in
-            if action.actionId == "held" { Thread.sleep(forTimeInterval: 0.3) }
+            if action.actionId == "held" { handled.block(); letGo.wait() }
             handled.record(action)
         }
         let held = post(line, "held")
+        await verify(await eventually { handled.blocked }, "the sink holds the first tap")
         let behind = try await ActionPost.post(activityId: "la-1", actionId: "behind", center: line, attempts: 5, interval: 20_000_000)
-        expect(!behind, "an intent that waits 100 ms gives up while an earlier tap is held for 300 ms")
+        expect(!behind, "an intent that waits 100 ms gives up while an earlier tap is held")
+        letGo.signal()
         await verify(await eventually { handled.ids == ["held", "behind"] && held.isFinished },
                      "the later tap arrives once the held one is done")
 
