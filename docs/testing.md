@@ -28,7 +28,9 @@ sh tests/ci/run.sh              # which changed paths start which CI job
 - `tests/ios-host` is an app without a UI framework: Rust scenarios (`src/lib.rs`) on a thread of their own, a SwiftUI
   shell that shows their report, and the template widget. `run.sh` builds it, creates a simulator, runs the UI tests,
   copies the screenshots and the log to `tests/ios-host/output`, deletes the simulator and exits with the tests'
-  status. The tests wait on what they check (a line of the report, an element, the app's state, a Darwin notification
+  status. In CI a failed UI test runs again, up to three times in all, because a shared runner's simulator sometimes
+  loses its accessibility server or misses a Home press; each test that passed only on a retry is reported as a
+  warning on the run. Locally there is no retry. The tests wait on what they check (a line of the report, an element, the app's state, a Darwin notification
   that the app posts when a scenario ends), not on fixed sleeps; the Lock Screen is pulled down from fixed points of
   the screen.
   - `HostTests`: a start, a bound color turned red, an update an hour older than the shown content that ActivityKit

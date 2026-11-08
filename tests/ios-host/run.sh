@@ -31,10 +31,24 @@ xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost -d
 status=0
 set --
 if [ -n "${ONLY:-}" ]; then set -- "-only-testing:ActivityKitHostUITests/$ONLY"; fi
-if [ -n "${REPEAT:-}" ]; then set -- "$@" -test-iterations "$REPEAT"; fi
-TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
-  -destination "id=$udid" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" || status=$?
+if [ -n "${REPEAT:-}" ]; then
+  set -- "$@" -test-iterations "$REPEAT"
+elif [ -n "${CI:-}" ]; then
+  # A shared runner's simulator sometimes loses its accessibility server (kAXErrorServerNotFound) or misses a Home
+  # press: in CI a failed test runs again, up to three times in all, and every retry is reported as a warning below.
+  set -- "$@" -retry-tests-on-failure -test-iterations 3
+fi
+{ TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
+    -destination "id=$udid" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" 2>&1
+  echo $? >"$out/.status"; } | tee "$out/xcodebuild.log"
+status=$(cat "$out/.status")
+rm -f "$out/.status"
+
+failed=$(sed -n "s/^Test Case '-\[ActivityKitHostUITests\.\(.*\)\]' failed.*/\1/p" "$out/xcodebuild.log" | sort -u)
+if [ -n "$failed" ] && [ "$status" -eq 0 ]; then
+  for test in $failed; do echo "::warning title=Retried UI test::$test failed once and passed on a retry"; done
+fi
 
 log=$(find "$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/Containers/Data/Application" -name activitykit-host.log 2>/dev/null | head -1)
 if [ -n "$log" ]; then cp "$log" "$out/host.log"; cat "$out/host.log"; fi
-exit $status
+exit "$status"
