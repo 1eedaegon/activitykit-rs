@@ -252,24 +252,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NAME: ${{ steps.keys.outputs.simulator }}
         run: sh tests/ci/cache.sh passed "$NAME"
-      # The Xcode products of the test host for these exact inputs, which run.sh tests without building; or, from the
-      # restore key, those of earlier inputs, which make the build incremental.
+      # The Xcode products of the test host for these exact inputs, with their .xctestrun: run.sh tests them without
+      # building. Only the exact key: an incremental Xcode build over the restored intermediates of other inputs made an
+      # app whose Lock Screen taps never reached it, and checkout's new modification times had it recompile everything
+      # anyway. Other inputs reuse the Rust dependencies below.
       - name: Restore the test host's products
         id: products
         if: ${{ steps.passed.outputs.found != 'true' && !inputs.fresh }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            tests/ios-host/DerivedData/Build
-            tests/ios-host/DerivedData/ModuleCache.noindex
-            tests/ios-host/DerivedData/SourcePackages
+          path: tests/ios-host/DerivedData/Build/Products
           key: ${{ steps.keys.outputs.products }}
-          restore-keys: ${{ steps.keys.outputs.products-prefix }}
-      # Xcode's incremental build over the restored intermediates of other inputs made an app whose Lock Screen taps never
-      # reached it, every time: from those only the module cache and the package state stay, and Xcode builds anew.
-      - name: Keep only the module cache of other inputs' products
-        if: steps.products.outputs.cache-matched-key != '' && steps.products.outputs.cache-hit != 'true'
-        run: rm -rf tests/ios-host/DerivedData/Build
       - if: steps.passed.outputs.found != 'true'
         run: rustup toolchain install "$TOOLCHAIN" --profile minimal --target "$TARGET" && rustup default "$TOOLCHAIN"
         env:
@@ -312,10 +305,7 @@ jobs:
         if: ${{ !cancelled() && steps.built.outputs.complete == 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            tests/ios-host/DerivedData/Build
-            tests/ios-host/DerivedData/ModuleCache.noindex
-            tests/ios-host/DerivedData/SourcePackages
+          path: tests/ios-host/DerivedData/Build/Products
           key: ${{ steps.keys.outputs.products }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always() && steps.passed.outputs.found != 'true'

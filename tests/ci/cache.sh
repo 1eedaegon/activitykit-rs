@@ -3,8 +3,8 @@
 #
 #   cache.sh keys SUITE...        For each suite (simulator, swift or build) writes SUITE=NAME, the name of the record
 #                                 that a pass for these exact inputs leaves. For the simulator also runtime=ID (the
-#                                 simulator runtime it tests on), products=KEY (the cache of the test host's Xcode
-#                                 products) and products-prefix=KEY (the part of that key that a partial hit shares).
+#                                 simulator runtime it tests on) and products=KEY (the cache of the test host's Xcode
+#                                 products).
 #   cache.sh passed NAME          Looks for the record NAME that a run of this repository's CI left and prints that
 #                                 run. Writes found=true or found=false.
 #   cache.sh record SUITE [FILE]  Writes the record of this run's pass to $RUNNER_TEMP/passed-SUITE/. FILE is the list
@@ -81,10 +81,8 @@ rust ${TOOLCHAIN:?TOOLCHAIN names the Rust toolchain}"
       [ -n "$runtime" ] || { echo "no iOS simulator runtime" >&2; exit 1; }
       inputs="$inputs
 runtime $runtime"
-      prefix=simulator-products-v$version-$system-xcode$xcode-rust$TOOLCHAIN-
       put "runtime=$runtime"
-      put "products=$prefix$hash"
-      put "products-prefix=$prefix"
+      put "products=simulator-products-v$version-$system-xcode$xcode-rust$TOOLCHAIN-$hash"
     fi
     printf '%s\n' "$inputs" >"$temp/inputs-$suite.txt"
     name=passed-$suite-$(git hash-object --stdin <"$temp/inputs-$suite.txt")

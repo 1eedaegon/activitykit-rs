@@ -28,7 +28,7 @@ sh tests/ci/run.sh              # which changed paths start which CI job
 - `tests/ios-host` is an app without a UI framework: Rust scenarios (`src/lib.rs`) on a thread of their own, a SwiftUI
   shell that shows their report, and the template widget. `run.sh` builds it, creates a simulator, runs the UI tests,
   copies the screenshots and the log to `tests/ios-host/output`, deletes the simulator and exits with the tests'
-  status. The simulator boots while the host builds. In CI a failed UI test runs again, up to three times in all,
+  status. The simulator boots in full after the build. In CI a failed UI test runs again, up to three times in all,
   because a shared runner's simulator sometimes loses its accessibility server or misses a Home press; each test that
   passed only on a retry is reported as a warning on the run. Locally there is no retry. The tests wait on what they check (a line of the report, an element, the app's state, a Darwin notification
   that the app posts when a scenario ends), not on fixed sleeps; the Lock Screen is pulled down from fixed points of
@@ -62,14 +62,15 @@ passed for the tag's exact commit, and that the crate packages. It publishes not
 - Every Rust job keeps its dependencies with `Swatinem/rust-cache`, keyed on the toolchain and the lock files. The build
   checks' job also keeps the crate's own outputs, among them the SwiftPM build of the bridge for each iOS target.
   `cargo-llvm-cov` comes as a binary from `taiki-e/install-action`.
-- The simulator job caches the test host's Xcode products (`Build`, the module cache and `SourcePackages` of its
-  DerivedData, with the `.xctestrun`) under `simulator-products-v1-<system>-<arch>-xcode<version>-<build>-rust<toolchain>-<files>`.
+- The simulator job caches the test host's Xcode products (`Build/Products` of its DerivedData, with the
+  `.xctestrun`) under `simulator-products-v1-<system>-<arch>-xcode<version>-<build>-rust<toolchain>-<files>`.
   `<files>` is a hash of the tracked files under `src/`, `swift/`, `templates/`, `contracts/` and `tests/ios-host/`,
   `build.rs`, the manifests and the toolchain files. On that exact key `run.sh` (given it as `BUILD_KEY`) skips cargo,
-  XcodeGen and `build-for-testing` and tests the cached products; when any of them is missing it builds. Any other
-  key of the same Xcode and Rust gives an incremental build. Checkout gives every file a new modification time, so
-  cargo still recompiles the crate and the host and reruns `build.rs` (with SwiftPM's module cache), and Xcode
-  recompiles the Swift sources; the dependencies and the SDK's modules are what the cache saves.
+  XcodeGen and `build-for-testing` and tests the cached products; when any of them is missing it builds. Other inputs
+  build with the Rust dependencies from the cache, and Xcode builds from scratch: checkout gives every file a new
+  modification time, so cargo recompiles the crate and the host and reruns `build.rs`, and Xcode would recompile
+  every Swift source anyway; an incremental Xcode build over restored intermediates also made an app whose Lock Screen
+  taps never reached it.
 - A suite that passed is not run again for the same inputs: the same files, Xcode, runner image (`ImageOS`,
   `ImageVersion`), Rust and, for the simulator, the runtime (`tests/ci/cache.sh keys`). After a full pass the job
   uploads a record, an artifact named `passed-<suite>-<hash>` that keeps 90 days; a later run that finds it skips the
