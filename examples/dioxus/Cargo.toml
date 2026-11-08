@@ -1,0 +1,16 @@
+[package]
+name = "activitykit-dioxus-example"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# The iOS app's Xcode project (ios/project.yml) links the static library and calls `start_app`.
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+activitykit = { path = "../.." }
+dioxus = { version = "=0.7.10", features = ["mobile"] }
+
+# Not part of the crate's workspace: the example has its own lock file and target folder.
+[workspace]

@@ -1,0 +1,188 @@
+# Usage
+
+Everything goes through `ActivityKit`. It is `Clone + Send + Sync`, and on iOS every `ActivityKit::new()` shares one
+Swift layer, so create it wherever it is handy, but create one early at launch: a button tap that launched the app
+waits for it (see [Events](#events)).
+
+```rust
+use activitykit::ActivityKit;
+
+let kit = ActivityKit::new();
+let authorization = kit.authorization();
+// supported: the device has Live Activities. enabled: and they are on for this app. buttons: iOS 17 or later.
+```
+
+Off iOS, `authorization()` reports nothing supported and every other call answers `Error::Unsupported` after it has
+checked the request, so an invalid layout fails the same way on a Mac or Linux as on a phone.
+
+## Layouts
+
+A layout is a tree per region and a table of styles. The tree is fixed when the activity starts; values change it.
+
+```rust
+use activitykit::{Bound, Layout, Style};
+use activitykit::layout::{button, hstack, progress, spacer, symbol, text, vstack, Font, Island};
+
+let layout = Layout::new(vstack([
+    hstack([symbol("mic.fill"), text(Bound::key("status")).style("status"), spacer(), button("stop", text("Stop"))]),
+    progress("level").style("level"),
+]).spacing(10.0))
+.style("status", Style::new().font(Font::Headline).color(Bound::key("tone")))
+.style("level", Style::new().tint(Bound::key("tone")))
+.island(Island::new().compact_trailing(text(Bound::key("status"))));
+```
+
+| Builder | Node | Modifiers |
+| --- | --- | --- |
+| `vstack(children)`, `hstack(..)`, `zstack(..)` | 1 to 12 children | `spacing`, `alignment` |
+| `spacer()`, `divider()` | | `min_length` (spacer) |
+| `text("literal")`, `text(Bound::key("k"))` | text, literal or the value `k` | |
+| `symbol("mic.fill")` | an SF Symbol | `rendering`, `variable(key)` |
+| `image(ImageSource::asset(..))`, `image(ImageSource::file(..))` | an asset of the widget, or a PNG the app wrote | `resizable`, `content_mode` |
+| `path(d, [w, h])` | SVG path data, without arcs | `stroke(width)` |
+| `progress(key)`, `gauge(key)` | a number value | `kind`, `range` (gauge) |
+| `timer(start, end)` | between two times in epoch milliseconds | `counts_up` |
+| `button(action_id, label)` | a button; iOS 17 and later | |
+| `custom(name)` | a SwiftUI view the app registers | `prop(key, value)` |
+
+Every node takes `style(token)`, `when(key)` (drawn while the value is truthy) and `unless(key)`. A modifier that
+does not belong to a node leaves it as it is. Each builder returns a `Node`; the enum `Element` behind it is public
+for anything the builders leave out.
+
+Without an `Island`, the expanded island shows the Lock Screen tree, the compact leading and minimal parts the tree's
+first symbol, and the compact trailing part nothing. `Layout::background` and `Layout::keyline` tint the Lock Screen
+presentation and the island's keyline.
+
+### Styles and bound members
+
+`Style::new()` has a builder for each member: `font`, `size`, `weight`, `design`, `font_family`, `monospaced_digit`,
+`color`, `line_limit`, `minimum_scale_factor`, `alignment`, `padding`, `frame`, `background`, `corner_radius`,
+`opacity`, `tint`, `button_style`. Seven of them, and the layout's `background` and `keyline`, take
+`Bound::key("value")` instead of a literal, so an update changes them: `color`, `background`, `tint` (a color name
+or `#RRGGBB`/`#RRGGBBAA`), `size` (6 to 96), `opacity` (0 to 1), `corner_radius` (0 to 64) and `weight` (a weight
+name). A color takes a `ColorName`, a `Color`, or a string: `"red"` is a name, anything else a hex color.
+
+`font_family` names a font that the widget extension bundles and lists under `UIAppFonts` in its Info.plist.
+
+The [request contract](request-contract.md) has every rule and limit: at most 40 nodes on the Lock Screen, 8 levels,
+4 buttons per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
+
+## Values
+
+```rust
+use activitykit::{values, Values};
+
+let values = values! { "status" => "Recording", "tone" => "green", "level" => 0.2, "live" => true };
+let same = Values::new().with("status", "Recording").with("tone", "green").with("level", 0.2).with("live", true);
+```
+
+A value is text (up to 1000 characters), a number or a flag. An update sends every value again, with the same keys
+and the same types as the start.
+
+## Start, update, end
+
+```rust
+use activitykit::{Alert, End, Start, Update, values};
+use std::time::{Duration, SystemTime};
+
+let activity = kit.start(layout, values! { "status" => "Recording", "tone" => "green", "level" => 0.2 }).await?;
+
+activity.update(values! { "status" => "Too loud", "tone" => "red", "level" => 0.8 }).await?;
+activity
+    .update_with(
+        Update::new(values! { "status" => "Too loud", "tone" => "red", "level" => 0.9 })
+            .alert(Alert::new("Too loud", "The level is high"))
+            .stale_at(SystemTime::now() + Duration::from_secs(600))
+            .relevance(80.0),
+    )
+    .await?;
+
+activity.end(End::immediately()).await?;   // or End::default(), or End::after(time) within four hours
+```
+
+- A start needs the app in the foreground. Each `start` is a new activity. `start_with(Start::new(..).key("rec"))`
+  gives it a key: while an activity with that key runs, the same start returns it and a different one is
+  `Error::Conflict`. `Start` also takes `stale_at` and `relevance`.
+- The handle adds the revision. Clones of a handle, and every handle that `activities()` or an event gives for the same
+  activity, share one count, so concurrent updates never reuse a revision. If the activity already shows a newer
+  revision (one that a handle of an earlier launch sent), the update reads the current one and tries once more.
+- `activity.state()`, `values()`, `revision()` and `degraded_features()` give what the last reply or event said.
+- An alert lights up the screen and expands the island. Stale dates, alerts and relevance need iOS 16.2.
+
+## After a relaunch
+
+```rust
+for activity in kit.activities().await? {
+    // Active, Stale, Ended (still on screen) or Dismissed; the handle continues from the accepted revision.
+}
+```
+
+The Swift layer keeps receipts of accepted requests in Application Support (`activitykit/receipts-v2.json`), because
+ActivityKit can report an update late. The list merges both.
+
+## Events
+
+```rust
+use activitykit::Event;
+
+let events = kit.events();               // async_channel::Receiver<Event>
+while let Ok(event) = events.recv().await {
+    match event {
+        Event::Action { activity, action } => { /* a tap on button(action, ..) */ }
+        Event::State { activity, state } => { /* Active, Stale, Ended, Dismissed */ }
+        Event::Authorization { enabled } => { /* turned on or off in Settings */ }
+        _ => {}
+    }
+}
+```
+
+Each call of `events()` is a new receiver that gets every later event. Events that came before the first receiver
+wait for it, at most 16. In a frame loop, read with `try_recv()`; on a thread of your own, `recv_blocking()`.
+
+A tap runs the button's App Intent in the app process, also when the app was not running: the system launches it in
+the background. The intent waits, for at most 4 seconds, until every receiver has taken the event, which keeps such
+an app running meanwhile. A tap does not change the activity; update it if the button should change.
+
+## Threads and executors
+
+The async methods are plain futures; drive them with any executor (Tokio, async-std, smol, Bevy's task pools, a UI
+framework's `spawn`). The Swift side runs each request on the main thread and completes the future from there, so
+never block the main thread waiting for one, for example with `block_on` in a Bevy system or a UI callback: that
+deadlocks. Calls are safe from any thread. Dropping a future does not cancel its request.
+
+## Drawn images
+
+```rust
+kit.write_image("badge.png", &png_bytes)?;   // then show it with image(ImageSource::file("badge.png"))
+```
+
+The PNG goes to `activitykit/images` in the App Group container of the widget extension: give the app and the
+extension the same App Group and name it under `ActivityKitAppGroup` in the extension's Info.plist. A PNG is at most
+1 MiB and 1224 × 480 pixels. The widget reads it each time it draws, so write the new picture before the update.
+
+## Custom views
+
+A `custom("ring").prop("level", Bound::key("level"))` node draws a SwiftUI view that the app registers; see
+`templates/ios/CustomViews.swift` and [iOS setup](ios-setup.md#custom-views). A name without a view draws nothing and
+appears in `degraded_features()` as `layout.custom.ring`.
+
+## Errors
+
+`Error` has one variant per code of the contract: `Unsupported`, `InvalidInput`, `PayloadTooLarge`, `NotFound`,
+`Conflict`, `StaleRevision`, `PermissionDenied`, `ConfigurationRequired` (no `NSSupportsLiveActivities`, no widget
+extension with `ActivityKitLayout`, a start from the background, no App Group), `UnsupportedFeature`, `SystemLimit`
+and `Native`. `error.code()` gives the code as text. Messages are constant and never repeat a request.
+
+## The contract
+
+`activitykit::contract` holds the JSON requests and records and the validator that the Swift layer agrees with:
+`validate_request("start_layout", json)`, `LayoutStartInput::validate_update`, `weight`. Use it to check requests
+that come as JSON, for example from a web view.
+
+## Differences from the first sketch
+
+- `kit.activities()` is async and returns a `Result`: the list goes through the Swift lifecycle on the main thread,
+  and a blocking call from the main thread, where UI frameworks call, would deadlock.
+- `Event::Action` and `Event::State` carry an `Activity` handle, not only an id, so the handler can update or end it.
+- `Error::Unsupported` sits beside one variant per other contract code.
+- Each `start` gets a fresh key unless `Start::key` gives one, since the contract needs a key.

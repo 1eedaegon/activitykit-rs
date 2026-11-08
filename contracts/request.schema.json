@@ -1,0 +1,436 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tauri-plugin-live-activity:request:v1",
+  "title": "Live activity request contracts v1 and v2 (layout)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command", "input"],
+  "properties": {
+    "command": { "enum": ["start", "update", "end", "start_layout", "update_layout", "end_layout"] },
+    "input": { "type": "object" }
+  },
+  "oneOf": [
+    { "properties": { "command": { "const": "start" }, "input": { "$ref": "#/$defs/start" } } },
+    { "properties": { "command": { "const": "update" }, "input": { "$ref": "#/$defs/update" } } },
+    { "properties": { "command": { "const": "end" }, "input": { "$ref": "#/$defs/end" } } },
+    { "properties": { "command": { "const": "start_layout" }, "input": { "$ref": "#/$defs/startLayout" } } },
+    { "properties": { "command": { "const": "update_layout" }, "input": { "$ref": "#/$defs/updateLayout" } } },
+    { "properties": { "command": { "const": "end_layout" }, "input": { "$ref": "#/$defs/end" } } }
+  ],
+  "$defs": {
+    "timestamp": { "type": "integer", "minimum": 0, "maximum": 8640000000000000 },
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
+    "timer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "endsAt"],
+      "properties": {
+        "startedAt": { "$ref": "#/$defs/timestamp" },
+        "endsAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "title", "status"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
+        "status": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "\\S" },
+        "progress": { "$ref": "#/$defs/progress" },
+        "timer": { "$ref": "#/$defs/timer" },
+        "staleAt": { "$ref": "#/$defs/timestamp" }
+      },
+      "oneOf": [
+        { "required": ["progress"], "properties": { "progress": { "$ref": "#/$defs/progress" } } },
+        { "required": ["timer"], "properties": { "timer": { "$ref": "#/$defs/timer" } } }
+      ]
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activityKey", "schemaVersion", "template", "fallback", "snapshot"],
+      "properties": {
+        "activityKey": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+        "schemaVersion": { "const": 1 },
+        "template": { "enum": ["progress", "timer"] },
+        "fallback": { "enum": ["none", "notification"] },
+        "snapshot": { "$ref": "#/$defs/snapshot" }
+      },
+      "if": { "required": ["template"], "properties": { "template": { "const": "progress" } } },
+      "then": {
+        "properties": { "snapshot": { "type": "object", "required": ["progress"], "properties": { "progress": { "$ref": "#/$defs/progress" } } } }
+      },
+      "else": {
+        "properties": { "snapshot": { "type": "object", "required": ["timer"], "properties": { "timer": { "$ref": "#/$defs/timer" } } } }
+      }
+    },
+    "update": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "snapshot"],
+      "properties": { "id": { "$ref": "#/$defs/id" }, "snapshot": { "$ref": "#/$defs/snapshot" } }
+    },
+    "end": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "policy"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "policy": {
+          "oneOf": [
+            {
+              "type": "object", "additionalProperties": false, "required": ["kind"],
+              "properties": { "kind": { "enum": ["immediate", "default"] } }
+            },
+            {
+              "type": "object", "additionalProperties": false, "required": ["kind", "at"],
+              "properties": { "kind": { "const": "after" }, "at": { "$ref": "#/$defs/timestamp" } }
+            }
+          ]
+        }
+      }
+    },
+    "startLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activityKey", "schemaVersion", "fallback", "layout", "snapshot"],
+      "properties": {
+        "activityKey": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+        "schemaVersion": { "const": 2 },
+        "fallback": { "enum": ["none", "notification"] },
+        "layout": { "$ref": "#/$defs/layout" },
+        "styles": {
+          "type": "object", "minProperties": 1, "maxProperties": 24,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/style" }
+        },
+        "snapshot": { "$ref": "#/$defs/layoutSnapshot" },
+        "android": {
+          "type": "object", "additionalProperties": false, "required": ["visibility"],
+          "properties": { "visibility": { "enum": ["public", "private", "secret"] } }
+        }
+      }
+    },
+    "updateLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "snapshot"],
+      "properties": { "id": { "$ref": "#/$defs/id" }, "snapshot": { "$ref": "#/$defs/layoutSnapshot" } }
+    },
+    "layoutSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "values"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "values": {
+          "type": "object", "maxProperties": 32,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "anyOf": [
+              { "type": "string", "maxLength": 1000 },
+              { "type": "number", "minimum": -8640000000000000, "maximum": 8640000000000000 },
+              { "type": "boolean" }
+            ]
+          }
+        },
+        "staleAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$" },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lockScreen"],
+      "properties": {
+        "lockScreen": { "$ref": "#/$defs/node" },
+        "island": {
+          "type": "object", "additionalProperties": false, "minProperties": 1,
+          "properties": {
+            "expanded": {
+              "type": "object", "additionalProperties": false, "minProperties": 1,
+              "properties": {
+                "leading": { "$ref": "#/$defs/node" },
+                "trailing": { "$ref": "#/$defs/node" },
+                "center": { "$ref": "#/$defs/node" },
+                "bottom": { "$ref": "#/$defs/node" }
+              }
+            },
+            "compactLeading": { "$ref": "#/$defs/node" },
+            "compactTrailing": { "$ref": "#/$defs/node" },
+            "minimal": { "$ref": "#/$defs/node" }
+          }
+        },
+        "background": { "$ref": "#/$defs/bindableColor" },
+        "keyline": { "$ref": "#/$defs/bindableColor" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["vstack", "hstack", "zstack", "spacer", "divider", "text", "symbol", "image", "path", "progress", "gauge", "timerText", "button", "custom"] }
+      },
+      "not": { "required": ["if", "unless"], "properties": { "if": true, "unless": true } },
+      "allOf": [
+        { "if": { "required": ["type"], "properties": { "type": { "const": "vstack" } } }, "then": { "$ref": "#/$defs/vstack" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "hstack" } } }, "then": { "$ref": "#/$defs/hstack" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "zstack" } } }, "then": { "$ref": "#/$defs/zstack" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "spacer" } } }, "then": { "$ref": "#/$defs/spacer" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "divider" } } }, "then": { "$ref": "#/$defs/divider" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "text" } } }, "then": { "$ref": "#/$defs/text" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "symbol" } } }, "then": { "$ref": "#/$defs/symbol" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "image" } } }, "then": { "$ref": "#/$defs/image" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "path" } } }, "then": { "$ref": "#/$defs/path" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "progress" } } }, "then": { "$ref": "#/$defs/progressNode" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "gauge" } } }, "then": { "$ref": "#/$defs/gauge" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "timerText" } } }, "then": { "$ref": "#/$defs/timerText" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "button" } } }, "then": { "$ref": "#/$defs/button" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "custom" } } }, "then": { "$ref": "#/$defs/custom" } }
+      ]
+    },
+    "children": { "type": "array", "minItems": 1, "maxItems": 12, "items": { "$ref": "#/$defs/node" } },
+    "vstack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "vstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "children": { "$ref": "#/$defs/children" },
+        "spacing": { "type": "number", "minimum": 0, "maximum": 64 },
+        "alignment": { "enum": ["leading", "center", "trailing"] }
+      }
+    },
+    "hstack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "hstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "children": { "$ref": "#/$defs/children" },
+        "spacing": { "type": "number", "minimum": 0, "maximum": 64 },
+        "alignment": { "enum": ["top", "center", "bottom", "firstTextBaseline"] }
+      }
+    },
+    "zstack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "zstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "children": { "$ref": "#/$defs/children" },
+        "alignment": { "$ref": "#/$defs/anchor" }
+      }
+    },
+    "spacer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "spacer" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "minLength": { "type": "number", "minimum": 0, "maximum": 256 }
+      }
+    },
+    "divider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "divider" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }
+      }
+    },
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "text" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "value": { "type": "string", "maxLength": 200 },
+        "bind": { "$ref": "#/$defs/name" }
+      },
+      "oneOf": [
+        { "required": ["value"], "properties": { "value": true } },
+        { "required": ["bind"], "properties": { "bind": true } }
+      ]
+    },
+    "symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name"],
+      "properties": {
+        "type": { "const": "symbol" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "name": { "type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$" },
+        "rendering": { "enum": ["monochrome", "hierarchical", "palette", "multicolor"] },
+        "variableBind": { "$ref": "#/$defs/name" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "source"],
+      "properties": {
+        "type": { "const": "image" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "source": {
+          "oneOf": [
+            {
+              "description": "An image in the asset catalog of the widget extension.",
+              "type": "object", "additionalProperties": false, "required": ["asset"],
+              "properties": { "asset": { "$ref": "#/$defs/fileName" } }
+            },
+            {
+              "description": "A PNG that the app wrote with writeImage into the App Group container.",
+              "type": "object", "additionalProperties": false, "required": ["file"],
+              "properties": { "file": { "$ref": "#/$defs/fileName" } }
+            }
+          ]
+        },
+        "resizable": { "type": "boolean" },
+        "contentMode": { "enum": ["fit", "fill"] }
+      }
+    },
+    "path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "d", "box"],
+      "properties": {
+        "type": { "const": "path" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "d": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[MLHVCSQTZmlhvcsqtz0-9eE+., \\t\\r\\n-]+$" },
+        "box": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 1, "maximum": 1024 } },
+        "stroke": { "type": "number", "minimum": 0.5, "maximum": 16 }
+      }
+    },
+    "progressNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "bind"],
+      "properties": {
+        "type": { "const": "progress" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "bind": { "$ref": "#/$defs/name" },
+        "kind": { "enum": ["linear", "circular"] }
+      }
+    },
+    "gauge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "bind"],
+      "properties": {
+        "type": { "const": "gauge" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "bind": { "$ref": "#/$defs/name" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "kind": { "enum": ["linear", "circular"] }
+      }
+    },
+    "timerText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "start", "end"],
+      "properties": {
+        "type": { "const": "timerText" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "start": { "$ref": "#/$defs/name" },
+        "end": { "$ref": "#/$defs/name" },
+        "countsDown": { "type": "boolean" }
+      }
+    },
+    "button": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "actionId", "child"],
+      "properties": {
+        "type": { "const": "button" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "actionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$" },
+        "child": { "$ref": "#/$defs/node" }
+      }
+    },
+    "custom": {
+      "description": "A SwiftUI view that the app registers by name in its widget extension.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name"],
+      "properties": {
+        "type": { "const": "custom" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "name": { "$ref": "#/$defs/fileName" },
+        "props": {
+          "type": "object", "minProperties": 1, "maxProperties": 16,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "anyOf": [
+              { "type": "string", "maxLength": 200 },
+              { "type": "number", "minimum": -8640000000000000, "maximum": 8640000000000000 },
+              { "type": "boolean" },
+              { "$ref": "#/$defs/bound" }
+            ]
+          }
+        }
+      }
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "font": { "enum": ["largeTitle", "title", "title2", "title3", "headline", "subheadline", "body", "callout", "footnote", "caption", "caption2"] },
+        "size": { "anyOf": [{ "type": "number", "minimum": 6, "maximum": 96 }, { "$ref": "#/$defs/bound" }] },
+        "weight": { "anyOf": [{ "$ref": "#/$defs/fontWeight" }, { "$ref": "#/$defs/bound" }] },
+        "design": { "enum": ["default", "rounded", "serif", "monospaced"] },
+        "fontFamily": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$" },
+        "monospacedDigit": { "type": "boolean" },
+        "color": { "$ref": "#/$defs/bindableColor" },
+        "lineLimit": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "minimumScaleFactor": { "type": "number", "minimum": 0.1, "maximum": 1 },
+        "alignment": { "enum": ["leading", "center", "trailing"] },
+        "padding": {
+          "anyOf": [
+            { "type": "number", "minimum": 0, "maximum": 64 },
+            { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 64 } }
+          ]
+        },
+        "frame": {
+          "type": "object", "additionalProperties": false, "minProperties": 1,
+          "properties": {
+            "width": { "$ref": "#/$defs/length" },
+            "height": { "$ref": "#/$defs/length" },
+            "minWidth": { "$ref": "#/$defs/length" },
+            "minHeight": { "$ref": "#/$defs/length" },
+            "maxWidth": { "anyOf": [{ "$ref": "#/$defs/length" }, { "const": "infinity" }] },
+            "maxHeight": { "anyOf": [{ "$ref": "#/$defs/length" }, { "const": "infinity" }] },
+            "alignment": { "$ref": "#/$defs/anchor" }
+          }
+        },
+        "background": { "$ref": "#/$defs/bindableColor" },
+        "cornerRadius": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 64 }, { "$ref": "#/$defs/bound" }] },
+        "opacity": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 1 }, { "$ref": "#/$defs/bound" }] },
+        "tint": { "$ref": "#/$defs/bindableColor" },
+        "buttonStyle": { "enum": ["automatic", "bordered", "borderedProminent", "plain"] }
+      },
+      "allOf": [
+        { "not": { "required": ["font", "size"], "properties": { "font": true, "size": true } } },
+        { "not": { "required": ["fontFamily", "design"], "properties": { "fontFamily": true, "design": true } } }
+      ]
+    },
+    "length": { "type": "number", "minimum": 0, "maximum": 1024 },
+    "fileName": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+    "anchor": { "enum": ["center", "leading", "trailing", "top", "bottom", "topLeading", "topTrailing", "bottomLeading", "bottomTrailing"] },
+    "fontWeight": { "enum": ["ultraLight", "thin", "light", "regular", "medium", "semibold", "bold", "heavy", "black"] },
+    "colorName": { "enum": ["primary", "secondary", "accent", "red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue", "indigo", "purple", "pink", "brown", "white", "black", "gray", "clear"] },
+    "hex": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+    "bound": {
+      "description": "A value key in place of a literal; the member reads that value on every render.",
+      "type": "object", "additionalProperties": false, "required": ["bind"],
+      "properties": { "bind": { "$ref": "#/$defs/name" } }
+    },
+    "bindableColor": { "anyOf": [{ "$ref": "#/$defs/color" }, { "$ref": "#/$defs/bound" }] },
+    "color": {
+      "anyOf": [
+        { "$ref": "#/$defs/colorName" },
+        { "$ref": "#/$defs/hex" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["light", "dark"],
+          "properties": { "light": { "$ref": "#/$defs/hex" }, "dark": { "$ref": "#/$defs/hex" } }
+        }
+      ]
+    }
+  }
+}

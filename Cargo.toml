@@ -1,0 +1,33 @@
+[package]
+name = "activitykit"
+version = "0.1.0"
+description = "iOS Live Activities for any Rust app: Tauri, Dioxus, Bevy, Slint or your own"
+authors = ["1eedaegon"]
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/1eedaegon/activitykit-rs"
+readme = "README.md"
+keywords = ["ios", "live-activities", "activitykit", "dynamic-island", "widgetkit"]
+categories = ["api-bindings", "gui"]
+publish = false
+# One copy of the Swift bridge per app: two versions of this crate would link the same C symbols.
+links = "activitykit"
+include = [
+    "/src/**", "/build.rs", "/Cargo.toml", "/README.md", "/CHANGELOG.md", "/LICENSE-*",
+    "/swift/Package.swift", "/swift/Sources/**", "/templates/**", "/contracts/**",
+    "/tests/contract.rs", "/tests/fixtures/**", "/docs/**",
+]
+
+[dependencies]
+async-channel = "2"
+serde = { version = "1", features = ["derive"] }
+# Correctly rounded number parsing, so that a value read from JSON text keeps its value.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+thiserror = "2"
+
+[build-dependencies]
+serde_json = "1"
+
+[dev-dependencies]
+futures-lite = "2"

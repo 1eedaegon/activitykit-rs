@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  # Which parts the push or pull request changed. The repository is private, so a macOS minute costs ten Linux
+  # minutes: the Rust job runs on Linux every time, the macOS job only when the Swift side or its build changed.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      apple: ${{ steps.areas.outputs.apple }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: areas
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then echo "apple=true" >> "$GITHUB_OUTPUT"; echo "every part: run by hand"; exit 0; fi
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then echo "apple=true" >> "$GITHUB_OUTPUT"; echo "every part: no base"; exit 0; fi
+          if ! files=$(git diff --name-only "$BASE" "$HEAD"); then echo "apple=true" >> "$GITHUB_OUTPUT"; echo "every part: git diff failed"; exit 0; fi
+          printf '%s\n' "$files"
+          # The Swift package, the build script that compiles it, the Rust side of the C bridge, the templates, the
+          # Swift tests, the fixtures both languages read, the example's Xcode project and this workflow.
+          if grep -qE '^(swift/|build\.rs$|src/native\.rs$|src/bridge\.rs$|templates/ios/|tests/swift/|tests/fixtures/|contracts/|examples/dioxus/ios/|\.github/workflows/)' <<< "$files"; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
+  rust:
+    name: Rust (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview --target aarch64-apple-ios
+      - run: rustup default 1.95.0
+      - run: cargo fmt --all -- --check
+      - run: cargo fmt --manifest-path examples/dioxus/Cargo.toml -- --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      # Type-checks the iOS side of the bridge (src/native.rs) without Xcode: build.rs skips the Swift build.
+      - run: cargo clippy --locked --target aarch64-apple-ios --lib -- -D warnings
+        env:
+          ACTIVITYKIT_SKIP_SWIFT: "1"
+      - run: cargo install cargo-llvm-cov --version 0.8.7 --locked
+      - run: cargo llvm-cov --locked --summary-only --fail-under-lines 80
+      - run: cargo test --locked --doc
+
+  apple:
+    name: Swift tests and iOS builds (macOS)
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install 1.95.0 --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim
+      - run: rustup default 1.95.0
+      # The shared models, the lifecycle and the C bridge on the Mac, with every fixture; at least 80% coverage.
+      - run: bash tests/swift/run.sh
+      # build.rs compiles the bridge into the Rust library for the simulator and the device.
+      - run: cargo build --locked --target aarch64-apple-ios-sim
+      - run: cargo build --locked --target aarch64-apple-ios --release
+      # The products an app links in Xcode: the widget (with the renderer and the intent), the intent alone and the
+      # custom views.
+      - name: Build the package products for the simulator
+        working-directory: swift
+        run: |
+          for scheme in ActivityKitWidget ActivityKitIntent ActivityKitViews; do
+            xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/package" build
+          done
