@@ -22,6 +22,7 @@
 //! crate. `build.rs` compiles its bridge into the Rust library for iOS targets; the app's widget extension links its
 //! `ActivityKitWidget` product. See `docs/ios-setup.md`.
 
+// A throwaway line for a CI cache check; reverted.
 mod bridge;
 pub mod contract;
 mod error;
