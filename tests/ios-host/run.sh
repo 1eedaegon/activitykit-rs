@@ -3,8 +3,6 @@
 # shell, the template widget), creates a simulator of its own, runs the UI tests (UITests/: the Lock Screen, every node
 # type, a start from the background, activities() after a relaunch, and ActivityKit's stale dates, dismissals and
 # relevance), copies the screenshots and the host's log to OUT, deletes the simulator, and exits with the tests' status.
-# The simulator boots in full after the build: booting it during the build slowed the build several times over on a
-# CI runner, and a simulator that has finished booting starts the tests in a fraction of the time.
 #
 # Needs Xcode, XcodeGen and the Rust target of this Mac's simulator. Optional: OUT (default ./output), CARGO_TARGET_DIR
 # (default ./target), DERIVED_DATA, RUNTIME and DEVICE_TYPE (simctl identifiers; default the newest iOS and iPhone Pro),
@@ -66,14 +64,6 @@ else
   if [ -n "${BUILD_KEY:-}" ]; then printf '%s\n' "$BUILD_KEY" >"$stamp"; fi
 fi
 run=$(xctestrun)
-
-started=$(date +%s)
-if xcrun simctl bootstatus "$udid" -b >"$out/boot.log" 2>&1; then
-  echo "simulator booted in $(($(date +%s) - started)) s"
-else
-  echo "simctl bootstatus failed; xcodebuild boots the simulator"
-  cat "$out/boot.log"
-fi
 
 status=0
 set --
