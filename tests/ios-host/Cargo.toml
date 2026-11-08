@@ -1,0 +1,17 @@
+[package]
+name = "activitykit-ios-host"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "The iOS test host of activitykit: plain Rust scenarios that the UI test drives on a simulator"
+
+# Linked by the host app (project.yml), which calls `ak_host_run`.
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+activitykit = { path = "../.." }
+futures-lite = "2"
+
+# Not part of the crate's package: the host has its own lock file and target folder.
+[workspace]
