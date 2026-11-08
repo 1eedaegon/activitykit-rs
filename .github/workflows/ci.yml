@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      fresh:
+        description: Ignore every cache and every recorded pass, and build and test everything from scratch
+        type: boolean
+        default: false
+      retest:
+        description: Run the Swift tests, the build checks and the simulator suite even when they passed for the same inputs
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,10 +24,14 @@ concurrency:
   group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  # The Rust of every job but the MSRV check; part of the macOS jobs' cache keys.
+  TOOLCHAIN: 1.95.0
+
 jobs:
   # Which parts the push or pull request changed. A change to docs alone ends here, and the run still succeeds.
-  # The repository is private and a macOS minute costs ten Linux minutes, so the macOS job runs only for what reaches
-  # the Swift layer: the Swift package, every Rust source and manifest, and what builds or tests them.
+  # The macOS jobs are the slow ones, so they run only for what reaches the Swift layer: the Swift package, every Rust
+  # source and manifest, and what builds or tests them.
   # tests/ci/run.sh checks these patterns.
   changes:
     name: What changed
@@ -49,8 +62,8 @@ jobs:
           area rust '^(src/|tests/[^/]+\.rs$|tests/ios-host/(src/|Cargo\.)|tests/build/|build\.rs$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|\.cargo/)'
           # The Swift package and the build script that compiles it, every Rust source and manifest (the requests, the
           # envelope, and the fake bridge that mirrors the Swift layer's keys), the templates, the Swift tests, the
-          # build checks and the iOS test host.
-          area apple '^(src/|swift/|build\.rs$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|\.cargo/|templates/|tests/swift/|tests/ios-host/|tests/build/)'
+          # build checks, the iOS test host, and the keys of the macOS jobs' caches and recorded passes.
+          area apple '^(src/|swift/|build\.rs$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|\.cargo/|templates/|tests/swift/|tests/ios-host/|tests/build/|tests/ci/cache\.sh$)'
           # The specification and its tests, and the docs that tests/docs.rs reads: a light check on any of them.
           area spec '^(src/|tests/|swift/|build\.rs$|docs/|tools/|README\.md$)'
           cat "$GITHUB_OUTPUT"
@@ -67,7 +80,11 @@ jobs:
           persist-credentials: false
       - run: sh tools/spec-coverage.sh
       - run: sh tests/ci/run.sh
-      - run: rustup toolchain install 1.95.0 --profile minimal && rustup default 1.95.0
+      - run: rustup toolchain install "$TOOLCHAIN" --profile minimal && rustup default "$TOOLCHAIN"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ !inputs.fresh }}
+        with:
+          cache-bin: false
       - run: cargo test --locked --test docs
 
   rust:
@@ -79,8 +96,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview --target aarch64-apple-ios
-      - run: rustup default 1.95.0
+      - run: rustup toolchain install "$TOOLCHAIN" --profile minimal --component rustfmt,clippy,llvm-tools-preview --target aarch64-apple-ios
+      - run: rustup default "$TOOLCHAIN"
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: cargo-llvm-cov@0.8.7
+          fallback: none
+      # The dependencies of both workspaces, for every target folder below (clippy, coverage, the build checks).
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ !inputs.fresh }}
+        with:
+          workspaces: |
+            . -> target
+            tests/ios-host -> target
+          cache-bin: false
       - run: cargo fmt --all -- --check
       - run: cargo fmt --manifest-path tests/ios-host/Cargo.toml -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
@@ -92,7 +121,6 @@ jobs:
       - run: cargo clippy --locked --manifest-path tests/ios-host/Cargo.toml --target aarch64-apple-ios -- -D warnings
         env:
           ACTIVITYKIT_SKIP_SWIFT: "1"
-      - run: cargo install cargo-llvm-cov --version 0.8.7 --locked
       - run: cargo llvm-cov --locked --summary-only --fail-under-lines 80
       - run: cargo test --locked --doc
       # What build.rs does off Apple platforms, and for iOS under docs.rs and ACTIVITYKIT_SKIP_SWIFT. Under CI a check
@@ -110,14 +138,24 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install 1.90.0 --profile minimal
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ !inputs.fresh }}
+        with:
+          cache-bin: false
       - run: cargo +1.90.0 test --locked
 
+  # The macOS jobs skip a suite that already passed for the same inputs (tests/ci/cache.sh): the same tracked files,
+  # Xcode, Rust, runner image and, for the simulator, runtime. The record of a pass is an artifact, so the push to main
+  # that merges a pull request finds the pass of the pull request's run. A skipped suite leaves the job green.
   apple:
-    name: Swift, iOS builds and the simulator test (macOS)
+    name: Swift and the iOS builds (macOS)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,26 +166,167 @@ jobs:
           xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
           sudo xcode-select -s "$xcode"
           xcodebuild -version
-      - run: rustup toolchain install 1.95.0 --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim --target x86_64-apple-ios
-      - run: rustup default 1.95.0
-      - run: brew install xcodegen
+      - name: Keys
+        id: keys
+        run: sh tests/ci/cache.sh keys swift build
+      - name: Look for a pass of the Swift tests
+        id: swift-passed
+        if: ${{ !inputs.fresh && !inputs.retest }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.keys.outputs.swift }}
+        run: sh tests/ci/cache.sh passed "$NAME"
       # The shared models, the lifecycle and the C bridge on the Mac, with every fixture; at least 80 % coverage.
-      - run: bash tests/swift/run.sh
+      - name: Swift tests
+        if: steps.swift-passed.outputs.found != 'true'
+        run: bash tests/swift/run.sh
+      - name: Record the pass of the Swift tests
+        id: swift-record
+        if: steps.swift-passed.outputs.found != 'true'
+        run: sh tests/ci/cache.sh record swift
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: steps.swift-record.outputs.recorded == 'true'
+        with:
+          name: ${{ steps.keys.outputs.swift }}
+          path: ${{ runner.temp }}/passed-swift/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Look for a pass of the build checks
+        id: build-passed
+        if: ${{ !inputs.fresh && !inputs.retest }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.keys.outputs.build }}
+        run: sh tests/ci/cache.sh passed "$NAME"
+      - if: steps.build-passed.outputs.found != 'true'
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal --target aarch64-apple-ios --target aarch64-apple-ios-sim --target x86_64-apple-ios && rustup default "$TOOLCHAIN"
+      # The build checks' target folders (target/build-checks), with the crate's own outputs: the SwiftPM build of the
+      # bridge that build.rs makes for each iOS target.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ steps.build-passed.outputs.found != 'true' && !inputs.fresh }}
+        with:
+          cache-workspace-crates: true
+          cache-bin: false
       # build.rs for the device and both simulators: platform, architecture, deployment target (12.0 raised to 15.0 on
       # x86_64), the eight C functions. Under CI a check that cannot run fails.
-      - run: sh tests/build/run.sh
+      - name: Build checks
+        if: steps.build-passed.outputs.found != 'true'
+        run: sh tests/build/run.sh
+      - name: Record the pass of the build checks
+        id: build-record
+        if: steps.build-passed.outputs.found != 'true'
+        run: sh tests/ci/cache.sh record build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: steps.build-record.outputs.recorded == 'true'
+        with:
+          name: ${{ steps.keys.outputs.build }}
+          path: ${{ runner.temp }}/passed-build/
+          retention-days: 90
+          if-no-files-found: error
+
+  simulator:
+    name: End to end on the simulator (macOS)
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+      - name: Keys
+        id: keys
+        run: sh tests/ci/cache.sh keys simulator
+      - name: Look for a pass of the suite
+        id: passed
+        if: ${{ !inputs.fresh && !inputs.retest }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.keys.outputs.simulator }}
+        run: sh tests/ci/cache.sh passed "$NAME"
+      # The Xcode products of the test host for these exact inputs, which run.sh tests without building; or, from the
+      # restore key, those of earlier inputs, which make the build incremental.
+      - name: Restore the test host's products
+        id: products
+        if: ${{ steps.passed.outputs.found != 'true' && !inputs.fresh }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            tests/ios-host/DerivedData/Build
+            tests/ios-host/DerivedData/ModuleCache.noindex
+            tests/ios-host/DerivedData/SourcePackages
+          key: ${{ steps.keys.outputs.products }}
+          restore-keys: ${{ steps.keys.outputs.products-prefix }}
+      - if: steps.passed.outputs.found != 'true'
+        run: rustup toolchain install "$TOOLCHAIN" --profile minimal --target "$TARGET" && rustup default "$TOOLCHAIN"
+        env:
+          TARGET: ${{ runner.arch == 'ARM64' && 'aarch64-apple-ios-sim' || 'x86_64-apple-ios' }}
+      # The host's dependencies, and activitykit with its SwiftPM build of the bridge, kept also when the tests fail. Not
+      # needed when the products of these exact inputs are there.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ steps.passed.outputs.found != 'true' && steps.products.outputs.cache-hit != 'true' && !inputs.fresh }}
+        with:
+          workspaces: tests/ios-host -> target
+          cache-bin: false
+          cache-on-failure: true
+      - if: steps.passed.outputs.found != 'true'
+        run: brew install xcodegen
       # On a simulator that the script creates and deletes: start, a bound color turning red, content older than the
       # shown one dropped, Stop tapped on the Lock Screen and its event in Rust, an end with final values, every node
       # type drawn, a start from the background, activities() after a relaunch, and a stale date, the default and
       # timed dismissals and the end's relevance.
       - name: End to end on the simulator
+        if: steps.passed.outputs.found != 'true'
         run: tests/ios-host/run.sh
         env:
           OUT: ${{ runner.temp }}/ios-host
+          DERIVED_DATA: ${{ github.workspace }}/tests/ios-host/DerivedData
+          RUNTIME: ${{ steps.keys.outputs.runtime }}
+          BUILD_KEY: ${{ steps.keys.outputs.products }}
+      # Saved once the build is complete, also when the tests then failed: a re-run tests the same products.
+      - name: Check the build of the products
+        id: built
+        if: ${{ !cancelled() && steps.passed.outputs.found != 'true' && steps.products.outputs.cache-hit != 'true' && !inputs.fresh }}
+        env:
+          KEY: ${{ steps.keys.outputs.products }}
+        run: |
+          if [ "$(cat tests/ios-host/DerivedData/Build/Products/build-key 2>/dev/null)" = "$KEY" ]; then
+            echo complete=true >> "$GITHUB_OUTPUT"
+          else
+            echo "no complete build to save"
+          fi
+      - name: Save the test host's products
+        if: ${{ !cancelled() && steps.built.outputs.complete == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            tests/ios-host/DerivedData/Build
+            tests/ios-host/DerivedData/ModuleCache.noindex
+            tests/ios-host/DerivedData/SourcePackages
+          key: ${{ steps.keys.outputs.products }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        if: always()
+        if: always() && steps.passed.outputs.found != 'true'
         with:
           name: ios-host
           path: ${{ runner.temp }}/ios-host/
           retention-days: 14
           if-no-files-found: ignore
+      - name: Record the pass of the suite
+        id: record
+        if: steps.passed.outputs.found != 'true'
+        run: sh tests/ci/cache.sh record simulator "$RUNNER_TEMP/ios-host/passed"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: steps.record.outputs.recorded == 'true'
+        with:
+          name: ${{ steps.keys.outputs.simulator }}
+          path: ${{ runner.temp }}/passed-simulator/
+          retention-days: 90
+          if-no-files-found: error

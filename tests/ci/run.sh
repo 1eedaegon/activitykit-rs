@@ -25,11 +25,13 @@ skips() {
 starts apple src/kit.rs src/contract/validation.rs src/layout/node.rs src/events.rs src/error.rs src/image.rs src/value.rs \
   src/lib.rs src/native.rs src/bridge.rs src/fake.rs Cargo.toml Cargo.lock rust-toolchain.toml .cargo/config.toml build.rs \
   swift/Package.swift swift/Sources/ActivityKitBridge/Bridge.swift templates/ios/Widget.swift tests/swift/run.sh \
-  tests/ios-host/run.sh tests/ios-host/src/lib.rs tests/build/run.sh tests/fixtures/layout-requests.json contracts/request.schema.json
+  tests/ios-host/run.sh tests/ios-host/src/lib.rs tests/build/run.sh tests/ci/cache.sh tests/fixtures/layout-requests.json \
+  contracts/request.schema.json
 starts rust src/kit.rs Cargo.toml Cargo.lock rust-toolchain.toml .cargo/config.toml build.rs tests/contract.rs tests/docs.rs \
   tests/ios-host/src/lib.rs tests/ios-host/Cargo.toml tests/build/run.sh
 starts spec src/kit.rs docs/spec.md docs/usage.md tools/spec-coverage.sh README.md tests/ci/run.sh .github/workflows/ci.yml
 skips apple docs/usage.md README.md CHANGELOG.md tools/spec-coverage.sh
-skips rust docs/usage.md README.md swift/Package.swift
+skips rust docs/usage.md README.md swift/Package.swift tests/ci/cache.sh
+skips apple tests/ci/run.sh
 [ "$failures" = 0 ] || { echo "$failures CI area check(s) failed"; exit 1; }
 echo "ci areas: every path starts the jobs it must"
