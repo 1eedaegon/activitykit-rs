@@ -58,7 +58,7 @@ extension LifecycleTests {
         LayoutEndRequest(id: id, policy: EndPolicy(kind: kind, at: at))
     }
 
-    // AK-END-3, AK-END-4, AK-END-5, AK-LIST-3, AK-START-3, AK-START-5, AK-START-9, AK-UPDATE-3, AK-UPDATE-4, AK-UPDATE-10
+    // AK-END-3, AK-END-4, AK-END-5, AK-LIST-3, AK-START-3, AK-START-5, AK-START-9, AK-UPDATE-3, AK-UPDATE-4, AK-UPDATE-10, AK-CONTRACT-13
     @MainActor static func testLayoutLifecycle() async throws {
         let backend = FakeLayoutBackend()
         let controller = LayoutActivityController(backend: backend)
@@ -67,11 +67,9 @@ extension LifecycleTests {
         expect(first.id.hasPrefix("la-ios-layout-") && first.id.count == 50 && backend.activities[0].attributes.instanceID == first.id, "layout handles are opaque instance IDs")
         expect(backend.preflights == ["start", "widget"], "a new layout start runs both preflights")
         let recordJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(first)) as? [String: Any]
-        expect(Set(recordJSON?.keys.map { $0 } ?? []) == ["id", "activityKey", "schemaVersion", "snapshot", "backend", "state", "visibility",
-            "degradedFeatures", "promotionRequested", "promotionState"], "the layout record carries no template and no layout")
-        expect(recordJSON?["backend"] as? String == "activityKit" && recordJSON?["visibility"] as? String == "unknown"
-            && recordJSON?["promotionState"] as? String == "notApplicable" && recordJSON?["promotionRequested"] as? Bool == false
-            && (recordJSON?["degradedFeatures"] as? [Any])?.isEmpty == true, "the layout record keeps the constant members")
+        expect(Set(recordJSON?.keys.map { $0 } ?? []) == ["id", "activityKey", "schemaVersion", "snapshot", "state", "degradedFeatures"],
+               "the layout record carries no template, no layout and no member of other platforms")
+        expect((recordJSON?["degradedFeatures"] as? [Any])?.isEmpty == true, "a layout the widget draws whole degrades nothing")
         expect(NSDictionary(dictionary: recordJSON?["snapshot"] as? [String: Any] ?? [:]).isEqual(to: ["revision": 0, "values": ["title": "Download", "progress": 0]]),
                "the record snapshot is the wire snapshot")
         let duplicate = try await controller.start(meterRequest())

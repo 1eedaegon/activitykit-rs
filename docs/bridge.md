@@ -1,7 +1,9 @@
 # The C bridge
 
 Rust and Swift meet in eight C functions, which `swift/Sources/ActivityKitBridge/Bridge.swift` defines with `@_cdecl`
-and `src/native.rs` declares. There is no generated glue: every request and reply is JSON.
+and `src/native.rs` declares. There is no generated glue: every request and reply is JSON. Rust waits at most 10
+seconds for a reply (`CALL_WAIT`): a call that gets none fails with `NATIVE_ERROR`, and a reply that comes later is
+discarded.
 
 ```c
 typedef void (*ak_reply)(void *context, const uint8_t *json, intptr_t len);
@@ -51,8 +53,7 @@ A record:
 
 ```json
 {"id":"la-ios-layout-…","activityKey":"…","schemaVersion":2,"snapshot":{"revision":1,"values":{…}},
- "backend":"activityKit","state":"active","visibility":"unknown","degradedFeatures":[],
- "promotionRequested":false,"promotionState":"notApplicable"}
+ "state":"active","degradedFeatures":[],"relevance":50}
 ```
 
 ## Events

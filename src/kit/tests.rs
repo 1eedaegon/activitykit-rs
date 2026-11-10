@@ -1,4 +1,5 @@
 use super::*;
+use crate::State;
 use crate::{
     Bound, LimitScope, Style, Value,
     events::{MAX_PENDING, TAP_WAIT},
@@ -8,10 +9,52 @@ use crate::{
 };
 use futures_lite::future::{block_on, zip};
 use serde_json::{Value as Json, json};
+use std::sync::atomic::AtomicBool;
 use std::{
     thread,
     time::{Instant, UNIX_EPOCH},
 };
+
+/// A fake bridge that keeps its replies while `hold(true)`, as a Swift layer that lost its callback would.
+#[derive(Clone, Default)]
+pub(super) struct HoldingBridge {
+    fake: FakeBridge,
+    holding: Arc<AtomicBool>,
+    held: Arc<Mutex<Vec<bridge::Reply>>>,
+}
+
+impl HoldingBridge {
+    pub(super) fn hold(&self, holding: bool) {
+        self.holding.store(holding, Ordering::SeqCst);
+    }
+
+    /// The replies kept so far, oldest first.
+    pub(super) fn held(&self) -> Vec<bridge::Reply> {
+        std::mem::take(&mut *self.held.lock().unwrap())
+    }
+}
+
+impl Bridge for HoldingBridge {
+    fn call(&self, call: Call, request: Vec<u8>, reply: bridge::Reply) {
+        if self.holding.load(Ordering::SeqCst) {
+            self.held.lock().unwrap().push(reply);
+        } else {
+            self.fake.call(call, request, reply);
+        }
+    }
+    fn authorization(&self) -> Vec<u8> {
+        self.fake.authorization()
+    }
+    fn image_folder(&self) -> Vec<u8> {
+        self.fake.image_folder()
+    }
+    fn configure(&self, request: Vec<u8>) -> Vec<u8> {
+        self.fake.configure(request)
+    }
+    fn listen(&self, events: bridge::Events) {
+        self.fake.listen(events);
+    }
+}
 
 /// A kit on a fake bridge. A tap waits only briefly for subscribers that read later in the test.
 pub(super) fn kit() -> (ActivityKit, FakeBridge) {
@@ -1012,4 +1055,40 @@ fn relevance_is_kept_and_the_stale_date_follows_each_update() {
     assert_eq!(activity.relevance(), 80.0);
     // A start without a relevance scores 0, as ActivityKit does.
     assert_eq!(started(&kit).relevance(), 0.0);
+}
+
+// AK-BRIDGE-11
+#[test]
+fn a_call_the_bridge_never_answers_fails_after_the_call_wait() {
+    let holding = HoldingBridge::default();
+    holding.hold(true);
+    let kit = ActivityKit::with_bridge_waits(
+        holding.clone(),
+        Duration::from_millis(20),
+        Duration::from_millis(200),
+    );
+    let started = Instant::now();
+    let error =
+        block_on(kit.start(sketch(), values! { "tone" => "green", "level" => 0.2 })).unwrap_err();
+    assert!(matches!(error, Error::Native(_)), "{error:?}");
+    let waited = started.elapsed();
+    assert!(
+        waited >= Duration::from_millis(200) && waited < Duration::from_secs(2),
+        "{waited:?}"
+    );
+    // The reply that comes late reaches no one and panics nowhere.
+    let late = holding.held().pop().expect("the kept reply");
+    late(br#"{"ok":true,"data":[]}"#.to_vec());
+    // The kit goes on: the next call waits again.
+    assert!(matches!(
+        block_on(kit.activities()).unwrap_err(),
+        Error::Native(_)
+    ));
+    assert_eq!(holding.held().len(), 1);
+}
+
+// AK-BRIDGE-11
+#[test]
+fn the_call_wait_is_ten_seconds() {
+    assert_eq!(CALL_WAIT, Duration::from_secs(10));
 }

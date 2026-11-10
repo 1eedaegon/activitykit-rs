@@ -53,7 +53,6 @@ pub(crate) fn decode<T: DeserializeOwned>(reply: &[u8]) -> Result<T> {
 }
 
 /// The failure envelope of `error`.
-#[cfg(any(not(target_os = "ios"), test))]
 pub(crate) fn failure(error: &Error) -> Vec<u8> {
     serde_json::json!({"ok": false, "error": {"code": error.code(), "message": error.message()}})
         .to_string()

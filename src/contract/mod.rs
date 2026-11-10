@@ -141,15 +141,6 @@ pub struct EndInput {
     pub snapshot: Option<LayoutSnapshot>,
 }
 
-/// Which backend drew the activity: `activityKit` on iOS.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Backend {
-    ActivityKit,
-    AndroidNotification,
-    Unsupported,
-}
-
 /// The lifecycle of an activity as ActivityKit reports it. More states may come, so a match needs a `_` arm:
 ///
 /// ```compile_fail,E0004
@@ -192,22 +183,6 @@ pub enum State {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Visibility {
-    /// A successful call does not prove that anything is on screen.
-    Unknown,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum PromotionState {
-    Promoted,
-    NotPromoted,
-    Unknown,
-    NotApplicable,
-}
-
 /// A layout activity as the Swift layer reports it. It does not repeat the layout.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -216,13 +191,9 @@ pub struct LayoutActivityRecord {
     pub activity_key: String,
     pub schema_version: u8,
     pub snapshot: LayoutSnapshot,
-    pub backend: Backend,
     pub state: State,
-    pub visibility: Visibility,
     /// What the widget leaves out, such as `layout.custom.<name>` for a custom view the app does not register.
     pub degraded_features: Vec<String>,
-    pub promotion_requested: bool,
-    pub promotion_state: PromotionState,
     /// The content's relevance score, when the Swift layer knows it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relevance: Option<f64>,

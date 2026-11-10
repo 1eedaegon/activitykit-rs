@@ -3,6 +3,7 @@
 
 use super::tests::{at, kit, sketch, started};
 use super::*;
+use crate::State;
 use crate::{Value, fake::FakeActivity, values};
 use futures_lite::future::block_on;
 use serde_json::json;

@@ -73,7 +73,8 @@ pub enum Error {
     /// `SYSTEM_LIMIT`: the app's or the device's limit of running activities is reached.
     #[error("SYSTEM_LIMIT: the {} limit of Live Activities is reached", scope.noun())]
     SystemLimit { scope: LimitScope },
-    /// `NATIVE_ERROR`: ActivityKit or the bridge failed.
+    /// `NATIVE_ERROR`: ActivityKit or the bridge failed, or the Swift layer gave no reply within the kit's call wait
+    /// of 10 seconds.
     #[error("NATIVE_ERROR: {0}")]
     Native(String),
 }

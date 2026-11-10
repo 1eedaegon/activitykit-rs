@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- Breaking: a record carries what ActivityKit knows and nothing of other platforms. `contract::LayoutActivityRecord`
+  loses `backend`, `visibility`, `promotion_requested` and `promotion_state`, the `Backend`, `Visibility` and
+  `PromotionState` enums are gone, and the Swift record and the bridge's JSON no longer carry those members. A
+  cross-platform layer adds its own at its boundary. `Activity` is unchanged. A 0.2 reader still reads a record written
+  by 0.1; a 0.1 reader needs the members that 0.2 no longer writes.
+- A call the Swift layer never answers fails with `Error::Native` after 10 seconds instead of waiting forever, and a
+  reply that comes later is discarded. A write whose reply never comes frees the handle's turn, so the next write goes
+  out at the next revision.
+
 ## 0.1.0
 
 The first version: iOS Live Activities from Rust. Split out of tauri-plugin-live-activity 0.3.0.

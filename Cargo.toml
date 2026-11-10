@@ -1,6 +1,6 @@
 [package]
 name = "activitykit"
-version = "0.1.0"
+version = "0.2.0"
 description = "iOS Live Activities from Rust"
 authors = ["1eedaegon"]
 edition = "2024"
