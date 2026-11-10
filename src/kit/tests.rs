@@ -653,7 +653,8 @@ fn authorization_reads_the_bridge() {
         Authorization {
             supported: true,
             enabled: true,
-            buttons: true
+            buttons: true,
+            frequent_pushes: false,
         }
     );
     fake.lock().authorization =
@@ -663,7 +664,8 @@ fn authorization_reads_the_bridge() {
         Authorization {
             supported: true,
             enabled: false,
-            buttons: false
+            buttons: false,
+            frequent_pushes: false
         }
     );
     fake.lock().authorization = Some(json!("broken"));
@@ -672,7 +674,8 @@ fn authorization_reads_the_bridge() {
         Authorization {
             supported: false,
             enabled: false,
-            buttons: false
+            buttons: false,
+            frequent_pushes: false
         }
     );
 }
@@ -726,7 +729,8 @@ fn off_ios_every_call_is_unsupported_after_the_contract_check() {
         Authorization {
             supported: false,
             enabled: false,
-            buttons: false
+            buttons: false,
+            frequent_pushes: false
         }
     );
     assert_eq!(

@@ -1,5 +1,6 @@
 //! The options of a start, an update and an end, and how a request goes to the bridge.
 
+use crate::push::Push;
 use crate::{Error, Layout, Result, Values, contract::EndPolicy};
 use serde::Serialize;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,6 +15,7 @@ pub struct Start {
     pub(super) relevance: Option<f64>,
     pub(super) revision: u64,
     pub(super) timestamp: Option<SystemTime>,
+    pub(super) push: Option<Push>,
 }
 
 /// An update with options: [`Activity::update_with`](crate::Activity::update_with).
@@ -31,8 +33,8 @@ pub struct Update {
 /// presentation shows as a banner), and an Apple Watch shows the title and the body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Alert {
-    pub(super) title: String,
-    pub(super) body: String,
+    pub(crate) title: String,
+    pub(crate) body: String,
 }
 
 /// How an activity ends: [`End::immediately`], [`End::after`] or the system's default, [`End::default`]; with final
@@ -58,7 +60,16 @@ impl Start {
             relevance: None,
             revision: 0,
             timestamp: None,
+            push: None,
         }
+    }
+
+    /// What the activity asks ActivityKit for so that a server can reach it: a push token of its own, reported as
+    /// [`Event::PushToken`](crate::Event::PushToken) once ActivityKit has it, or a broadcast channel (iOS 18). Without
+    /// it the activity gets none.
+    pub fn push(mut self, push: Push) -> Self {
+        self.push = Some(push);
+        self
     }
 
     /// The revision of the first content: 0 unless set. A repeated keyed start counts it as content.
@@ -254,7 +265,7 @@ pub(super) fn envelope(
 }
 
 /// Epoch milliseconds, as the contract writes times.
-pub(super) fn millis(at: SystemTime) -> Result<u64> {
+pub(crate) fn millis(at: SystemTime) -> Result<u64> {
     let since = at
         .duration_since(UNIX_EPOCH)
         .map_err(|_| Error::invalid())?;

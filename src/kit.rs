@@ -5,7 +5,9 @@
 use crate::{
     Error, Event, Layout, Result, Values,
     bridge::{self, Bridge, Call},
-    contract::{Fallback, LayoutActivityRecord, LayoutSnapshot, LayoutStartInput, Validate},
+    contract::{
+        Fallback, LayoutActivityRecord, LayoutSnapshot, LayoutStartInput, PushWire, Validate,
+    },
     events::Hub,
     image,
 };
@@ -15,7 +17,7 @@ use std::{
     fmt,
     path::PathBuf,
     sync::{
-        Arc, Mutex, OnceLock, Weak,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -25,10 +27,12 @@ mod activity;
 mod options;
 mod wire;
 
+use crate::push::Push;
 pub use activity::Activity;
 use activity::Shared;
+use options::envelope;
+pub(crate) use options::millis;
 pub use options::{Alert, End, Start, Update};
-use options::{envelope, millis};
 
 /// How long a call waits for the Swift layer's reply before it fails as [`Error::Native`]: a Swift layer that lost its
 /// callback must not hang the app. ActivityKit answers in well under a second.
@@ -47,7 +51,8 @@ pub struct ActivityKit {
 pub(crate) struct Inner {
     pub(crate) bridge: Box<dyn Bridge>,
     pub(crate) hub: Hub,
-    activities: Mutex<HashMap<String, Weak<Shared>>>,
+    /// What the process knows of each activity, kept until the activity is dismissed and no handle holds it.
+    activities: Mutex<HashMap<String, Arc<Shared>>>,
     images: OnceLock<PathBuf>,
     /// How long a call waits for its reply.
     call_wait: Duration,
@@ -68,6 +73,7 @@ pub(crate) struct Inner {
 /// assert!(!supported && !enabled && !buttons);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Authorization {
     /// The device and the OS have Live Activities: an iPhone with iOS 16.2 or later, or an iPad with iPadOS 17.
@@ -77,6 +83,10 @@ pub struct Authorization {
     /// Supported, and the OS runs a button's intent: iOS 17 and later. It does not check that the app links the
     /// intent (`ActivityKitIntent`).
     pub buttons: bool,
+    /// Supported, and the person allows frequent pushes for the app in Settings, which the app offers with
+    /// `NSSupportsLiveActivitiesFrequentUpdates` in its Info.plist (iOS 16.2); false where that is unknown.
+    #[serde(default)]
+    pub frequent_pushes: bool,
 }
 
 /// What the Swift layer keeps of each accepted content between launches, so that an update that ActivityKit reports
@@ -100,12 +110,20 @@ pub enum Receipts {
 #[must_use]
 pub struct Builder {
     receipts: Receipts,
+    push_to_start: bool,
 }
 
 impl Builder {
     /// What the Swift layer keeps of each accepted content: [`Receipts::Full`] unless set.
     pub fn receipts(mut self, receipts: Receipts) -> Self {
         self.receipts = receipts;
+        self
+    }
+
+    /// Whether the Swift layer watches the app's push-to-start token (iOS 17.2) and reports it, new or changed, as
+    /// [`Event::PushToStartToken`]: off unless set. Like the receipts, the first settings hold for the process.
+    pub fn push_to_start(mut self, watch: bool) -> Self {
+        self.push_to_start = watch;
         self
     }
 
@@ -126,8 +144,11 @@ impl Builder {
 
 /// The settings as the bridge reads them.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SettingsWire {
     receipts: Receipts,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    push_to_start: bool,
 }
 
 impl ActivityKit {
@@ -177,6 +198,7 @@ impl ActivityKit {
     pub(crate) fn settle(&self, settings: &Builder) -> Result<()> {
         let wire = SettingsWire {
             receipts: settings.receipts,
+            push_to_start: settings.push_to_start,
         };
         let request = serde_json::to_vec(&wire).map_err(|_| Error::invalid())?;
         bridge::decode::<serde_json::Value>(&self.inner.bridge.configure(request)).map(|_| ())
@@ -203,6 +225,7 @@ impl ActivityKit {
             supported: false,
             enabled: false,
             buttons: false,
+            frequent_pushes: false,
         })
     }
 
@@ -227,6 +250,10 @@ impl ActivityKit {
                 timestamp: Some(millis(start.timestamp.unwrap_or_else(SystemTime::now))?),
             },
             android: None,
+            push: start.push.map(|push| match push {
+                Push::Token => PushWire::Token,
+                Push::Channel(id) => PushWire::Channel(id.as_str().to_owned()),
+            }),
         };
         input.validate()?;
         let request = envelope(&input, start.relevance, None)?;
@@ -283,6 +310,8 @@ fn new_key() -> String {
 
 #[cfg(test)]
 mod event_tests;
+#[cfg(test)]
+mod push_tests;
 #[cfg(test)]
 mod setting_tests;
 #[cfg(test)]

@@ -8,7 +8,7 @@ Dynamic Island. The crate is called `activitykit`.
 
 ```toml
 [dependencies]
-activitykit = "0.2"
+activitykit = "0.3"
 ```
 
 Building for an iOS target compiles the Swift bridge into your Rust library, so it needs Xcode. On other targets the
@@ -96,7 +96,9 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 - The Swift layer keeps each activity's last accepted values in plain text in the app's Application Support, which iOS
   protects until the first unlock after a restart, unless `ActivityKit::builder().receipts(Receipts::Redacted)` keeps
   a digest instead.
-- No push updates, no Android. [Not yet supported](docs/not-yet-supported.md) lists what ActivityKit has and the crate
+- Pushes: the crate asks for tokens and channels, reports them, builds payloads and takes what a push delivers; the
+  APNs key, the tokens and the sending are the server's. No Android. [Not yet supported](docs/not-yet-supported.md)
+  lists what ActivityKit has and the crate
   does not.
 
 [iOS setup](docs/ios-setup.md) · [Usage](docs/usage.md) · [Request contract](docs/request-contract.md) ·

@@ -1,7 +1,7 @@
 //! The validator of request contract v2, in the order every layer applies it: shape, character rules, structural
 //! limits, references between layout, styles and values, and the payload weight last.
 
-use super::{path, *};
+use super::{PushWire, path, *};
 use crate::{
     Error, Result, Value,
     layout::{ColorName, Dimension, Element, FontWeight, Frame, Padding},
@@ -36,6 +36,11 @@ pub(crate) fn text(value: &str, max: usize) -> bool {
 
 pub(crate) fn require(valid: bool) -> Result<()> {
     if valid { Ok(()) } else { Err(Error::invalid()) }
+}
+
+/// Whether `id` can be an activity's handle: the rule of every update and end.
+pub(crate) fn valid_handle(id: &str) -> bool {
+    text(id, 256)
 }
 
 impl Validate for EndInput {
@@ -261,6 +266,10 @@ impl Validate for LayoutStartInput {
     fn validate(&self) -> Result<()> {
         let key = word(&self.activity_key, 128, u8::is_ascii_alphanumeric, b"._:-");
         require(key && self.schema_version == 2)?;
+        if let Some(PushWire::Channel(id)) = &self.push {
+            // The contract's one error text; `ChannelId::new` says more to the app.
+            require(crate::push::ChannelId::new(id.clone()).is_ok())?;
+        }
         self.snapshot.shape()?;
         if let Some(table) = &self.styles {
             require((1..=24).contains(&table.len()) && table.keys().all(|token| name(token)))?;

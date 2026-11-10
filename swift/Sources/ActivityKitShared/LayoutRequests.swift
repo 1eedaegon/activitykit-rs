@@ -15,6 +15,36 @@ public struct LayoutAndroidOptions: Codable, Sendable {
     }
 }
 
+/// What a start asks ActivityKit for: a push token of the activity's own (`"token"`), or a broadcast channel
+/// (`{"channel": "<id>"}`, iOS 18).
+public enum LayoutPush: Codable, Equatable, Sendable {
+    case token
+    case channel(String)
+    private enum Key: String, CodingKey { case channel }
+    public init(from decoder: Decoder) throws {
+        if let name = try? decoder.singleValueContainer().decode(String.self) {
+            guard name == "token" else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown push \(name)."))
+            }
+            self = .token
+            return
+        }
+        var object = try LayoutReader(decoder)
+        self = .channel(try object.need("channel"))
+        try object.finish()
+    }
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .token:
+            var single = encoder.singleValueContainer()
+            try single.encode("token")
+        case .channel(let id):
+            var object = encoder.container(keyedBy: Key.self)
+            try object.encode(id, forKey: .channel)
+        }
+    }
+}
+
 /// The input of `start_layout`.
 public struct LayoutRequest: Codable, Sendable {
     public let activityKey: String
@@ -24,12 +54,15 @@ public struct LayoutRequest: Codable, Sendable {
     public let styles: [String: LayoutStyle]?
     public let snapshot: LayoutSnapshot
     public let android: LayoutAndroidOptions?
+    /// What the activity asks for; absent, nothing. Not part of the fingerprint: a repeated keyed start is the same
+    /// activity whatever it asks for.
+    public let push: LayoutPush?
 
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         activityKey = try object.need("activityKey"); schemaVersion = try object.need("schemaVersion")
         fallback = try object.need("fallback"); layout = try object.need("layout"); styles = try object.take("styles")
-        snapshot = try object.need("snapshot"); android = try object.take("android")
+        snapshot = try object.need("snapshot"); android = try object.take("android"); push = try object.take("push")
         try object.finish()
     }
     public var document: LayoutDocument { LayoutDocument(layout: layout, styles: styles) }

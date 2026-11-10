@@ -5,10 +5,7 @@ built; the types that would carry them (`Event`, `Error`, `State`, `Authorizatio
 
 | Feature | iOS | What it needs |
 | --- | --- | --- |
-| Push updates (push tokens) | 16.1 | The Push Notifications capability, an APNs server with token authentication, `apns-push-type: liveactivity`, and a `content-state` in the shape of the contract's snapshot. A new token arrives at any time and would be an event. |
-| Frequent pushes | 16.2 | An Info.plist key, and the person's consent, which would be a member of `Authorization`. |
-| Push-to-start | 17.2 | Everything of push updates, a per-app start token, and a payload that names the attributes type and carries the layout. Each such activity would arrive as `Event::Started`. |
-| Broadcast channels | 18.0 | The broadcast capability (only at developer.apple.com) and a channel per activity; a channel cannot start an activity. |
+| A channel for a push-to-start (`input-push-channel`) | 18.0 | A channel made at APNs before the start; the crate builds start payloads for the push-to-start token. |
 | Transient style | 18.0 | Nothing more; the activity ends when the person locks the device or leaves the app. |
 | Scheduled start | 26.0 | A start time and a required alert; the activity is `Pending` until then and counts toward the system's limit, and a key would have to cover pending activities. |
 | Alert sounds | 16.1 | A sound file in the app bundle or `Library/Sounds`; alerts play the default sound now. |

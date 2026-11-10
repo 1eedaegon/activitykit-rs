@@ -14,6 +14,19 @@ struct AuthorizationReply: Codable, Equatable, Sendable {
     let enabled: Bool
     /// Supported, and iOS 17 or later, where buttons run their intent.
     let buttons: Bool
+    /// Supported, and the person allows frequent pushes for the app (iOS 16.2).
+    let frequentPushes: Bool
+    private enum CodingKeys: String, CodingKey { case supported, enabled, buttons, frequentPushes }
+    init(supported: Bool, enabled: Bool, buttons: Bool, frequentPushes: Bool = false) {
+        self.supported = supported; self.enabled = enabled; self.buttons = buttons; self.frequentPushes = frequentPushes
+    }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        supported = try container.decode(Bool.self, forKey: .supported)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        buttons = try container.decode(Bool.self, forKey: .buttons)
+        frequentPushes = try container.decodeIfPresent(Bool.self, forKey: .frequentPushes) ?? false
+    }
 }
 
 /// What the bridge drives: ActivityKit on iOS (`ActivityKitSystem`), nothing elsewhere, a fake in the host tests.
@@ -28,6 +41,12 @@ protocol BridgeSystem: AnyObject, Sendable {
     @MainActor func makeController(presentations: Presentations, events: EventSink, receipts: ReceiptMode) throws -> LayoutActivityController
     /// Starts reporting state and authorization changes to `events`; called once.
     func observe(_ events: EventSink)
+    /// Starts reporting the app's push-to-start token (iOS 17.2) to the events of `observe`, once.
+    func watchPushToStart()
+}
+
+extension BridgeSystem {
+    func watchPushToStart() {}
 }
 
 /// The system the bridge uses; tests install their own before they call.
@@ -73,14 +92,20 @@ final class Presentations {
         let alert: AlertText?
     }
 
-    private var starts: [String: Double] = [:]
+    /// The relevance of a start, and what it asks ActivityKit for.
+    struct Start: Equatable {
+        let relevance: Double?
+        let push: LayoutPush?
+    }
+
+    private var starts: [String: Start] = [:]
     private var updates: [String: Update] = [:]
     private var ends: [String: Double] = [:]
 
-    func expectStart(key: String, relevance: Double?) { starts[key] = relevance }
+    func expectStart(key: String, relevance: Double?, push: LayoutPush? = nil) { starts[key] = Start(relevance: relevance, push: push) }
     func forgetStart(key: String) { starts[key] = nil }
-    /// The relevance of the start with this activity key.
-    func start(key: String) -> Double? { starts[key] }
+    /// The relevance and the push of the start with this activity key.
+    func start(key: String) -> Start? { starts[key] }
 
     func expectUpdate(id: String, revision: Int64, relevance: Double?, alert: AlertText?) {
         updates[Self.key(id, revision)] = Update(relevance: relevance, alert: alert)

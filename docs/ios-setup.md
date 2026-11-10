@@ -72,6 +72,17 @@ extension and the settings below go into that project. The app target needs:
 
 Start activities while the app is in the foreground.
 
+## Pushes
+
+- **Push Notifications** capability on the app target (`aps-environment` in the entitlements), for push tokens,
+  push-to-start and channels. Without it ActivityKit refuses a start that asks for a token
+  (`Error::ConfigurationRequired`), as it does in the simulator.
+- **`NSSupportsLiveActivitiesFrequentUpdates`** set to `YES` in the Info.plist, for frequent pushes; the person can
+  turn them off in Settings, which `Authorization::frequent_pushes` reports.
+- **Broadcast capability** under Push Notifications at developer.apple.com, for channels (iOS 18); Xcode cannot set it.
+- Make the kit early at launch (`ActivityKit::new()` or `builder().build()`), before the app waits for anything: a
+  tap, a push-to-start or a push that wakes the app in the background reaches it only once the kit exists.
+
 ## The widget extension
 
 Add a Widget Extension target (iOS 16.2 or later), link the `ActivityKitWidget` product of the `swift` package (as a

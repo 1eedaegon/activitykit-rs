@@ -33,6 +33,9 @@ mod kit;
 pub mod layout;
 #[cfg(target_os = "ios")]
 mod native;
+pub mod push;
+#[cfg(test)]
+mod push_tests;
 mod value;
 
 /// The channel crate of [`ActivityKit::events`], so an app uses the same version.
@@ -44,4 +47,5 @@ pub use events::{Acknowledgement, Event};
 pub use image::{ImageInput, MAX_IMAGE_BYTES, MAX_IMAGE_HEIGHT, MAX_IMAGE_WIDTH, check_image};
 pub use kit::{Activity, ActivityKit, Alert, Authorization, Builder, End, Receipts, Start, Update};
 pub use layout::{Bindable, Bound, Layout, Style};
+pub use push::{ChannelId, Push, PushToken};
 pub use value::{Value, Values};

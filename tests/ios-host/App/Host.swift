@@ -55,8 +55,21 @@ private let reportLine: @convention(c) (UnsafePointer<UInt8>?, Int) -> Void = { 
     }
 }
 
+/// A launch by the system for a tap on a Live Activity button has no scenario and may stay in the background, where
+/// the scene never appears: the delegate runs Rust at once, so the kit exists while the tap's intent still waits.
+final class LaunchDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        if !CommandLine.arguments.contains("-scenario") {
+            TapWatch.start()
+            hostRun(reportLine)
+        }
+        return true
+    }
+}
+
 @main
 struct HostApp: App {
+    @UIApplicationDelegateAdaptor(LaunchDelegate.self) private var delegate
     @StateObject private var report = Report.shared
 
     var body: some Scene {
@@ -76,8 +89,10 @@ struct HostApp: App {
         }
     }
 
-    /// An activity starts only in the foreground, which a launching app may not be yet.
+    /// An activity starts only in the foreground, which a launching app may not be yet. A launch without a scenario
+    /// already ran from the delegate.
     @MainActor private func runWhenActive() async {
+        guard CommandLine.arguments.contains("-scenario") else { return }
         TapWatch.start()
         for _ in 0..<50 where UIApplication.shared.applicationState != .active {
             try? await Task.sleep(nanoseconds: 100_000_000)

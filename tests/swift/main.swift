@@ -22,6 +22,7 @@ struct LifecycleTests {
         try await testReceipts()
         try await testActivityKitMapping()
         try await testBridge()
+        try await testPushes()
         print("Swift tests: \(assertions) assertions passed")
     }
 }

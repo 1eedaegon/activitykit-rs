@@ -80,27 +80,41 @@ public func ak_configure(_ bytes: UnsafePointer<UInt8>?, _ count: Int, _ context
     let data: Data
     do {
         let wanted = try JSONDecoder().decode(SettingsCall.self, from: copy(bytes, count))
-        data = Bridge.encode(Success(data: try Settings.shared.set(wanted)))
+        let settled = try Settings.shared.set(wanted)
+        if Settings.shared.pushToStartToWatch() { Systems.current.watchPushToStart() }
+        data = Bridge.encode(Success(data: settled))
     } catch { data = Bridge.encode(Failure(error)) }
     ReplyTarget(context: context, function: reply).send(data)
 }
 
-/// `ak_configure`: `{"receipts": "full" | "redacted"}`, nothing else.
+/// `ak_configure`: `{"receipts": "full" | "redacted", "pushToStart": true}`, with `pushToStart` optional and false unless given, and
+/// nothing else.
 struct SettingsCall: Codable, Equatable, Sendable {
     let receipts: ReceiptMode
-    private enum CodingKeys: String, CodingKey { case receipts }
+    /// Whether the Swift layer watches the app's push-to-start token (iOS 17.2).
+    let pushToStart: Bool
+    private enum CodingKeys: String, CodingKey { case receipts, pushToStart }
     private struct Member: CodingKey {
         let stringValue: String
         var intValue: Int? { nil }
         init?(stringValue: String) { self.stringValue = stringValue }
         init?(intValue: Int) { nil }
     }
-    init(receipts: ReceiptMode) { self.receipts = receipts }
+    init(receipts: ReceiptMode, pushToStart: Bool = false) { self.receipts = receipts; self.pushToStart = pushToStart }
     init(from decoder: Decoder) throws {
-        guard try decoder.container(keyedBy: Member.self).allKeys.map(\.stringValue) == ["receipts"] else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Settings take receipts only."))
+        let members = Set(try decoder.container(keyedBy: Member.self).allKeys.map(\.stringValue))
+        guard members.contains("receipts"), members.isSubset(of: ["receipts", "pushToStart"]) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Settings take receipts and pushToStart only."))
         }
-        receipts = try decoder.container(keyedBy: CodingKeys.self).decode(ReceiptMode.self, forKey: .receipts)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        receipts = try container.decode(ReceiptMode.self, forKey: .receipts)
+        pushToStart = try container.decodeIfPresent(Bool.self, forKey: .pushToStart) ?? false
+    }
+    /// Writes `pushToStart` only when it is on: the settings in force read as they were given.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(receipts, forKey: .receipts)
+        if pushToStart { try container.encode(true, forKey: .pushToStart) }
     }
 }
 
@@ -110,6 +124,7 @@ final class Settings: @unchecked Sendable {
     static let shared = Settings()
     private let lock = NSLock()
     private var current: SettingsCall?
+    private var pushToStartAnnounced = false
 
     /// Takes `wanted` unless other settings already hold, and answers the settings in force.
     func set(_ wanted: SettingsCall) throws -> SettingsCall {
@@ -129,9 +144,17 @@ final class Settings: @unchecked Sendable {
         return settled.receipts
     }
 
+    /// Whether the push-to-start watch is still to start for the settings in force: true once, when they ask for it.
+    func pushToStartToWatch() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard current?.pushToStart == true, !pushToStartAnnounced else { return false }
+        pushToStartAnnounced = true
+        return true
+    }
+
     /// Forgets the settings. For the tests.
     func reset() {
-        lock.lock(); current = nil; lock.unlock()
+        lock.lock(); current = nil; pushToStartAnnounced = false; lock.unlock()
     }
 }
 
@@ -175,14 +198,20 @@ final class EventSink: @unchecked Sendable {
     }
 }
 
-/// An event as Rust reads it: `{"type":"action"|"state"|"authorization", …}`.
+/// An event as Rust reads it: `{"type":"started"|"action"|"state"|"authorization"|"pushToken"|"pushToStartToken"|"content", …}`.
 enum BridgeEvent: Encodable {
     case started(activityId: String, activityKey: String)
     case action(LiveActivityAction)
     case state(activityId: String, activityKey: String, state: String)
     case authorization(AuthorizationReply)
+    /// A push token of the activity, new or changed, in lowercase hex.
+    case pushToken(activityId: String, activityKey: String, token: String)
+    /// The app's push-to-start token, new or changed, in lowercase hex.
+    case pushToStartToken(token: String)
+    /// Content ActivityKit shows, from a push or from the app's own update reported back.
+    case content(activityId: String, activityKey: String, snapshot: LayoutSnapshot, relevance: Double?)
 
-    private enum Keys: String, CodingKey { case type, activityId, actionId, activityKey, state, authorization }
+    private enum Keys: String, CodingKey { case type, activityId, actionId, activityKey, state, authorization, token, snapshot, relevance }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: Keys.self)
@@ -204,6 +233,20 @@ enum BridgeEvent: Encodable {
         case .authorization(let authorization):
             try container.encode("authorization", forKey: .type)
             try container.encode(authorization, forKey: .authorization)
+        case let .pushToken(activityId, activityKey, token):
+            try container.encode("pushToken", forKey: .type)
+            try container.encode(activityId, forKey: .activityId)
+            try container.encode(activityKey, forKey: .activityKey)
+            try container.encode(token, forKey: .token)
+        case .pushToStartToken(let token):
+            try container.encode("pushToStartToken", forKey: .type)
+            try container.encode(token, forKey: .token)
+        case let .content(activityId, activityKey, snapshot, relevance):
+            try container.encode("content", forKey: .type)
+            try container.encode(activityId, forKey: .activityId)
+            try container.encode(activityKey, forKey: .activityKey)
+            try container.encode(snapshot, forKey: .snapshot)
+            try container.encodeIfPresent(relevance, forKey: .relevance)
         }
     }
 }
@@ -253,7 +296,7 @@ final class Bridge {
         await reply {
             let call = try JSONDecoder().decode(StartCall.self, from: data)
             let key = call.request.activityKey
-            self.presentations.expectStart(key: key, relevance: call.relevance)
+            self.presentations.expectStart(key: key, relevance: call.relevance, push: call.request.push)
             defer { self.presentations.forgetStart(key: key) }
             return try await self.lifecycle().start(call.request)
         }
