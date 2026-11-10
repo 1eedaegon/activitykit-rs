@@ -87,9 +87,7 @@ fn record(activity: &FakeActivity) -> Value {
         snapshot["staleAt"] = at.into();
     }
     json!({"id": activity.id, "activityKey": activity.key, "schemaVersion": 2, "relevance": activity.relevance,
-        "snapshot": snapshot,
-        "backend": "activityKit", "state": activity.state, "visibility": "unknown",
-        "degradedFeatures": activity.degraded, "promotionRequested": false, "promotionState": "notApplicable"})
+        "snapshot": snapshot, "state": activity.state, "degradedFeatures": activity.degraded})
 }
 
 impl FakeBridge {

@@ -103,11 +103,12 @@ Start, update and end return this record, and the list returns a list of them:
 
 ```jsonc
 { "id", "activityKey", "schemaVersion": 2, "snapshot": { "revision", "values", "staleAt"?, "timestamp"? },
-  "backend", "state", "visibility": "unknown", "degradedFeatures": [...],
-  "promotionRequested", "promotionState", "relevance"? }
+  "state", "degradedFeatures": [...], "relevance"? }
 ```
 
-The record has no `template` and does not repeat the layout. `state` is `pending` (iOS 26), `active`, `stale`,
+The record has no `template`, does not repeat the layout, and carries nothing of other platforms: a cross-platform
+layer adds its own `backend` and the like at its boundary. A reader passes over members it does not know, so a record
+of 0.1, which had `backend`, `visibility`, `promotionRequested` and `promotionState`, still reads. `state` is `pending` (iOS 26), `active`, `stale`,
 `ended`, `dismissed` or `unknown`; a reader takes a state it does not know as `unknown`. `relevance` is the content's
 relevance score, absent when only a receipt knows the activity.
 

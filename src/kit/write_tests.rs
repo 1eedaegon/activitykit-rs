@@ -1,12 +1,16 @@
 //! Writes of one activity: the order of revisions and timestamps, the final content of an end, retries, and the
 //! limits of times.
 
-use super::tests::{at, kit, sketch, started};
+use super::tests::{HoldingBridge, at, kit, sketch, started};
 use super::*;
+use crate::State;
 use crate::{Value, values};
 use futures_lite::future::{block_on, poll_once, zip};
 use serde_json::json;
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
 
 const LARGEST: u64 = 8_640_000_000_000_000;
 
@@ -310,7 +314,7 @@ fn starts_from_eight_worker_threads_get_one_activity_each() {
 }
 
 // AK-UPDATE-17
-/// However long a reply takes, the next write of the activity waits for it, and then goes out.
+/// While a reply is on its way, within the call wait, the next write of the activity waits for it, and then goes out.
 #[test]
 fn a_held_reply_holds_every_later_write_until_it_comes() {
     let (kit, fake) = kit();
@@ -353,8 +357,13 @@ fn a_dropped_reply_fails_its_write_and_passes_the_turn_on() {
     let mut end = Box::pin(activity.end(End::immediately()));
     assert!(block_on(poll_once(&mut end)).is_none());
     fake.lock().hold = false;
+    let dropped = Instant::now();
     fake.drop_held();
     assert_eq!(block_on(update).unwrap_err().code(), "NATIVE_ERROR");
+    assert!(
+        dropped.elapsed() < Duration::from_secs(1),
+        "a dropped reply fails its write at once, not after the call wait"
+    );
     within(end.as_mut(), Duration::from_secs(2))
         .expect("the end goes out once the dropped reply let it")
         .unwrap();
@@ -404,4 +413,137 @@ fn an_end_without_values_after_an_older_update_carries_that_updates_values() {
     let [ended] = snapshots(&fake, Call::End).try_into().unwrap();
     assert_eq!(ended["values"], json!({"level":0.1,"tone":"gray"}));
     assert!(ended["timestamp"].as_u64().unwrap() > millis(hour_ago).unwrap());
+}
+
+// AK-BRIDGE-11
+#[test]
+fn a_write_the_bridge_never_answers_fails_after_the_call_wait_and_frees_the_turn() {
+    let holding = HoldingBridge::default();
+    let kit = ActivityKit::with_bridge_waits(
+        holding.clone(),
+        Duration::from_millis(20),
+        Duration::from_millis(200),
+    );
+    let activity =
+        block_on(kit.start(sketch(), values! { "tone" => "green", "level" => 0.2 })).unwrap();
+    holding.hold(true);
+    let error = block_on(activity.update(values! { "tone" => "red", "level" => 0.5 })).unwrap_err();
+    assert!(matches!(error, Error::Native(_)), "{error:?}");
+    assert_eq!(
+        activity.revision(),
+        Some(0),
+        "the content the kit gave up on is not the handle's"
+    );
+
+    // The turn is free: the next write goes out, at the next revision, and is answered.
+    holding.hold(false);
+    block_on(activity.update(values! { "tone" => "green", "level" => 0.9 })).unwrap();
+    assert_eq!(activity.revision(), Some(2));
+    assert_eq!(
+        activity.values(),
+        values! { "tone" => "green", "level" => 0.9 }
+    );
+
+    // The reply of the first write, come late with its content, is discarded.
+    let late = holding.held().pop().expect("the kept reply");
+    let record = json!({"ok": true, "data": {"id": activity.id(), "activityKey": activity.key(), "schemaVersion": 2,
+        "snapshot": {"revision": 1, "values": {"tone": "red", "level": 0.5}}, "state": "active", "degradedFeatures": []}});
+    late(record.to_string().into_bytes());
+    assert_eq!(activity.revision(), Some(2));
+    assert_eq!(
+        activity.values(),
+        values! { "tone" => "green", "level" => 0.9 }
+    );
+}
+
+/// A kit on a holding bridge, with a started activity, whose calls wait 200 ms.
+fn held(holding: &HoldingBridge) -> (ActivityKit, Activity) {
+    let kit = ActivityKit::with_bridge_waits(
+        holding.clone(),
+        Duration::from_millis(20),
+        Duration::from_millis(200),
+    );
+    let activity =
+        block_on(kit.start(sketch(), values! { "tone" => "green", "level" => 0.2 })).unwrap();
+    (kit, activity)
+}
+
+/// A record of `activity` as the bridge would reply it.
+fn reply_of(activity: &Activity, revision: u64, tone: &str, state: &str) -> Vec<u8> {
+    json!({"ok": true, "data": {"id": activity.id(), "activityKey": activity.key(), "schemaVersion": 2,
+        "snapshot": {"revision": revision, "values": {"tone": tone, "level": 0.8}}, "state": state,
+        "degradedFeatures": ["layout.island"]}})
+    .to_string()
+    .into_bytes()
+}
+
+// AK-BRIDGE-11
+#[test]
+fn a_reply_that_comes_after_the_wait_changes_nothing_of_the_handle() {
+    let holding = HoldingBridge::default();
+    let (_kit, activity) = held(&holding);
+    holding.hold(true);
+    assert!(block_on(activity.update(values! { "tone" => "red", "level" => 0.8 })).is_err());
+    let late = holding.held().pop().expect("the kept reply");
+    late(reply_of(&activity, 1, "red", "stale"));
+    assert_eq!(activity.revision(), Some(0));
+    assert_eq!(
+        activity.values(),
+        values! { "tone" => "green", "level" => 0.2 }
+    );
+    assert_eq!(activity.state(), State::Active);
+    assert!(activity.degraded_features().is_empty());
+}
+
+// AK-BRIDGE-11
+#[test]
+fn a_late_reply_does_not_undo_an_end() {
+    let holding = HoldingBridge::default();
+    let (_kit, activity) = held(&holding);
+    holding.hold(true);
+    assert!(block_on(activity.update(values! { "tone" => "red", "level" => 0.8 })).is_err());
+    let late = holding.held().pop().expect("the kept reply");
+    holding.hold(false);
+    block_on(activity.end(End::immediately())).unwrap();
+    assert_eq!(
+        (activity.state(), activity.revision()),
+        (State::Ended, Some(2))
+    );
+    late(reply_of(&activity, 1, "red", "active"));
+    assert_eq!(
+        (activity.state(), activity.revision()),
+        (State::Ended, Some(2))
+    );
+    assert_eq!(activity.values()["tone"], Value::Text("green".into()));
+}
+
+// AK-BRIDGE-11
+#[test]
+fn a_late_reply_does_not_free_the_turn_of_the_write_in_flight() {
+    let holding = HoldingBridge::default();
+    let (_kit, activity) = held(&holding);
+    holding.hold(true);
+    assert!(block_on(activity.update(values! { "tone" => "red", "level" => 0.8 })).is_err());
+    let late = holding.held().pop().expect("the kept reply");
+    // The end has the turn and waits for its reply; the next update waits for the end.
+    let mut end = Box::pin(activity.end(End::immediately()));
+    assert!(block_on(poll_once(&mut end)).is_none());
+    let end_reply = holding.held().pop().expect("the end went out");
+    let mut next = Box::pin(activity.update(values! { "tone" => "blue", "level" => 0.9 }));
+    assert!(block_on(poll_once(&mut next)).is_none());
+    late(reply_of(&activity, 1, "red", "active"));
+    thread::sleep(Duration::from_millis(50));
+    assert!(
+        block_on(poll_once(&mut next)).is_none(),
+        "the update still waits for the end"
+    );
+    assert!(holding.held().is_empty(), "the update was not sent");
+    end_reply(reply_of(&activity, 2, "green", "ended"));
+    within(end.as_mut(), Duration::from_secs(2))
+        .expect("the end answers")
+        .unwrap();
+    assert_eq!(activity.state(), State::Ended);
+    // Now the update goes out, and waits for its own reply.
+    assert!(block_on(poll_once(&mut next)).is_none());
+    assert_eq!(holding.held().len(), 1, "the update went out after the end");
 }

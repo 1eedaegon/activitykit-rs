@@ -30,12 +30,8 @@ public struct LayoutActivityRecord: Encodable, Sendable {
     public let activityKey: String
     public let schemaVersion: Int
     public let snapshot: LayoutSnapshot
-    public let backend = "activityKit"
     public let state: String
-    public let visibility = "unknown"
     public let degradedFeatures: [String]
-    public let promotionRequested = false
-    public let promotionState = "notApplicable"
     /// The relevance score of the content; absent when only a receipt knows the activity.
     public let relevance: Double?
     init(id: String, activityKey: String, schemaVersion: Int, snapshot: LayoutSnapshot, state: String, degradedFeatures: [String] = [],

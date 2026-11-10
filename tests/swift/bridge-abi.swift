@@ -195,7 +195,7 @@ extension LifecycleTests {
         Bridge.shared.reset()
     }
 
-    // AK-AUTH-2, AK-BRIDGE-1, AK-BRIDGE-2, AK-BRIDGE-3, AK-BRIDGE-7, AK-END-1, AK-END-4, AK-START-1, AK-START-4, AK-START-8, AK-UPDATE-1, AK-UPDATE-2, AK-UPDATE-6, AK-UPDATE-7
+    // AK-AUTH-2, AK-BRIDGE-1, AK-BRIDGE-2, AK-BRIDGE-3, AK-BRIDGE-7, AK-END-1, AK-END-4, AK-START-1, AK-START-4, AK-START-8, AK-UPDATE-1, AK-UPDATE-2, AK-UPDATE-6, AK-UPDATE-7, AK-CONTRACT-13
     @MainActor static func testBridgeLifecycle() async throws {
         let system = install()
         let request = layoutJSON(key: "rec:1", lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0)
@@ -205,7 +205,7 @@ extension LifecycleTests {
         expect(started["ok"] as? Bool == true && id.hasPrefix("la-ios-layout-") && record["activityKey"] as? String == "rec:1",
                "ak_start answers the record of the started activity")
         expect((record["snapshot"] as? [String: Any])?["revision"] as? Int == 0 && record["state"] as? String == "active"
-               && record["backend"] as? String == "activityKit", "the record carries the snapshot and the state")
+               && record["backend"] == nil, "the record carries the snapshot and the state, and no backend")
         expect(system.backend?.relevances == [50], "the start's relevance reaches the backend while it starts")
         expect(Bridge.shared.presentations.start(key: "rec:1") == nil, "the presentation is forgotten after the call")
 

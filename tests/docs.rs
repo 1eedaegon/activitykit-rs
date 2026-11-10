@@ -32,7 +32,10 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     ] {
         says(&usage, phrase, "docs/usage.md");
     }
-    let rustdoc = read("src/kit.rs");
+    // The kit's rustdoc spans its facade and the modules of the handles and the options.
+    let rustdoc = ["src/kit.rs", "src/kit/activity.rs", "src/kit/options.rs"]
+        .map(read)
+        .join(" ");
     for phrase in [
         "never ends the activity",
         "does not cancel its request",
@@ -52,7 +55,7 @@ fn the_docs_state_the_system_limits_and_behaviors() {
         "does not check the app's setup",
         "the rustdoc of src/kit.rs",
     );
-    for phrase in ["however long that takes", "first polled", "no timeout"] {
+    for phrase in ["first polled", "call wait", "discarded"] {
         says(&usage, phrase, "docs/usage.md");
         says(&rustdoc, phrase, "the rustdoc of src/kit.rs");
     }
@@ -87,9 +90,14 @@ fn no_doc_says_what_is_no_longer_true() {
         "docs/testing.md",
         "docs/not-yet-supported.md",
         "src/kit.rs",
+        "src/kit/activity.rs",
+        "src/kit/options.rs",
+        "src/kit/wire.rs",
         "src/events.rs",
     ];
     let stale = [
+        "no timeout",
+        "however long that takes",
         "within the next four hours",
         "by default when its builder was made",
         "by default when `Update::new` ran",

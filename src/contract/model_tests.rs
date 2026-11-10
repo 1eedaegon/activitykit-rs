@@ -165,9 +165,8 @@ fn requests_and_records_keep_their_wire_shape() {
     );
 
     let record = json!({"id":"la-ios-1","activityKey":"job:1","schemaVersion":2,
-        "snapshot":{"revision":1,"values":{"n":3}},"backend":"activityKit","state":"active",
-        "visibility":"unknown","degradedFeatures":["layout.island"],"promotionRequested":false,
-        "promotionState":"notApplicable","futureMember":true});
+        "snapshot":{"revision":1,"values":{"n":3}},"state":"active",
+        "degradedFeatures":["layout.island"],"futureMember":true});
     let decoded: LayoutActivityRecord = serde_json::from_value(record).unwrap();
     assert_eq!(decoded.snapshot.values["n"], Value::Number(3.0));
     assert_eq!(decoded.degraded_features, ["layout.island"]);
@@ -177,6 +176,23 @@ fn requests_and_records_keep_their_wire_shape() {
             .get("template")
             .is_none()
     );
+}
+
+// AK-CONTRACT-13
+#[test]
+fn a_record_carries_what_activitykit_knows_and_reads_past_older_members() {
+    let record = json!({"id":"la-ios-1","activityKey":"job:1","schemaVersion":2,
+        "snapshot":{"revision":1,"values":{"n":3}},"state":"active","degradedFeatures":["layout.island"],
+        "relevance":50.0});
+    let decoded: LayoutActivityRecord = serde_json::from_value(record.clone()).unwrap();
+    assert!(same(&serde_json::to_value(&decoded).unwrap(), &record));
+    // What 0.1 wrote for other platforms is passed over, as any unknown member.
+    let older = json!({"id":"la-ios-1","activityKey":"job:1","schemaVersion":2,
+        "snapshot":{"revision":1,"values":{"n":3}},"backend":"activityKit","state":"active",
+        "visibility":"unknown","degradedFeatures":["layout.island"],"promotionRequested":false,
+        "promotionState":"notApplicable","relevance":50.0});
+    let decoded: LayoutActivityRecord = serde_json::from_value(older).unwrap();
+    assert!(same(&serde_json::to_value(&decoded).unwrap(), &record));
 }
 
 // AK-CONTRACT-5

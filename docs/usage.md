@@ -132,11 +132,14 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
   for the same activity, share one count. If the activity already shows a newer revision, the update reads it and tries
   again only when its own content is the newer one; otherwise it answers `Error::StaleRevision`.
 - Updates and ends of one activity go out one at a time, in the order their futures are first polled (a future does
-  nothing until polled): a write waits for the answer of the one before it, however long that takes, and the handle
-  takes that answer even when nobody awaits it. There is no timeout. The Swift layer runs the calls of all activities
-  one at a time as well, so an end would wait there for a hung ActivityKit call anyway, and a write that overtook one
-  still in flight could end the activity with older values. A write that fails keeps its revision taken, so the next
-  one skips it; no revision is sent twice.
+  nothing until polled): a write waits for the answer of the one before it, and the handle takes that answer even when
+  nobody awaits it. The Swift layer runs the calls of all activities one at a time as well, so a write that overtook
+  one still in flight could end the activity with older values. Every call has the kit's call wait of 10 seconds: a
+  call the Swift layer never answers fails with `Error::Native` then, a reply that comes later is discarded, and a
+  write that waited in vain lets the next one go. A start that timed out may still have happened: `Event::Started`
+  reports it, and a start with `Start::key` can be repeated safely. An `End` without values after a timed-out update
+  ends with the values before that update. A write that fails keeps its revision taken, so the next one skips it; no
+  revision is sent twice.
 - `Update::revision(n)` and `End::revision(n)` send the revision you choose instead of the next one, and are not
   retried. The Swift layer takes a higher revision than the accepted one, answers the accepted one with the same
   values and stale date (whatever the timestamp) as done, and refuses a lower one with `Error::StaleRevision` and the
