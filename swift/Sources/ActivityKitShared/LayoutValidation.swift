@@ -37,6 +37,19 @@ enum LayoutRules {
     }
     /// A value key or a style token.
     static func isName(_ text: String) -> Bool { matches(text, most: 32, first: isLetter) { isWord($0) || $0 == 0x5f } }
+    /// Base64 text as APNs writes a channel id: the alphabet, up to two `=` at the end, a length that is a multiple of
+    /// four, at most 1024 bytes.
+    static func isChannelId(_ id: String) -> Bool {
+        let bytes = Array(id.utf8)
+        let body = bytes.prefix { $0 != UInt8(ascii: "=") }
+        let padding = bytes.count - body.count
+        let alphabet: (UInt8) -> Bool = {
+            ($0 >= 48 && $0 <= 57) || ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) || $0 == 43 || $0 == 47 || $0 == 45 || $0 == 95
+        }
+        return !body.isEmpty && padding <= 2 && bytes.count % 4 == 0 && bytes.count <= 1024 && body.allSatisfy(alphabet)
+            && bytes.suffix(padding).allSatisfy { $0 == UInt8(ascii: "=") }
+    }
+
     static func isActivityKey(_ text: String) -> Bool { matches(text, most: 128, first: isWord) { isWord($0) || [0x2e, 0x5f, 0x3a, 0x2d].contains($0) } }
     static func isActionID(_ text: String) -> Bool { matches(text, most: 64, first: isWord) { isWord($0) || [0x2e, 0x5f, 0x3a, 0x2d].contains($0) } }
     /// An asset name, an image file name or the name of a custom view.
@@ -109,6 +122,7 @@ extension LayoutRequest {
         guard schemaVersion == 2, ["none", "notification"].contains(fallback), LayoutRules.isActivityKey(activityKey) else {
             throw LayoutRules.request
         }
+        if case .channel(let id)? = push, !LayoutRules.isChannelId(id) { throw LayoutRules.request }
         try snapshot.validateShape()
         try document.validate()
         try document.validateReferences(snapshot.values)

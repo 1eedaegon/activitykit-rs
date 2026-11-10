@@ -211,6 +211,9 @@ impl Error {
                 },
                 _ => Self::native(),
             },
+            // The Swift layer's own words, which name ActivityKit's case; an empty message, or a code this version
+            // does not know, gets the kit's.
+            "NATIVE_ERROR" if !message.trim().is_empty() => Self::Native(message),
             _ => Self::native(),
         }
     }

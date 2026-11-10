@@ -7,8 +7,9 @@ use super::{
 use crate::{
     Error, Event, Result, State,
     bridge::{self, Call},
-    contract::LayoutActivityRecord,
+    contract::{LayoutActivityRecord, LayoutSnapshot},
     image::ImageFolder,
+    push::PushToken,
 };
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{
@@ -123,14 +124,14 @@ impl Inner {
         Ok(records.iter().map(|record| self.adopt(record)).collect())
     }
 
-    /// The handle of the activity `id` that is alive in this process.
+    /// The handle of the activity `id` that this process knows: one it started, listed or heard of.
     pub(super) fn alive(self: &Arc<Self>, id: &str) -> Option<Activity> {
         let shared = self
             .activities
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(id)
-            .and_then(Weak::upgrade)?;
+            .get(id)?
+            .clone();
         Some(Activity {
             inner: self.clone(),
             shared,
@@ -143,15 +144,16 @@ impl Inner {
             .activities
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        if let Some(shared) = activities.get(id).and_then(Weak::upgrade) {
+        if let Some(shared) = activities.get(id) {
             return Activity {
                 inner: self.clone(),
-                shared,
+                shared: shared.clone(),
             };
         }
-        activities.retain(|_, shared| shared.strong_count() > 0);
+        // A dismissed activity that no handle holds is forgotten once another one comes.
+        activities.retain(|_, shared| Arc::strong_count(shared) > 1 || !shared.is_dismissed());
         let shared = Arc::new(Shared::new(id, key));
-        activities.insert(id.to_owned(), Arc::downgrade(&shared));
+        activities.insert(id.to_owned(), shared.clone());
         Activity {
             inner: self.clone(),
             shared,
@@ -210,6 +212,34 @@ impl Inner {
             WireEvent::Authorization { authorization } => {
                 self.hub.publish(Event::Authorization(authorization))
             }
+            WireEvent::PushToken {
+                activity_id,
+                activity_key,
+                token,
+            } => {
+                let Some(token) = PushToken::from_hex(&token) else {
+                    return;
+                };
+                let activity = self.handle(&activity_id, Some(&activity_key));
+                self.hub.publish(Event::PushToken { activity, token });
+            }
+            WireEvent::PushToStartToken { token } => {
+                let Some(token) = PushToken::from_hex(&token) else {
+                    return;
+                };
+                self.hub.publish(Event::PushToStartToken { token });
+            }
+            WireEvent::Content {
+                activity_id,
+                activity_key,
+                snapshot,
+                relevance,
+            } => {
+                let activity = self.handle(&activity_id, Some(&activity_key));
+                if activity.shared.accept(&snapshot, relevance) {
+                    self.hub.publish(Event::Updated { activity });
+                }
+            }
         }
     }
 }
@@ -238,5 +268,24 @@ enum WireEvent {
     },
     Authorization {
         authorization: Authorization,
+    },
+    #[serde(rename_all = "camelCase")]
+    PushToken {
+        activity_id: String,
+        activity_key: String,
+        token: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    PushToStartToken {
+        token: String,
+    },
+    /// Content ActivityKit shows, from a push or from the app's own update reported back.
+    #[serde(rename_all = "camelCase")]
+    Content {
+        activity_id: String,
+        activity_key: String,
+        snapshot: LayoutSnapshot,
+        #[serde(default)]
+        relevance: Option<f64>,
     },
 }

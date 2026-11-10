@@ -38,7 +38,9 @@ sh tests/ci/run.sh              # which changed paths start which CI job
     end with final values; every node type drawn with its button; a start from the background, which ActivityKit
     refuses (`NotForeground`); `activities()` after a relaunch, whose handle continues the revision, and the same
     keyed start returning the running activity before and after it; redacted receipts that keep no values, and the
-    values ActivityKit shows after a relaunch.
+    values ActivityKit shows after a relaunch; a start that asks for a push token, which ActivityKit refuses without
+    the capability, and an update that does not come back as `Event::Updated`; a tap on the Lock Screen while the app is
+    not running, which launches it, reaches Rust and is acknowledged after the handler.
   - `PolicyTests`, which runs last because it leaves ended activities on the Lock Screen: the reply of a dropped update
     reaching the handle, an end with the system's default keeping its score and its place, an end's relevance, a
     dismissal at a time eight seconds ahead and at once for a past time.

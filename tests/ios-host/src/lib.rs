@@ -5,7 +5,8 @@
 //! `FAIL <scenario>: <reason>`.
 
 use activitykit::{
-    Activity, ActivityKit, Bound, End, Error, Event, Layout, Receipts, State, Style, Update, Value,
+    Activity, ActivityKit, Bound, End, Error, Event, Layout, Push, Receipts, Start, State, Style,
+    Update, Value,
     layout::{
         ButtonStyle, Font, Frame, ImageSource, IndicatorKind, button, custom, divider, gauge,
         hstack, image, path, progress, spacer, symbol, text, timer, vstack, zstack,
@@ -81,9 +82,14 @@ pub extern "C" fn ak_host_run(report: Report) {
         .unwrap_or_default();
     thread::spawn(move || {
         let reporter = Reporter(report);
+        // A launch by the system for a tap has no scenario: the start of the cold-tap scenario left its mark.
+        let scenario = if scenario.is_empty() && cold_tap_pending() {
+            "cold-tap".to_owned()
+        } else {
+            scenario
+        };
         if scenario.is_empty() {
-            reporter
-                .say("idle: launch with -scenario lockscreen, relaunch-start or relaunch-check");
+            reporter.say("idle: launch with -scenario lockscreen, relaunch-start, relaunch-check, push-start or cold-tap-start");
             return;
         }
         let outcome = match scenario.as_str() {
@@ -95,6 +101,9 @@ pub extern "C" fn ak_host_run(report: Report) {
             "policies" => policies(&reporter),
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
+            "push-start" => push_start(&reporter),
+            "cold-tap-start" => cold_tap_start(&reporter),
+            "cold-tap" => cold_tap(&reporter),
             other => Err(format!("no scenario {other}")),
         };
         match outcome {
@@ -349,6 +358,156 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     });
     check(gone.is_some(), "ActivityKit reports the activity dismissed")?;
     reporter.say("state dismissed");
+    Ok(())
+}
+
+/// The mark the start of the cold-tap scenario leaves for the launch the tap causes.
+fn cold_tap_mark() -> Option<std::path::PathBuf> {
+    std::env::var_os("HOME")
+        .map(|home| std::path::Path::new(&home).join("Documents/activitykit-host-cold-tap"))
+}
+
+fn cold_tap_pending() -> bool {
+    cold_tap_mark().is_some_and(|mark| mark.exists())
+}
+
+// AK-PUSH-1, AK-PUSH-6
+/// Without the Push Notifications capability and APNs (the simulator) ActivityKit refuses a start that asks for a
+/// push token with a permissions error: the start fails with `ConfigurationRequired` and leaves no activity. The app's
+/// own update of a plain activity does not come back as `Event::Updated`.
+fn push_start(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let events = kit.events();
+    let asked = Instant::now();
+    let token = Start::new(
+        layout(),
+        values! { "status" => "Pushing", "tone" => "green", "level" => 0.3 },
+    )
+    .key("host:push:token")
+    .push(Push::Token);
+    let refused = block_on(kit.start_with(token));
+    let waited = asked.elapsed();
+    reporter.say(format!(
+        "a start with Push::Token answered {refused:?} after {waited:?}"
+    ));
+    check(
+        matches!(refused, Err(Error::ConfigurationRequired(_))),
+        "without the capability and APNs a start with Push::Token fails with ConfigurationRequired",
+    )?;
+    let _ = waited;
+    let left: Vec<_> = block_on(kit.activities())
+        .map_err(|error| format!("activities: {error}"))?
+        .into_iter()
+        .filter(|activity| activity.key() == "host:push:token")
+        .collect();
+    for activity in &left {
+        let _ = block_on(activity.end(End::immediately()));
+    }
+    check(
+        left.is_empty(),
+        format!(
+            "ActivityKit started {} activities for the request it never answered",
+            left.len()
+        ),
+    )?;
+    let plain = Start::new(
+        layout(),
+        values! { "status" => "Pushing", "tone" => "green", "level" => 0.3 },
+    )
+    .key("host:push");
+    let activity = block_on(kit.start_with(plain)).map_err(|error| format!("start: {error}"))?;
+    reporter.say(format!("started {} without a push", activity.id()));
+    block_on(activity.update(values! { "status" => "Updated", "tone" => "red", "level" => 0.6 }))
+        .map_err(|error| format!("update: {error}"))?;
+    // ActivityKit reports the app's own content back (`contentUpdates`); the handle, which sent it, says nothing.
+    let repeated = next_event(&events, Duration::from_secs(3), |event| match event {
+        Event::Updated {
+            activity: changed, ..
+        } if changed == activity => Some(()),
+        _ => None,
+    });
+    check(
+        repeated.is_none(),
+        "the app's own update came back as Event::Updated",
+    )?;
+    check(
+        activity.revision() == Some(1)
+            && activity.values().get("status") == Some(&Value::from("Updated")),
+        "the handle holds the app's content",
+    )?;
+    block_on(activity.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
+    reporter.say("the update came back from ActivityKit and was not reported again");
+    Ok(())
+}
+
+// AK-EVENT-15
+/// Starts an activity with a button and leaves its mark; the UI test then kills the app and taps the button.
+fn cold_tap_start(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let start = Start::new(
+        layout(),
+        values! { "status" => "Waiting", "tone" => "green", "level" => 0.2 },
+    )
+    .key("host:cold-tap");
+    let activity = block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    let mark = cold_tap_mark().ok_or("no HOME")?;
+    std::fs::write(&mark, activity.id()).map_err(|error| format!("mark: {error}"))?;
+    reporter.say(format!(
+        "running {}: terminate the app, then tap Stop",
+        activity.id()
+    ));
+    Ok(())
+}
+
+/// The launch the tap caused: the kit is made at once, the tap arrives, the handler updates the activity and the
+/// intent is acknowledged after it.
+// AK-EVENT-15
+fn cold_tap(reporter: &Reporter) -> Outcome {
+    let launched = Instant::now();
+    if let Some(mark) = cold_tap_mark() {
+        let _ = std::fs::remove_file(mark);
+    }
+    let kit = ActivityKit::new();
+    let events = kit.events();
+    reporter.say("launched without a scenario: waiting for the tap");
+    let tapped = next_event(&events, Duration::from_secs(20), |event| match event {
+        Event::Action {
+            activity,
+            action,
+            acknowledgement,
+            ..
+        } => Some((activity, action, acknowledgement)),
+        _ => None,
+    });
+    let (activity, action, acknowledgement) = tapped.ok_or("no tap within 20 s of the launch")?;
+    let after = launched.elapsed();
+    reporter.say(format!(
+        "action {action} from {} {after:?} after the launch",
+        activity.id()
+    ));
+    check(action == "stop", format!("the action is {action}"))?;
+    check(
+        activity.key() == "host:cold-tap",
+        format!("the tap names the activity {}", activity.id()),
+    )?;
+    block_on(activity.update(values! { "status" => "Launched", "tone" => "gray", "level" => 1.0 }))
+        .map_err(|error| format!("update in the handler: {error}"))?;
+    thread::sleep(Duration::from_millis(500));
+    let handled = Instant::now();
+    drop(acknowledgement);
+    let acknowledged = wait_until(Duration::from_secs(5), || {
+        *TAP_ACKNOWLEDGED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    })
+    .ok_or("the intent of the tap was never acknowledged")?;
+    check(
+        acknowledged >= handled,
+        "the intent was acknowledged before the handler was done",
+    )?;
+    reporter.say(
+        "the handler updated the activity to Launched and the intent was acknowledged after it",
+    );
     Ok(())
 }
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0
+
+- Pushes. `Start::push(Push::Token)` asks ActivityKit for a push token, which arrives as `Event::PushToken` with the
+  handle; `Push::Channel(ChannelId)` subscribes the activity to a broadcast channel (iOS 18, `UnsupportedFeature`
+  before). `ActivityKit::builder().push_to_start(true)` watches the app's push-to-start token (iOS 17.2), reported as
+  `Event::PushToStartToken`. Content a push delivers reaches the handle and arrives as `Event::Updated` when its
+  revision is above every revision the process sent or accepted; the app's own updates, which ActivityKit reports
+  the same way, do not arrive as `Event::Updated`. The kit keeps what it learned of an activity until it is
+  dismissed, handle or no handle. Without the Push Notifications capability and APNs, as in the simulator, a start that asks
+  for a token fails with `Error::ConfigurationRequired`.
+  `Authorization` gains `frequent_pushes`. `activitykit::push::Payload` builds the start, update and end payloads a
+  server sends, checked like the calls they stand for, with `push::topic` and the header constants; the crate sends
+  nothing.
+- A tap that launches the app from not running is covered by the simulator suite: the app must make its kit within
+  the intent's 5 s.
+- The start request may carry `"push"` (`"token"` or `{"channel": "<id>"}`), `ak_configure` takes `pushToStart`, the
+  authorization reply carries `frequentPushes`, and the bridge reports `pushToken`, `pushToStartToken` and `content`
+  events. A 0.2 Swift layer and a 0.3 crate do not mix; they ship together.
+
 ## 0.2.0
 
 - Breaking: a record carries what ActivityKit knows and nothing of other platforms. `contract::LayoutActivityRecord`

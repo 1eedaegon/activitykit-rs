@@ -290,6 +290,11 @@ impl Shared {
         self.known().state = state;
     }
 
+    /// Whether the system has taken the activity off the screen, as far as this process heard.
+    pub(super) fn is_dismissed(&self) -> bool {
+        self.known().state == State::Dismissed
+    }
+
     /// Waits for this activity's turn to write. The channel never closes: `turns` holds both ends.
     async fn turn(&self) -> Turn {
         let _ = self.turns.1.recv().await;
@@ -311,5 +316,21 @@ impl Shared {
         }
         known.state = record.state;
         known.degraded = record.degraded_features.clone();
+    }
+
+    /// Takes content a push delivered, when its revision is above every revision sent or accepted, and says whether
+    /// it did: content at or below them is the app's own, reported back, or old.
+    pub(super) fn accept(&self, snapshot: &LayoutSnapshot, relevance: Option<f64>) -> bool {
+        let mut known = self.known();
+        if known.reserved.is_some_and(|sent| snapshot.revision <= sent) {
+            return false;
+        }
+        known.reserved = Some(snapshot.revision);
+        known.revision = Some(snapshot.revision);
+        known.values = snapshot.values.clone();
+        known.timestamp = snapshot.timestamp;
+        known.stale_at = snapshot.stale_at;
+        known.relevance = relevance.or(known.relevance);
+        true
     }
 }

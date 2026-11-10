@@ -57,7 +57,8 @@ values is `CONFLICT`.
   "layout": { "lockScreen": { "type": "text", "bind": "title", "style": "title" } },   // required
   "styles": { "title": { "font": "headline" } },                                       // optional; 1 to 24 styles
   "snapshot": { "revision": 0, "values": { "title": "Focus" }, "staleAt": 1790000000000, "timestamp": 1789999400000 },
-  "android": { "visibility": "private" }      // optional; "public", "private" or "secret"
+  "android": { "visibility": "private" },     // optional; "public", "private" or "secret"
+  "push": "token"                             // optional; "token", or { "channel": "<base64 id>" } (iOS 18)
 }
 
 // update_layout
@@ -69,6 +70,8 @@ values is `CONFLICT`.
 
 `activityKey`, `id`, `revision`, `staleAt`, `timestamp`, `fallback` and `policy` follow the common rules above.
 `staleAt` and `timestamp` are optional in every snapshot. `android`, when present, must carry `visibility`; iOS ignores it.
+`push`, when present, is `"token"` or `{"channel": "<id>"}` with a base64 id: what the activity asks ActivityKit for, so
+that a server can reach it. The push payloads themselves are described in [usage.md](usage.md#pushes).
 
 An `id` is 1 to 256 code points and holds at least one character that is not whitespace.
 Whitespace here is the ECMAScript set: U+0009 to U+000D, U+0020, U+00A0, U+1680, U+2000 to

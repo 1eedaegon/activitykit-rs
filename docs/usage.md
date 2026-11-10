@@ -223,6 +223,68 @@ the app has taken that tap, which then arrives late, when nothing may keep the a
 lists comes with a handle whose `key()` is empty and whose update answers `Error::NotFound`. A tap does not change the
 activity; update it if the button should change.
 
+## Pushes
+
+A server can update an activity, end it, or start one, through APNs. The crate asks ActivityKit for what the
+server needs, reports it, and builds the payloads; it holds no key and sends nothing.
+
+```rust
+use activitykit::{Push, Start, Event};
+
+// A token of the activity's own (iOS 16.2): the server sends to /3/device/<token>.
+let activity = kit.start_with(Start::new(layout.clone(), values.clone()).push(Push::Token)).await?;
+// Or a broadcast channel the server made at APNs (iOS 18; UnsupportedFeature before).
+let channel = activitykit::ChannelId::new("dHN0LXNyY2gtY2hubA==")?;
+let shared = kit.start_with(Start::new(layout, values).push(Push::Channel(channel))).await?;
+
+while let Ok(event) = events.recv().await {
+    match event {
+        Event::PushToken { activity, token, .. } => { /* send `token` (lowercase hex `Display`) to the server */ }
+        Event::PushToStartToken { token, .. } => { /* the app's token for starts, with `push_to_start(true)` */ }
+        Event::Updated { activity, .. } => { /* a push changed the content: `activity.values()` has it */ }
+        _ => {}
+    }
+}
+```
+
+The token is not in the start's reply: ActivityKit makes it later, and may change it, and each one comes as
+`Event::PushToken`. Push-to-start (iOS 17.2) needs
+`ActivityKit::builder().push_to_start(true).build()`, a setting that holds for the process like the receipts; an
+activity a push starts arrives as `Event::Started`, with its handle and the key the payload gave it, and a keyed
+start of the app under that key answers `Error::Conflict`. Content a push delivers reaches the handle and
+`Event::Updated` reports it, when its revision is above every revision the process sent or accepted for the
+activity; the app's own updates, which ActivityKit reports the same way, do not arrive as `Event::Updated`. The kit
+keeps what it learned of an activity while the process runs, handle or no handle, until the activity is dismissed;
+what ActivityKit already showed when the kit began watching an activity is not reported, the list gives it. A
+server should number its pushes above the app's revisions, which the app can tell it with `activity.revision()`. A
+start that asks for a token needs the Push Notifications capability and APNs; without them ActivityKit refuses it,
+and the start fails with `Error::ConfigurationRequired`, as it does in the simulator. `Authorization::frequent_pushes` says whether the person allows
+frequent pushes, with `NSSupportsLiveActivitiesFrequentUpdates` in the app's Info.plist.
+
+The payloads, from `activitykit::push`, on the server:
+
+```rust
+use activitykit::{Alert, push::{Payload, PRIORITY_NOW, PUSH_TYPE, topic}};
+
+let update = Payload::update(values! { "status" => "Louder", "level" => 0.8 })
+    .revision(3)                          // required: the revision the server sends next
+    .alert(Alert::new("Louder", "The level rose"))
+    .to_json()?;                          // {"aps": {"timestamp": …, "event": "update", "content-state": {…}, …}}
+let end = Payload::end().dismiss_at(SystemTime::now() + Duration::from_secs(600)).to_json()?;
+let start = Payload::start("la-ios-layout-s1", "job:1", layout, values! { "status" => "Started" })
+    .alert(Alert::new("Started", "Tap to look"))    // required: the system shows the started activity with it
+    .input_push_token()                            // iOS 18: the started activity gets a token of its own
+    .to_json()?;
+// Headers: apns-push-type: PUSH_TYPE, apns-topic: topic("dev.example.app"), apns-priority: PRIORITY_NOW
+```
+
+`to_json` checks a payload as the kit checks the call it stands for, and what APNs would refuse (more than 4096
+bytes is `PayloadTooLarge`), so a bad one fails before APNs sees it. The `timestamp` of `aps` is the time of sending,
+in seconds, by which the system orders pushes; the content's own `timestamp` and `staleAt` are in milliseconds, as in
+every snapshot. A pushed alert plays no sound. A start payload carries the attributes the widget reads (`attributes-type`
+`LiveActivityLayoutAttributes`): the id the handle will show, the key, the layout and the styles, and a fingerprint
+of the server's own.
+
 ## Threads and executors
 
 The async methods are plain futures; drive them with any executor. The Swift side runs each request on the main

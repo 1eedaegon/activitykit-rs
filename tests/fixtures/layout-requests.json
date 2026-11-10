@@ -1302,6 +1302,18 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" }, "timestamp": 0 } },
       "weight": 130
+    },
+    {
+      "name": "starts a layout that asks for a push token",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Hello" } }, "snapshot": { "revision": 0, "values": {} }, "push": "token" },
+      "weight": 52
+    },
+    {
+      "name": "starts a layout that subscribes a broadcast channel",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Hello" } }, "snapshot": { "revision": 0, "values": {} }, "push": { "channel": "dHN0LXNyY2gtY2hubA==" } },
+      "weight": 52
     }
   ],
   "invalid": [
@@ -6379,6 +6391,36 @@
       "name": "rejects a start timestamp above 8640000000000000",
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "bind": "status", "style": "s" } }, "styles": { "s": { "color": { "bind": "tone" } } }, "snapshot": { "revision": 0, "values": { "status": "On time", "tone": "green" }, "timestamp": 8640000000000001 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a push that is neither token nor a channel",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Hello" } }, "snapshot": { "revision": 0, "values": {} }, "push": "later" },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a push that is no text and no object",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Hello" } }, "snapshot": { "revision": 0, "values": {} }, "push": 1 },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a channel object with another member",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Hello" } }, "snapshot": { "revision": 0, "values": {} }, "push": { "channel": "dHN0LXNyY2gtY2hubA==", "more": 1 } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a channel that is no base64",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Hello" } }, "snapshot": { "revision": 0, "values": {} }, "push": { "channel": "not base64!" } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a channel of a length no base64 has",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Hello" } }, "snapshot": { "revision": 0, "values": {} }, "push": { "channel": "abc" } },
       "code": "INVALID_INPUT"
     }
   ],

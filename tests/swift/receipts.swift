@@ -29,6 +29,39 @@ extension LifecycleTests {
         try await testRedactedEndAfterRestart()
         try await testGuessableRedaction()
         try await testReceiptFileRules()
+        try await testPushedContentOutranksAnOlderReceipt()
+    }
+
+    // AK-PUSH-7
+    /// The list gives the content with the higher revision: a push's over an older receipt's, a receipt's over what
+    /// ActivityKit still shows of an older revision; in either receipt mode.
+    @MainActor private static func testPushedContentOutranksAnOlderReceipt() async throws {
+        let folder = try receiptFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for mode in ["full", "redacted"] {
+            let system = install()
+            system.receipts = folder.appendingPathComponent("\(mode).json")
+            _ = configure(#"{"receipts":"\#(mode)"}"#)
+            let request = layoutJSON(key: "push:\(mode)", lockScreen: meterLayout, values: #"{"title":"Mine","progress":0.1}"#, revision: 0)
+            let started = data(await call(C.start, #"{"request":\#(request)}"#))
+            let id = started["id"] as? String ?? ""
+            _ = await call(C.update, #"{"request":{"id":"\#(id)","snapshot":{"revision":1,"values":{"title":"Mine again","progress":0.2}}}}"#)
+            let pushed = LayoutSnapshot(revision: 5, values: ["title": .string("Pushed"), "progress": .number(0.9)])
+            system.backend?.base.activities = system.backend?.base.activities.map {
+                LayoutActivity(id: $0.id, attributes: $0.attributes, snapshot: pushed, state: "active")
+            } ?? []
+            var records = (await list())["data"] as? [[String: Any]] ?? []
+            var shown = records.first { $0["id"] as? String == id }?["snapshot"] as? [String: Any]
+            expect(shown?["revision"] as? Int == 5 && (shown?["values"] as? [String: Any])?["title"] as? String == "Pushed",
+                   "\(mode): the pushed content, above the receipt's revision 1, is what the list gives")
+            let older = LayoutSnapshot(revision: 0, values: ["title": .string("Mine"), "progress": .number(0.1)])
+            system.backend?.base.activities = system.backend?.base.activities.map {
+                LayoutActivity(id: $0.id, attributes: $0.attributes, snapshot: older, state: "active")
+            } ?? []
+            records = (await list())["data"] as? [[String: Any]] ?? []
+            shown = records.first { $0["id"] as? String == id }?["snapshot"] as? [String: Any]
+            expect(shown?["revision"] as? Int == 1, "\(mode): below the receipt's revision the receipt's wins")
+        }
     }
 
     /// The limit `ReceiptMode` documents: a redacted file holds no text, but a snapshot made only of guessable values is

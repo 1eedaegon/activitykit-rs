@@ -15,6 +15,7 @@ mod model_tests;
 mod rule_tests;
 
 pub use crate::layout::{Island, IslandExpanded};
+pub(crate) use validation::valid_handle;
 pub use validation::{Validate, validate_request};
 pub use weight::weight;
 
@@ -108,6 +109,56 @@ pub struct LayoutStartInput {
     pub snapshot: LayoutSnapshot,
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub android: Option<AndroidOptions>,
+    /// What the activity asks ActivityKit for: `"token"`, or `{"channel": "<id>"}` (iOS 18).
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub push: Option<PushWire>,
+}
+
+/// What a start asks for: a push token of the activity's own, or a broadcast channel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PushWire {
+    Token,
+    Channel(String),
+}
+
+impl Serialize for PushWire {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        match self {
+            Self::Token => serializer.serialize_str("token"),
+            Self::Channel(id) => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("channel", id)?;
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for PushWire {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct ChannelWire {
+            channel: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Name(String),
+            Channel(ChannelWire),
+        }
+        match Wire::deserialize(deserializer)? {
+            Wire::Name(name) if name == "token" => Ok(Self::Token),
+            Wire::Name(name) => Err(serde::de::Error::custom(format!("unknown push {name:?}"))),
+            Wire::Channel(ChannelWire { channel }) => Ok(Self::Channel(channel)),
+        }
+    }
 }
 
 /// The request `update_layout`: every value again, with a higher revision.

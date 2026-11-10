@@ -1,5 +1,6 @@
 //! Events from the Swift layer, fanned out to every subscriber of [`ActivityKit::events`](crate::ActivityKit::events).
 
+use crate::push::PushToken;
 use crate::{Activity, Authorization, State};
 use async_channel::{Receiver, Sender};
 use std::{
@@ -55,8 +56,22 @@ pub enum Event {
     /// replayed; [`ActivityKit::activities`](crate::ActivityKit::activities) gives the current state.
     #[non_exhaustive]
     State { activity: Activity, state: State },
-    /// Live Activities of this app were turned on or off in Settings; this is the whole authorization after the change.
+    /// Live Activities of this app were turned on or off in Settings, or frequent pushes were; this is the whole
+    /// authorization after the change.
     Authorization(Authorization),
+    /// ActivityKit gave `activity` a push token, or a new one ([`Start::push`](crate::Start::push)): a server reaches
+    /// the activity with it until the next one comes.
+    #[non_exhaustive]
+    PushToken {
+        activity: Activity,
+        token: PushToken,
+    },
+    /// The app's push-to-start token, new or changed ([`Builder::push_to_start`](crate::Builder::push_to_start)).
+    #[non_exhaustive]
+    PushToStartToken { token: PushToken },
+    /// A push delivered content above the revision `activity` had accepted: the handle holds it now.
+    #[non_exhaustive]
+    Updated { activity: Activity },
 }
 
 /// Says that one receiver has handled a tap. The tap's intent, and so an app that the system launched for the tap,

@@ -13,7 +13,7 @@ import ActivityKitCore
 final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
     private let observer = MainActorBox()
     private let lock = NSLock()
-    private var watcher: AuthorizationWatcher?
+    private var watchers: [AuthorizationWatcher] = []
 
     func authorization() -> AuthorizationReply {
         guard #available(iOS 16.2, *), Platform.supported else { return AuthorizationReply(supported: false, enabled: false, buttons: false) }
@@ -23,8 +23,13 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
     private static func reply(enabled: Bool) -> AuthorizationReply {
         var buttons = false
         if #available(iOS 17.0, *) { buttons = true }
-        return AuthorizationReply(supported: true, enabled: enabled, buttons: buttons)
+        var frequentPushes = false
+        if #available(iOS 16.2, *) { frequentPushes = ActivityAuthorizationInfo().frequentPushesEnabled }
+        return AuthorizationReply(supported: true, enabled: enabled, buttons: buttons, frequentPushes: frequentPushes)
     }
+
+    /// The token as APNs takes it: lowercase hex.
+    static func hex(_ token: Data) -> String { token.map { String(format: "%02x", $0) }.joined() }
 
     func imageFolder() throws -> URL {
         guard Platform.supported else { throw Bridge.unsupported }
@@ -47,11 +52,40 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
 
     func observe(_ events: EventSink) {
         guard #available(iOS 16.2, *), Platform.supported else { return }
-        let watcher = AuthorizationWatcher(source: EnablementSource(), read: { Self.reply(enabled: $0) },
-                                           emit: { events.emit(.authorization($0)) })
-        lock.lock(); self.watcher = watcher; lock.unlock()
-        watcher.start()
+        let enablement = AuthorizationWatcher(source: EnablementSource(), read: { Self.reply(enabled: $0) },
+                                              emit: { events.emit(.authorization($0)) })
+        // A change of the frequent-pushes setting is the whole authorization again, read fresh.
+        let frequency = AuthorizationWatcher(source: FrequentPushesSource(),
+                                             read: { _ in Self.reply(enabled: ActivityAuthorizationInfo().areActivitiesEnabled) },
+                                             emit: { events.emit(.authorization($0)) })
+        lock.lock(); watchers = [enablement, frequency]; lock.unlock()
+        enablement.start()
+        frequency.start()
         Task { @MainActor in self.observer.value.start(events) }
+    }
+
+    func watchPushToStart() {
+        guard #available(iOS 16.2, *), Platform.supported else { return }
+        Task { @MainActor in self.observer.value.watchPushToStart() }
+    }
+}
+
+/// ActivityKit's changes of the frequent-pushes setting (iOS 16.2).
+@available(iOS 16.2, *)
+private final class FrequentPushesSource: AuthorizationSource, @unchecked Sendable {
+    private let info: ActivityAuthorizationInfo
+    let updates: AsyncStream<Bool>
+
+    init() {
+        let info = ActivityAuthorizationInfo()
+        self.info = info
+        updates = AsyncStream { continuation in
+            let task = Task {
+                for await enabled in info.frequentPushEnablementUpdates { continuation.yield(enabled) }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 }
 
@@ -90,10 +124,13 @@ private final class MainActorBox: @unchecked Sendable {
 final class ActivityObserver {
     private var events: EventSink?
     private var watched = Set<String>()
+    private var pushToStartWanted = false
+    private var watchingPushToStart = false
 
     func start(_ events: EventSink) {
         guard self.events == nil, #available(iOS 16.2, *) else { return }
         self.events = events
+        if pushToStartWanted { watchPushToStart() }
         // Those that run already are no news; those that appear later, started by the app, a push or the system, are.
         for activity in Activity<LiveActivityLayoutAttributes>.activities { watch(activity, announce: false) }
         Task {
@@ -110,6 +147,34 @@ final class ActivityObserver {
         Task {
             for await state in activity.activityStateUpdates {
                 events.emit(.state(activityId: id, activityKey: key, state: ActivityKitAdapter<LiveActivityLayoutAttributes>.name(state)))
+            }
+        }
+        // The token comes only to an activity that asked for one; content comes for every update, the app's own included.
+        // Both loops run off the main actor: a sequence that waits must not hold the actor the calls answer on.
+        Task.detached {
+            for await token in activity.pushTokenUpdates {
+                events.emit(.pushToken(activityId: id, activityKey: key, token: ActivityKitSystem.hex(token)))
+            }
+        }
+        // The content shown when the watch begins is not news: the list gives it. Only content above it is reported.
+        let shown = activity.content.state.revision
+        Task.detached {
+            var reported = shown
+            for await content in activity.contentUpdates where content.state.revision > reported {
+                reported = content.state.revision
+                events.emit(.content(activityId: id, activityKey: key, snapshot: content.state, relevance: content.relevanceScore))
+            }
+        }
+    }
+
+    /// Reports the app's push-to-start token, new or changed, from now on; once, and once the events are known.
+    func watchPushToStart() {
+        pushToStartWanted = true
+        guard let events, !watchingPushToStart, #available(iOS 17.2, *) else { return }
+        watchingPushToStart = true
+        Task.detached {
+            for await token in Activity<LiveActivityLayoutAttributes>.pushToStartTokenUpdates {
+                events.emit(.pushToStartToken(token: ActivityKitSystem.hex(token)))
             }
         }
     }

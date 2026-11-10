@@ -69,6 +69,7 @@ final class PresentingBackend: LayoutActivityBackend {
     let base = FakeLayoutBackend()
     let presentations: Presentations
     var relevances: [Double?] = []
+    var pushes: [LayoutPush?] = []
     var alerts: [AlertText?] = []
     /// The relevance each end saw, and its final snapshot.
     var ends: [(relevance: Double?, snapshot: LayoutSnapshot)] = []
@@ -77,7 +78,9 @@ final class PresentingBackend: LayoutActivityBackend {
     func preflightLayoutWidget() throws { try base.preflightLayoutWidget() }
     func list() async -> [LayoutActivity] { await base.list() }
     func start(_ attributes: LiveActivityLayoutAttributes, snapshot: LayoutSnapshot) async throws -> LayoutActivity {
-        relevances.append(presentations.start(key: attributes.activityKey))
+        let presentation = presentations.start(key: attributes.activityKey)
+        relevances.append(presentation?.relevance)
+        pushes.append(presentation?.push)
         return try await base.start(attributes, snapshot: snapshot)
     }
     func update(_ activity: LayoutActivity, snapshot: LayoutSnapshot) async throws -> LayoutActivity {
@@ -101,6 +104,7 @@ final class FakeSystem: BridgeSystem, @unchecked Sendable {
     var folder: URL?
     var keys: [String: String] = [:]
     var observed: [EventSink] = []
+    var pushToStartWatched = 0
     @MainActor var backend: PresentingBackend?
     func authorization() -> AuthorizationReply { reply }
     func imageFolder() throws -> URL {
@@ -115,6 +119,7 @@ final class FakeSystem: BridgeSystem, @unchecked Sendable {
         return LayoutActivityController(backend: created, store: self.receipts.map { FileReceiptStore(url: $0, mode: receipts) })
     }
     func observe(_ events: EventSink) { observed.append(events) }
+    func watchPushToStart() { pushToStartWatched += 1 }
 }
 
 extension LifecycleTests {
@@ -327,7 +332,7 @@ extension LifecycleTests {
     // AK-AUTH-1, AK-AUTH-2, AK-BRIDGE-3, AK-IMAGE-4, AK-IMAGE-5
     @MainActor static func testBridgeAuthorizationAndImages() throws {
         let system = install()
-        expect(data(now(C.authorization)) as NSDictionary == ["supported": true, "enabled": true, "buttons": true],
+        expect(data(now(C.authorization)) as NSDictionary == ["supported": true, "enabled": true, "buttons": true, "frequentPushes": false],
                "ak_authorization reports the system")
         system.reply = AuthorizationReply(supported: true, enabled: false, buttons: false)
         expect(data(now(C.authorization))["enabled"] as? Bool == false, "turned off in Settings")
@@ -345,7 +350,7 @@ extension LifecycleTests {
         expect(code(start) == "UNSUPPORTED_PLATFORM", "no Live Activities, no start")
         expect(code(broken) == "UNSUPPORTED_PLATFORM", "the platform is checked before the request")
         expect(code(listed) == "UNSUPPORTED_PLATFORM", "no list")
-        expect(data(now(C.authorization)) as NSDictionary == ["supported": false, "enabled": false, "buttons": false],
+        expect(data(now(C.authorization)) as NSDictionary == ["supported": false, "enabled": false, "buttons": false, "frequentPushes": false],
                "an unsupported platform reports nothing enabled")
         expect(code(now(C.imageFolder)) == "UNSUPPORTED_PLATFORM", "no image folder")
         let system = UnsupportedSystem()
@@ -376,7 +381,7 @@ extension LifecycleTests {
         expect(EventLog.shared.events.count == 4, "state and authorization events reach the handler at once")
         expect(EventLog.shared.events[2] as NSDictionary == ["type": "state", "activityId": "la-ios-layout-1", "activityKey": "rec:1", "state": "dismissed"]
                && EventLog.shared.events[3] as NSDictionary == ["type": "authorization",
-                   "authorization": ["supported": true, "enabled": false, "buttons": true]], "they keep their wire shape")
+                   "authorization": ["supported": true, "enabled": false, "buttons": true, "frequentPushes": false]], "they keep their wire shape")
         system.observed[0].emit(.started(activityId: "la-ios-layout-2", activityKey: "rec:2"))
         expect(EventLog.shared.events.count == 5 && EventLog.shared.events[4] as NSDictionary
                == ["type": "started", "activityId": "la-ios-layout-2", "activityKey": "rec:2"], "a new activity is a started event")

@@ -59,12 +59,20 @@ fn the_docs_state_the_system_limits_and_behaviors() {
         says(&usage, phrase, "docs/usage.md");
         says(&rustdoc, phrase, "the rustdoc of src/kit.rs");
     }
+    // Pushes: what the kit asks for and reports, and that it sends nothing.
+    for phrase in [
+        "Push::Token",
+        "push_to_start(true)",
+        "Event::PushToken",
+        "Event::Updated",
+        "frequent_pushes",
+        "to_json",
+        "sends nothing",
+    ] {
+        says(&usage, phrase, "docs/usage.md");
+    }
     let later = read("docs/not-yet-supported.md");
     for phrase in [
-        "Push updates",
-        "Frequent pushes",
-        "Push-to-start",
-        "Broadcast channels",
         "Transient",
         "Scheduled start",
         "Alert sounds",

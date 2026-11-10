@@ -1,0 +1,98 @@
+{
+  "end": {
+    "aps": {
+      "dismissal-date": 1700003600,
+      "event": "end",
+      "timestamp": 1700000002
+    }
+  },
+  "start": {
+    "aps": {
+      "alert": {
+        "body": "Tap to look",
+        "title": "Recording"
+      },
+      "attributes": {
+        "activityKey": "pushed",
+        "document": {
+          "layout": {
+            "lockScreen": {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "name": "mic.fill",
+                      "type": "symbol"
+                    },
+                    {
+                      "style": "status",
+                      "type": "text",
+                      "value": "Recording"
+                    },
+                    {
+                      "actionId": "stop",
+                      "child": {
+                        "type": "text",
+                        "value": "Stop"
+                      },
+                      "type": "button"
+                    }
+                  ],
+                  "type": "hstack"
+                },
+                {
+                  "bind": "level",
+                  "type": "progress"
+                }
+              ],
+              "type": "vstack"
+            }
+          },
+          "styles": {
+            "status": {
+              "color": {
+                "bind": "tone"
+              }
+            }
+          }
+        },
+        "fallback": "none",
+        "initialFingerprint": "242659300355e876c4b6347a52a8e2d68d04c308d8cef3ef5d2ceeded2b751d4",
+        "instanceID": "la-ios-layout-push-1",
+        "schemaVersion": 2
+      },
+      "attributes-type": "LiveActivityLayoutAttributes",
+      "content-state": {
+        "revision": 0,
+        "values": {
+          "level": 0.1,
+          "tone": "green"
+        }
+      },
+      "event": "start",
+      "input-push-token": 1,
+      "timestamp": 1700000003
+    }
+  },
+  "update": {
+    "aps": {
+      "alert": {
+        "body": "The level rose",
+        "title": "Louder"
+      },
+      "content-state": {
+        "revision": 3,
+        "staleAt": 1700000600000,
+        "timestamp": 1700000000000,
+        "values": {
+          "level": 0.5,
+          "tone": "red"
+        }
+      },
+      "event": "update",
+      "relevance-score": 80.0,
+      "stale-date": 1700000600,
+      "timestamp": 1700000001
+    }
+  }
+}

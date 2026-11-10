@@ -1,6 +1,6 @@
 [package]
 name = "activitykit"
-version = "0.2.0"
+version = "0.3.0"
 description = "iOS Live Activities from Rust"
 authors = ["1eedaegon"]
 edition = "2024"
@@ -29,6 +29,8 @@ serde = { version = "1", features = ["derive"] }
 # Correctly rounded number parsing, so that a value read from JSON text keeps its value.
 serde_json = { version = "1", features = ["float_roundtrip"] }
 thiserror = "2"
+# The fingerprint of a start payload.
+sha2 = "0.10"
 
 [build-dependencies]
 serde_json = "1"

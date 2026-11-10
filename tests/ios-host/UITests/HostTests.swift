@@ -161,6 +161,40 @@ final class HostTests: HostCase {
         try capture("redacted-report")
     }
 
+    // AK-PUSH-1, AK-PUSH-6
+    /// In the simulator, which has no APNs, a start that asks for a push token fails after the call wait and leaves
+    /// nothing; the app's own update of a plain activity does not come back as `Event::Updated`.
+    func testAStartWithAPushTokenNeedsAPNs() throws {
+        launch("push-start")
+        waitFor("PASS push-start", timeout: 60)
+        try capture("push-start")
+    }
+
+    // AK-EVENT-15
+    /// A tap on the Lock Screen while the app is not running launches it in the background; the tap reaches Rust,
+    /// whose handler updates the activity, and the intent is acknowledged after the handler.
+    func testATapLaunchesTheApp() throws {
+        launch("cold-tap-start")
+        waitFor("PASS cold-tap-start")
+        // The widget draws the activity in its own process: give it a moment before the app dies.
+        RunLoop.current.run(until: Date().addingTimeInterval(3))
+        app.terminate()
+        XCTAssertTrue(waitUntil(10) { app.state == .notRunning }, "the app is killed")
+        listenForTheEnd()
+        showLockScreen(until: "Waiting")
+        let stop = springboard.buttons["Stop"].firstMatch
+        XCTAssertTrue(stop.waitForExistence(timeout: 10), "the Stop button shows on the Lock Screen")
+        XCTAssertTrue(waitUntil(5) { stop.isHittable }, "the Stop button can be tapped")
+        stop.tap()
+        XCTAssertTrue(springboard.staticTexts["Launched"].waitForExistence(timeout: 30), "the launched app's handler updated the activity")
+        try capture("cold-tap")
+        XCTAssertTrue(heardTheEnd(timeout: 30), "the scenario finishes in the background")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
+        waitFor("PASS cold-tap", timeout: 30)
+    }
+
     /// After the process ends, `activities()` finds the activity at its accepted revision, and its handle continues.
     // AK-HANDLE-1, AK-LIST-1, AK-START-3
     func testActivitiesAfterRelaunch() throws {

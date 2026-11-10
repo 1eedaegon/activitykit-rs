@@ -46,14 +46,24 @@ struct ActivityKitAdapter<Attributes: BridgeActivityAttributes> {
         SystemActivity.activities.filter { $0.attributes.schemaVersion == schemaVersion }
     }
 
-    /// Starts the activity; the relevance score is the given one, else 0.
-    func start(_ attributes: Attributes, state: Attributes.ContentState, relevance: Double?) throws -> (SystemActivity, Double) {
+    /// Starts the activity; the relevance score is the given one, else 0. `push` is what the start asks for.
+    func start(_ attributes: Attributes, state: Attributes.ContentState, relevance: Double?, push: LayoutPush? = nil) throws -> (SystemActivity, Double) {
         let score = relevance ?? 0
+        let pushType = try Self.pushType(push)
         do {
-            return (try SystemActivity.request(attributes: attributes, content: content(state, relevance: score), pushType: nil), score)
+            return (try SystemActivity.request(attributes: attributes, content: content(state, relevance: score), pushType: pushType), score)
         } catch let failure as ActivityFailure { throw failure }
         catch let failure as ActivityAuthorizationError { throw ActivityKitErrors.failure(for: Self.name(failure)) }
-        catch { throw ActivityFailure("NATIVE_ERROR", "ActivityKit could not start the activity.") }
+        catch {
+            // A push request without the Push Notifications capability or APNs: ActivityKit answers with a permissions
+            // error of its own (`SessionCore.PermissionsError` under `com.apple.ActivityKit.ActivityInput`).
+            let errors = [error as NSError] + (error as NSError).underlyingErrors.map { $0 as NSError }
+            if push != nil, errors.contains(where: { $0.domain.hasSuffix("PermissionsError") }) {
+                throw ActivityFailure("CONFIGURATION_REQUIRED",
+                                      "ActivityKit refused the push request: the app needs the Push Notifications capability (aps-environment) and APNs (\(error)).")
+            }
+            throw ActivityFailure("NATIVE_ERROR", "ActivityKit could not start the activity: \(error).")
+        }
     }
 
     /// Updates the content; without a relevance the activity keeps its score. The timestamp goes along on iOS 17.2.
@@ -126,6 +136,17 @@ struct ActivityKitAdapter<Attributes: BridgeActivityAttributes> {
         case .visibility: return "visibility"
         case .unentitled: return "unentitled"
         default: return String(describing: error)
+        }
+    }
+
+    /// ActivityKit's push type for what a start asks; a channel needs iOS 18, before that the start fails here.
+    static func pushType(_ push: LayoutPush?) throws -> PushType? {
+        switch push {
+        case nil: return nil
+        case .token?: return .token
+        case .channel(let id)?:
+            if #available(iOS 18, *) { return .channel(id) }
+            throw ActivityFailure.unsupportedFeature("pushChannel", minimumIos: "18.0")
         }
     }
 

@@ -35,9 +35,9 @@ void ak_set_event_handler(ak_event_handler handler);
 | `ak_update` | `{"request": <update_layout>, "relevance"?: number, "alert"?: {"title", "body"}}` | the record |
 | `ak_end` | `{"request": <end_layout>, "relevance"?: number}` | the record |
 | `ak_list` | none | a list of records |
-| `ak_authorization` | none | `{"supported", "enabled", "buttons"}` |
+| `ak_authorization` | none | `{"supported", "enabled", "buttons", "frequentPushes"}` |
 | `ak_image_folder` | none | `{"path"}` |
-| `ak_configure` | `{"receipts": "full" \| "redacted"}`, no other member | the settings in force |
+| `ak_configure` | `{"receipts": "full" \| "redacted", "pushToStart": true}`, `pushToStart` optional, no other member | the settings in force, `pushToStart` only when on |
 
 `request` is exactly a request of the [contract](request-contract.md); `relevance` and `alert` are what ActivityKit
 takes beside the content and are not part of it. Without a relevance an update or end keeps the activity's score. A
@@ -67,12 +67,22 @@ for a handler, at most 16.
 {"type":"started","activityId":"la-ios-layout-…","activityKey":"rec"}
 {"type":"action","activityId":"la-ios-layout-…","actionId":"stop","activityKey":"rec"}
 {"type":"state","activityId":"la-ios-layout-…","activityKey":"rec","state":"dismissed"}
-{"type":"authorization","authorization":{"supported":true,"enabled":false,"buttons":true}}
+{"type":"authorization","authorization":{"supported":true,"enabled":false,"buttons":true,"frequentPushes":false}}
+{"type":"pushToken","activityId":"la-ios-layout-…","activityKey":"rec","token":"0a1b…"}
+{"type":"pushToStartToken","token":"…"}
+{"type":"content","activityId":"la-ios-layout-…","activityKey":"rec","snapshot":{"revision":3,"values":{…}},"relevance":80}
 ```
 
 `started` comes once for each activity that begins while events are observed: one the app started, or one the system
 or a push started (from `activityUpdates`). `authorization` carries the whole authorization after a change; the
 observer holds its `ActivityAuthorizationInfo` for as long as it watches.
+
+`pushToken` comes when ActivityKit gives an activity a token or a new one (`pushTokenUpdates`), in lowercase hex: an
+activity whose start asked for one (`"push": "token"`), or one a push started with `input-push-token`.
+`pushToStartToken` comes once `ak_configure` set `pushToStart` (`pushToStartTokenUpdates`, iOS 17.2). `content`
+comes for every content ActivityKit shows above the one it showed when the watch began (`contentUpdates`): a push's,
+or the app's own update reported back, which Rust tells apart by the revision. These three sequences are read off the
+main actor.
 
 `activityKey` of an action is absent once ActivityKit no longer lists the activity. The handler runs on whichever
 thread reports the event. For a tap that is the action relay's queue: the tap's intent posts it every 100 ms for up to
