@@ -71,6 +71,152 @@ The futures are plain futures for any executor. Events come through an async cha
 runtime, `try_recv()` once per frame in a render or game loop, or `recv_blocking()` on a worker thread. Never block the
 main thread on a future or a receiver: the Swift side answers from it.
 
+## Features
+
+Each row is one thing the crate does, the call that does it, and where the rest is written.
+
+| Feature | Call | iOS | More |
+| --- | --- | --- | --- |
+| Is it allowed? | `kit.authorization()` → `supported`, `enabled`, `buttons`, `frequent_pushes` | 16.2 | [usage](docs/usage.md) |
+| Start | `kit.start(layout, values)`, `kit.start_with(Start::new(..).key(..).relevance(..).stale_at(..))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
+| Update | `activity.update(values)`, `activity.update_with(Update::new(..).alert(..))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
+| End | `activity.end(End::immediately())`, `End::default()`, `End::after(time)`, `.values(..)` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
+| Find again | `kit.activities()`, `kit.activity(id)` | 16.2 | [after a relaunch](docs/usage.md#after-a-relaunch) |
+| Layout | `Layout::new(node)`, `vstack`, `hstack`, `zstack`, `text`, `symbol`, `image`, `path`, `progress`, `gauge`, `timer`, `spacer`, `divider` | 16.2 | [layouts](docs/usage.md#layouts) |
+| Styles and bindings | `Style::new().color(..)`, `Bound::key("value")`, `node.when(key)`, `node.unless(key)` | 16.2 | [layouts](docs/usage.md#layouts) |
+| Dynamic Island | `Layout::island(Island::new()..)`, `Layout::keyline(..)`, `Layout::background(..)` | 16.2 | [layouts](docs/usage.md#layouts) |
+| Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17 | [events](docs/usage.md#events) |
+| Links | `link(url, label)`, `Layout::url(..)` | 16.2 | [links](docs/usage.md#links) |
+| Accessibility | `node.accessibility(Accessibility::new().label(..))` | 16.2 | [accessibility](docs/usage.md#accessibility) |
+| Images the app draws | `kit.write_image(name, &png)`, `image(ImageSource::file(name))` | 16.2 | [drawn images](docs/usage.md#drawn-images) |
+| Your own SwiftUI | `custom(name).prop(key, value)` | 16.2 | [custom views](docs/usage.md#custom-views) |
+| Pushes | `Start::push(Push::Token)`, `Event::PushToken`, `push::Payload` | 16.2; start 17.2; channels 18 | [pushes](docs/usage.md#pushes) |
+| Receipts without values | `ActivityKit::builder().receipts(Receipts::Redacted).build()` | 16.2 | [after a relaunch](docs/usage.md#after-a-relaunch) |
+
+### Describe what to draw
+
+```rust
+use activitykit::{Bound, Layout, Style};
+use activitykit::layout::{hstack, progress, spacer, symbol, text, timer, vstack, Font, Island, IslandExpanded};
+
+let layout = Layout::new(vstack([
+    hstack([symbol("mic.fill"), text(Bound::key("status")).style("status"), spacer(), timer("from", "to")]),
+    progress("level").style("level"),
+    text("Too loud").when("loud"),                         // drawn only while the value `loud` is truthy
+]).spacing(10.0))
+.style("status", Style::new().font(Font::Headline).color(Bound::key("tone")))   // follows the value `tone`
+.style("level", Style::new().tint(Bound::key("tone")))
+.island(Island::new()
+    .expanded(IslandExpanded::new().leading(symbol("mic.fill")).bottom(progress("level")))
+    .compact_leading(symbol("mic.fill"))
+    .compact_trailing(text(Bound::key("status")))
+    .minimal(symbol("mic.fill")))
+.keyline(Bound::key("tone"));
+```
+
+The tree is fixed when the activity starts. What changes is the values: bound text, bound style members, conditions,
+progress, gauges and timers read them on every update.
+
+### Start, update, end
+
+```rust
+use activitykit::{Alert, End, Start, Update, values};
+
+let activity = kit.start_with(Start::new(layout, values! { "status" => "Recording", "tone" => "green", "level" => 0.2 })
+    .key("recording")          // the same start again returns this activity instead of a second one
+    .relevance(50.0)).await?;  // the highest score shows in the Dynamic Island
+
+activity.update(values! { "status" => "Recording", "tone" => "green", "level" => 0.4 }).await?;
+activity.update_with(Update::new(values! { "status" => "Too loud", "tone" => "red", "level" => 0.9 })
+    .alert(Alert::new("Too loud", "The level is high"))).await?;   // lights the screen, expands the island
+
+activity.end(End::default().values(values! { "status" => "Saved", "tone" => "gray", "level" => 1.0 })).await?;
+```
+
+An update sends every value again, with the keys and types of the start. `End::immediately()` removes the activity at
+once, `End::default()` leaves it on the Lock Screen for up to four hours, `End::after(time)` until then.
+
+### Buttons and events
+
+```rust
+use activitykit::Event;
+use activitykit::layout::{button, text};
+
+let stop = button("stop", text("Stop"));             // in the layout; iOS 17
+let events = kit.events();
+while let Ok(event) = events.recv().await {
+    match event {
+        Event::Action { activity, action, .. } if action == "stop" => activity.end(End::immediately()).await?,
+        Event::State { activity, state, .. } => { /* Active, Stale, Ended, Dismissed */ }
+        Event::Started { activity, .. } => { /* also one a push started */ }
+        _ => {}
+    }
+}
+```
+
+A tap reaches the app even when it was not running: the system launches it, and the tap waits until the event is
+dropped or acknowledged.
+
+### Links
+
+```rust
+use activitykit::layout::{link, text};
+
+let layout = Layout::new(link("myapp://recording/42/details", text("Details")))   // a tap on "Details"
+    .url("myapp://recording/42");                                                 // a tap anywhere else
+```
+
+The system opens the app with the URL, and the app receives it where it receives every URL (`onOpenURL`, a scene's
+`openURLContexts`, a framework's deep-link support). A URL may be `Bound::key(..)` to a text value.
+
+### Accessibility
+
+```rust
+use activitykit::layout::{path, progress, symbol, Accessibility};
+
+let trend = path("M0 8 L8 0 L16 8", [16.0, 8.0]).accessibility(Accessibility::new().label("Rising"));
+let level = progress("level").accessibility(Accessibility::new().label("Input level").value(Bound::key("percent")));
+let glitter = symbol("sparkles").accessibility(Accessibility::new().hidden());
+```
+
+VoiceOver reads the label, the value and the hint; a stack with one is read as a single element. Text, buttons and SF
+Symbols have a name of their own; a path, an image and a custom view need one.
+
+### Images and your own views
+
+```rust
+use activitykit::layout::{custom, image, ImageSource};
+
+kit.write_image("cover.png", &png_bytes)?;                        // at most 1 MiB and 1224 × 480, into the App Group
+let cover = image(ImageSource::file("cover.png")).resizable();
+let ring = custom("ring").prop("level", Bound::key("level"));     // a SwiftUI view the widget extension registers
+```
+
+### Pushes
+
+```rust
+use activitykit::{Alert, Push, push::{Payload, topic}};
+
+// In the app: ask for a token, and send it to the server when it comes.
+let activity = kit.start_with(Start::new(layout, values).push(Push::Token)).await?;
+if let Ok(Event::PushToken { token, .. }) = events.recv().await { /* `token` displays as lowercase hex */ }
+
+// On the server: the payload for APNs, checked like the update it stands for. The crate sends nothing.
+let body = Payload::update(values! { "status" => "Louder", "tone" => "red", "level" => 0.8 })
+    .revision(3)
+    .alert(Alert::new("Louder", "The level rose"))
+    .to_json()?;
+let apns_topic = topic("dev.example.recorder");
+```
+
+### After a relaunch
+
+```rust
+for activity in kit.activities().await? {
+    // The handle continues from the accepted revision: update or end it as before.
+}
+```
+
 ## How it works
 
 ```text
@@ -88,6 +234,8 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 ## Limits
 
 - iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons need iOS 17.
+- A layout holds at most 40 nodes on the Lock Screen, 8 levels, 4 buttons and links per region, 24 styles and 32
+  values, and layout, styles and values together weigh at most 3584 ([the contract](docs/request-contract.md)).
 - An activity starts only while the app is in the foreground, or a short while after it left it. The system ends it
   after 8 hours and removes it from the Lock Screen after 12.
 - The widget extension must be a Swift target in Xcode; a widget cannot be written in Rust.
@@ -102,7 +250,8 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
   does not.
 
 [iOS setup](docs/ios-setup.md) · [Usage](docs/usage.md) · [Request contract](docs/request-contract.md) ·
-[C bridge](docs/bridge.md) · [Specification](docs/spec.md) · [Testing](docs/testing.md) · [Changelog](CHANGELOG.md)
+[C bridge](docs/bridge.md) · [Specification](docs/spec.md) · [Testing](docs/testing.md) ·
+[Plan](docs/prd-ios-surface.md) · [Changelog](CHANGELOG.md)
 
 ## License
 
