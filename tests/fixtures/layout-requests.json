@@ -1398,6 +1398,42 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "url": "app://a%2Fb%e9%00" }, "snapshot": { "revision": 0, "values": {} } },
       "weight": 74
+    },
+    {
+      "name": "starts a layout with a transition, a content transition and a sensitive node",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "text", "bind": "total", "style": "digits", "privacy": "sensitive" }, { "type": "text", "value": "Paid", "if": "paid", "transition": "pushBottom" }] } }, "styles": { "digits": { "monospacedDigit": true, "contentTransition": "numericText" } }, "snapshot": { "revision": 0, "values": { "total": 42, "paid": true } } },
+      "weight": 293
+    },
+    {
+      "name": "accepts every transition of a node",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "divider", "transition": "opacity" }, { "type": "divider", "transition": "slide" }, { "type": "divider", "transition": "moveTop" }, { "type": "divider", "transition": "moveBottom" }, { "type": "divider", "transition": "moveLeading" }, { "type": "divider", "transition": "moveTrailing" }, { "type": "divider", "transition": "pushTop" }, { "type": "divider", "transition": "pushBottom" }, { "type": "divider", "transition": "pushLeading" }, { "type": "divider", "transition": "pushTrailing" }] } }, "snapshot": { "revision": 0, "values": {} } },
+      "weight": 504
+    },
+    {
+      "name": "accepts every content transition of a style",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a", "style": "a" } }, "styles": { "a": { "contentTransition": "numericText" }, "b": { "contentTransition": "numericTextDown" }, "c": { "contentTransition": "opacity" }, "d": { "contentTransition": "interpolate" }, "e": { "contentTransition": "identity" } }, "snapshot": { "revision": 0, "values": {} } },
+      "weight": 262
+    },
+    {
+      "name": "starts an island with priorities, a placement below the camera and margins",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "bottom": { "type": "divider" }, "priority": { "leading": 1, "trailing": 0.5, "center": 100, "bottom": 0 }, "belowIfTooWide": ["leading", "trailing"] }, "compactLeading": { "type": "divider" }, "margins": { "expanded": 8, "compactLeading": [0, 4, 0, 4], "compactTrailing": 64, "minimal": 0 } } }, "snapshot": { "revision": 0, "values": {} } },
+      "weight": 495
+    },
+    {
+      "name": "accepts a priority and a placement for one region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "trailing": { "type": "divider" }, "priority": { "trailing": 2 }, "belowIfTooWide": ["trailing"] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "weight": 170
+    },
+    {
+      "name": "accepts margins for a presentation the layout leaves to its default",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "expanded": [1, 2, 3, 4] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "weight": 153
     }
   ],
   "invalid": [
@@ -7207,6 +7243,264 @@
       "name": "rejects five links in one expanded region beside four on the lock screen",
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "hstack", "children": [{ "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }] }, "island": { "expanded": { "bottom": { "type": "hstack", "children": [{ "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }] } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an unknown transition",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "transition": "fade" } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null transition",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "transition": null } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a transition that is an object",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "transition": { "move": "top" } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a transition that is an array",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "transition": ["slide"] } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a transition in another case",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "transition": "Slide" } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an unknown privacy",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "privacy": "public" } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a privacy that is a flag",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "privacy": true } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null privacy",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "privacy": null } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a privacy that is an array",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "privacy": ["sensitive"] } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an unknown content transition",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a", "style": "s" } }, "styles": { "s": { "contentTransition": "blur" } }, "snapshot": { "revision": 0, "values": { "on": true } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a bound content transition",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a", "style": "s" } }, "styles": { "s": { "contentTransition": { "bind": "on" } } }, "snapshot": { "revision": 0, "values": { "on": true } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null content transition",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a", "style": "s" } }, "styles": { "s": { "contentTransition": null } }, "snapshot": { "revision": 0, "values": { "on": true } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a content transition that is an array",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a", "style": "s" } }, "styles": { "s": { "contentTransition": ["opacity"] } }, "snapshot": { "revision": 0, "values": { "on": true } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects priorities without a member",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": {} } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a priority below zero",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": { "leading": -1 } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a priority above 100",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": { "leading": 100.5 } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a priority that is a string",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": { "leading": "1" } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null priority",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": { "leading": null } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a priority for a region the layout does not have",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": { "bottom": 1 } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a priority for an unknown region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": { "top": 1 } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects priorities that are an array",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": [1] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects null priorities",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "priority": null } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an empty list of regions below the camera",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": [] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a region named twice below the camera",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": ["leading", "leading"] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects three regions below the camera",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": ["leading", "trailing", "leading"] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects the center region below the camera",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": ["center"] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects the bottom region below the camera",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": ["bottom"] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an unknown region below the camera",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": ["top"] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a region below the camera that is no list",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": "leading" } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null list of regions below the camera",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "leading": { "type": "divider" }, "trailing": { "type": "divider" }, "center": { "type": "divider" }, "belowIfTooWide": null } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an expanded island that has priorities and no region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "priority": { "leading": 1 } } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a region below the camera that the layout does not have",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "expanded": { "center": { "type": "divider" }, "belowIfTooWide": ["leading"] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects margins without a member",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": {} } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a margin below zero",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "expanded": -1 } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a margin above 64",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "expanded": 64.5 } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects three margins for four edges",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "compactLeading": [0, 0, 0] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an edge margin above 64",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "compactTrailing": [0, 0, 0, 65] } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a margin that is a string",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "minimal": "8" } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects margins for an unknown presentation",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "lockScreen": 8 } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects margins that are a number",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": 8 } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects null margins",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": null } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null margin",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "expanded": null } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects an island that has margins and no part",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "margins": { "expanded": 8 } } }, "snapshot": { "revision": 0, "values": {} } },
       "code": "INVALID_INPUT"
     }
   ],

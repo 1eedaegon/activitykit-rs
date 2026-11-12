@@ -1,7 +1,8 @@
 # PRD: the iOS surface a cross-platform layer needs
 
-Status: phase 1 is built and is in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5), except its
-simulator scenario; phases 2 and 3 are planned. Each requirement moves into the specification with its tests when it
+Status: phases 1 and 2 are built and are in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5,
+AK-MOTION-1 and 2, AK-PRIVACY-1, AK-ISLAND-1 and 2), except their simulator scenarios and the small region of
+phase 2; phase 3 is planned. Each requirement moves into the specification with its tests when it
 is built, and leaves [Not yet supported](not-yet-supported.md).
 
 ## Why
@@ -89,16 +90,30 @@ Decisions:
 
 ### Phase 2: presentation
 
-Render and contract only. Shapes are proposals until the phase starts.
+Render and contract only. Built, except the small region.
 
-| ID | Requirement | Proposed contract | iOS |
+| ID | Requirement | Contract | iOS |
 | --- | --- | --- | --- |
-| AK-MOTION-1 | Text and symbols change with the system's content transitions. | style member `contentTransition`: `numericText`, `numericTextDown`, `opacity`, `interpolate`, `identity` | 16.2; numeric text by value 17 |
-| AK-MOTION-2 | A node that appears or leaves with `if` or `unless` uses one of the transitions the system allows. | node member `transition`: `opacity`, `slide`, `{ "move": edge }`, `{ "push": edge }` | 16.2; push 16.2 |
-| AK-ISLAND-1 | An expanded region states its priority and whether it may wrap below the camera when too wide. | `island.expanded.priority: { <region>: number }`, `island.expanded.belowIfTooWide: [<region>]` | 16.2 |
-| AK-ISLAND-2 | The island's presentations set their content margins. | `island.margins: { <presentation>: number or four edges }` | 17 |
-| AK-PRIVACY-1 | A node is marked sensitive, and the system redacts it on a locked device and in the always-on display. | node member `privacy: "sensitive"` | 16.2 |
-| AK-SMALL-1 | A layout has a region of its own for Apple Watch and CarPlay; without it the system shows the compact views. | `layout.small: Node`, no buttons | 18 (Watch), 26 (CarPlay) |
+| AK-MOTION-1 | Text and symbols change with the system's content transitions. | style member `contentTransition`: `numericText`, `numericTextDown`, `opacity`, `interpolate`, `identity` | 16.2 |
+| AK-MOTION-2 | A node that appears or leaves with `if` or `unless` uses one of the transitions the system allows. | node member `transition`: `opacity`, `slide`, `moveTop` … `moveTrailing`, `pushTop` … `pushTrailing` | 16.2 |
+| AK-ISLAND-1 | An expanded region states its priority and whether it may go below the camera when too wide. | `island.expanded.priority: { <region>: 0 to 100 }`, `island.expanded.belowIfTooWide: [leading, trailing]` | 16.2 |
+| AK-ISLAND-2 | The island's presentations set their content margins. | `island.margins: { <presentation>: number or four edges }` | 16.2 |
+| AK-PRIVACY-1 | A node is marked sensitive, and the system hides it on a locked device and in the always-on display. | node member `privacy: "sensitive"` | 16.2 |
+| AK-SMALL-1 | A layout has a region of its own for Apple Watch and CarPlay; without it the system shows the compact views. Not built. | `layout.small: Node`, no buttons (proposed) | 18 (Watch), 26 (CarPlay) |
+
+Decisions:
+
+- **Flat words for a transition** (`moveTop`, not `{ "move": "top" }`): one enumeration in every layer, nothing to
+  nest, and a name that says the same on Android.
+- **A child is known by its place in the layout.** The widget used to number the children it drew, so a child that
+  came or went renumbered those after it and the wrong one animated. The place among all siblings, hidden ones
+  counted, is stable.
+- **A node is marked sensitive, never marked public.** The modifier is applied only where the layout asks, so that a
+  child cannot undo what its stack says.
+- **The small region waits.** A widget declares the families it draws once, for every activity, so a layout without a
+  small region would lose the compact views the system shows on a watch today and get whatever the widget draws
+  instead. That needs a default that looks right on a watch, and no test here can show a watch. It comes with a
+  device to look at, not before.
 
 General animation is not a goal: ActivityKit runs its own animation of at most two seconds and ignores the rest.
 
@@ -164,11 +179,15 @@ heard by a test, and versions below the simulator's are read, not run.
 | Release | Content | Docs |
 | --- | --- | --- |
 | 0.4.0 | Phase 1 | spec (AK-ACCESS, AK-LINK), request-contract, usage, ios-setup (receiving a URL), changelog |
-| 0.5.0 | Phase 2 | spec, request-contract, usage |
-| 0.6.0 | Phase 3 | spec, bridge, usage; the "Planned" list of the spec empties |
+| the next minor | Phase 2 without the small region | spec (AK-MOTION, AK-PRIVACY, AK-ISLAND), request-contract, usage |
+| later | Phase 3, and the small region | spec, bridge, usage; the "Planned" list of the spec empties |
+
+The version of a release follows its commits ([testing](testing.md#releases)); phases 1 and 2 are one release when
+they reach `main` together.
 
 ## Open questions
 
 1. Should `Event::Action` of a toggle carry the state asked for, or should the app read the value it last sent?
-2. Does the small region need its own node limit, or the compact parts' 3?
+2. Does the small region need its own node limit, or the compact parts' 3? And what does a layout without one show
+   on a watch once the widget declares the family?
 3. Is a per-node `transition` enough, or does a layout need one default for all of its nodes?

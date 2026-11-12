@@ -141,6 +141,9 @@ pub struct Style {
     pub tint: Option<Bindable<Color>>,
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub button_style: Option<ButtonStyle>,
+    /// How text and symbols change when their value does.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub content_transition: Option<ContentTransition>,
 }
 
 /// Sizes in points. At least one member.
@@ -279,6 +282,20 @@ pub enum FontDesign {
     Rounded,
     Serif,
     Monospaced,
+}
+
+/// How the content of a node changes from one update to the next.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContentTransition {
+    /// Digits roll, upward as a number grows.
+    NumericText,
+    /// Digits roll the other way, for a number that counts down.
+    NumericTextDown,
+    Opacity,
+    Interpolate,
+    /// The new content replaces the old at once.
+    Identity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -424,6 +441,12 @@ impl Style {
     /// The tint of buttons, progress bars and gauges.
     pub fn tint(mut self, color: impl Into<Bindable<Color>>) -> Self {
         self.tint = Some(color.into());
+        self
+    }
+
+    /// How text and symbols with this style change when an update gives them another value.
+    pub fn content_transition(mut self, transition: ContentTransition) -> Self {
+        self.content_transition = Some(transition);
         self
     }
 

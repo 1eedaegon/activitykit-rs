@@ -307,3 +307,58 @@ fn link_and_layout_url_builders_write_the_contract() {
         json!({"lockScreen":{"type":"text","value":"a"}})
     );
 }
+
+// AK-MOTION-1, AK-MOTION-2, AK-PRIVACY-1
+#[test]
+fn transitions_and_privacy_have_builders() {
+    assert_eq!(
+        wire(
+            text(Bound::key("total"))
+                .transition(Transition::PushBottom)
+                .sensitive()
+        ),
+        json!({"type":"text","bind":"total","transition":"pushBottom","privacy":"sensitive"})
+    );
+    assert_eq!(
+        serde_json::to_value(
+            Style::new()
+                .monospaced_digit()
+                .content_transition(ContentTransition::NumericText)
+        )
+        .unwrap(),
+        json!({"monospacedDigit":true,"contentTransition":"numericText"})
+    );
+}
+
+// AK-ISLAND-1, AK-ISLAND-2
+#[test]
+fn island_options_have_builders() {
+    let island = Island::new()
+        .expanded(
+            IslandExpanded::new()
+                .leading(text("l"))
+                .trailing(text("t"))
+                .priority(ExpandedRegion::Leading, 1.0)
+                .priority(ExpandedRegion::Trailing, 0.5)
+                .below_if_too_wide(ExpandedRegion::Leading)
+                .below_if_too_wide(ExpandedRegion::Leading),
+        )
+        .margins(
+            IslandMargins::new()
+                .expanded(8.0)
+                .compact_leading([0.0, 4.0, 0.0, 4.0])
+                .compact_trailing(2.0)
+                .minimal(0.0),
+        );
+    assert_eq!(
+        serde_json::to_value(&island).unwrap(),
+        json!({"expanded":{"leading":{"type":"text","value":"l"},"trailing":{"type":"text","value":"t"},
+            "priority":{"leading":1.0,"trailing":0.5},"belowIfTooWide":["leading"]},
+            "margins":{"expanded":8.0,"compactLeading":[0.0,4.0,0.0,4.0],"compactTrailing":2.0,"minimal":0.0}})
+    );
+    // Without options the island writes none.
+    assert_eq!(
+        serde_json::to_value(Island::new().minimal(symbol("mic"))).unwrap(),
+        json!({"minimal":{"type":"symbol","name":"mic"}})
+    );
+}

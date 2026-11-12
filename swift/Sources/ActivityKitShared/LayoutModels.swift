@@ -16,6 +16,16 @@ public enum LayoutFontWeight: String, Codable, Sendable, LayoutWire {
 }
 public enum LayoutFontDesign: String, Codable, Sendable, LayoutWire { case `default`, rounded, serif, monospaced }
 public enum LayoutButtonStyle: String, Codable, Sendable, LayoutWire { case automatic, bordered, borderedProminent, plain }
+/// How the content of a node changes from one update to the next.
+public enum LayoutContentTransition: String, Codable, Sendable, LayoutWire { case numericText, numericTextDown, opacity, interpolate, identity }
+/// How a node comes and goes when its condition shows or hides it.
+public enum LayoutTransition: String, Codable, Sendable, LayoutWire {
+    case opacity, slide, moveTop, moveBottom, moveLeading, moveTrailing, pushTop, pushBottom, pushLeading, pushTrailing
+}
+/// `sensitive`: the system hides the node's content on a locked device when the person asked for that.
+public enum LayoutPrivacy: String, Codable, Sendable, LayoutWire { case sensitive }
+/// A region of the expanded Dynamic Island, as its options name it.
+public enum LayoutExpandedRegionName: String, Codable, Sendable, LayoutWire { case leading, trailing, center, bottom }
 public enum LayoutSemanticColor: String, Codable, Sendable {
     case primary, secondary, accent, red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, white, black, gray, clear
 }
@@ -249,6 +259,7 @@ public struct LayoutStyle: Codable, Sendable, LayoutObject {
     public let opacity: LayoutBindable<Double>?
     public let tint: LayoutBindable<LayoutColor>?
     public let buttonStyle: LayoutButtonStyle?
+    public let contentTransition: LayoutContentTransition?
 
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
@@ -259,6 +270,7 @@ public struct LayoutStyle: Codable, Sendable, LayoutObject {
         alignment = try object.take("alignment"); padding = try object.take("padding"); frame = try object.take("frame")
         background = try object.take("background"); cornerRadius = try object.take("cornerRadius"); opacity = try object.take("opacity")
         tint = try object.take("tint"); buttonStyle = try object.take("buttonStyle")
+        contentTransition = try object.take("contentTransition")
         try object.finish()
     }
     public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
@@ -267,7 +279,7 @@ public struct LayoutStyle: Codable, Sendable, LayoutObject {
                                    ("monospacedDigit", monospacedDigit), ("color", color), ("lineLimit", lineLimit),
                                    ("minimumScaleFactor", minimumScaleFactor), ("alignment", alignment)]
         let box: LayoutMembers = [("padding", padding), ("frame", frame), ("background", background), ("cornerRadius", cornerRadius),
-                                  ("opacity", opacity), ("tint", tint), ("buttonStyle", buttonStyle)]
+                                  ("opacity", opacity), ("tint", tint), ("buttonStyle", buttonStyle), ("contentTransition", contentTransition)]
         return text + box
     }
 }
@@ -361,9 +373,13 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
     public let style: String?
     public let condition: LayoutCondition?
     public let accessibility: LayoutAccessibility?
+    public let transition: LayoutTransition?
+    public let privacy: LayoutPrivacy?
     public let content: LayoutContent
-    init(style: String? = nil, condition: LayoutCondition? = nil, accessibility: LayoutAccessibility? = nil, content: LayoutContent) {
-        self.style = style; self.condition = condition; self.accessibility = accessibility; self.content = content
+    init(style: String? = nil, condition: LayoutCondition? = nil, accessibility: LayoutAccessibility? = nil, privacy: LayoutPrivacy? = nil,
+         content: LayoutContent) {
+        self.style = style; self.condition = condition; self.accessibility = accessibility; self.privacy = privacy; self.content = content
+        transition = nil
     }
 
     public init(from decoder: Decoder) throws {
@@ -373,7 +389,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         let when: String? = try object.take("if"), unless: String? = try object.take("unless")
         guard when == nil || unless == nil else { throw LayoutReader.mismatch }
         condition = when.map(LayoutCondition.when) ?? unless.map(LayoutCondition.unless)
-        accessibility = try object.take("accessibility")
+        accessibility = try object.take("accessibility"); transition = try object.take("transition"); privacy = try object.take("privacy")
         switch type {
         case .vstack: content = .vstack(children: try object.need("children"), spacing: try object.take("spacing"), alignment: try object.take("alignment"))
         case .hstack: content = .hstack(children: try object.need("children"), spacing: try object.take("spacing"), alignment: try object.take("alignment"))
@@ -410,7 +426,8 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case nil: break
         }
         let (type, own) = contentMembers
-        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless), ("accessibility", accessibility)]
+        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless), ("accessibility", accessibility),
+                                     ("transition", transition), ("privacy", privacy)]
         return common + own
     }
     private var contentMembers: (type: String, own: LayoutMembers) {
@@ -436,9 +453,9 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
     }
 }
 
-/// The expanded Dynamic Island: at least one region.
-public struct LayoutExpandedIsland: Codable, Sendable, LayoutObject {
-    public let leading: LayoutNode?, trailing: LayoutNode?, center: LayoutNode?, bottom: LayoutNode?
+/// The priority of each expanded region the layout has, 0 to 100: a higher one gets the width first.
+public struct LayoutRegionPriorities: Codable, Sendable, LayoutObject {
+    public let leading: Double?, trailing: Double?, center: Double?, bottom: Double?
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         leading = try object.take("leading"); trailing = try object.take("trailing")
@@ -447,12 +464,46 @@ public struct LayoutExpandedIsland: Codable, Sendable, LayoutObject {
     }
     public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
     var members: LayoutMembers { [("leading", leading), ("trailing", trailing), ("center", center), ("bottom", bottom)] }
+    public subscript(region: LayoutExpandedRegionName) -> Double? {
+        switch region {
+        case .leading: return leading
+        case .trailing: return trailing
+        case .center: return center
+        case .bottom: return bottom
+        }
+    }
 }
 
-/// The Dynamic Island: at least one part.
-public struct LayoutIsland: Codable, Sendable, LayoutObject {
-    public let expanded: LayoutExpandedIsland?
-    public let compactLeading: LayoutNode?, compactTrailing: LayoutNode?, minimal: LayoutNode?
+/// The expanded Dynamic Island: at least one region, and the options of its regions.
+public struct LayoutExpandedIsland: Codable, Sendable, LayoutObject {
+    public let leading: LayoutNode?, trailing: LayoutNode?, center: LayoutNode?, bottom: LayoutNode?
+    public let priority: LayoutRegionPriorities?
+    /// The regions beside the camera that go below it when they are too wide.
+    public let belowIfTooWide: [LayoutExpandedRegionName]?
+    public init(from decoder: Decoder) throws {
+        var object = try LayoutReader(decoder)
+        leading = try object.take("leading"); trailing = try object.take("trailing")
+        center = try object.take("center"); bottom = try object.take("bottom")
+        priority = try object.take("priority"); belowIfTooWide = try object.take("belowIfTooWide")
+        try object.finish()
+    }
+    public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
+    var members: LayoutMembers {
+        [("leading", leading), ("trailing", trailing), ("center", center), ("bottom", bottom), ("priority", priority), ("belowIfTooWide", belowIfTooWide)]
+    }
+    public subscript(region: LayoutExpandedRegionName) -> LayoutNode? {
+        switch region {
+        case .leading: return leading
+        case .trailing: return trailing
+        case .center: return center
+        case .bottom: return bottom
+        }
+    }
+}
+
+/// The margins between each presentation of the Dynamic Island and what it shows, as a style's padding.
+public struct LayoutIslandMargins: Codable, Sendable, LayoutObject {
+    public let expanded: LayoutPadding?, compactLeading: LayoutPadding?, compactTrailing: LayoutPadding?, minimal: LayoutPadding?
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         expanded = try object.take("expanded"); compactLeading = try object.take("compactLeading")
@@ -462,6 +513,24 @@ public struct LayoutIsland: Codable, Sendable, LayoutObject {
     public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
     var members: LayoutMembers {
         [("expanded", expanded), ("compactLeading", compactLeading), ("compactTrailing", compactTrailing), ("minimal", minimal)]
+    }
+}
+
+/// The Dynamic Island: at least one part, and the margins of its presentations, which are no part.
+public struct LayoutIsland: Codable, Sendable, LayoutObject {
+    public let expanded: LayoutExpandedIsland?
+    public let compactLeading: LayoutNode?, compactTrailing: LayoutNode?, minimal: LayoutNode?
+    public let margins: LayoutIslandMargins?
+    public init(from decoder: Decoder) throws {
+        var object = try LayoutReader(decoder)
+        expanded = try object.take("expanded"); compactLeading = try object.take("compactLeading")
+        compactTrailing = try object.take("compactTrailing"); minimal = try object.take("minimal")
+        margins = try object.take("margins")
+        try object.finish()
+    }
+    public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
+    var members: LayoutMembers {
+        [("expanded", expanded), ("compactLeading", compactLeading), ("compactTrailing", compactTrailing), ("minimal", minimal), ("margins", margins)]
     }
 }
 

@@ -21,6 +21,20 @@ before 1.0.
 - Breaking: `Node` has the public member `accessibility`, `Layout` and `contract::LayoutRegions` the member `url`, and
   `Element` the variant `Link`, so a struct literal needs the new member and a match over `Element` an arm for it.
 
+Phase 2 of the plan, without the small region of Apple Watch and CarPlay.
+
+- Motion. `Style::content_transition(..)` says how text and symbols change with an update (`NumericText` rolls the
+  digits), and `Node::transition(..)` how a node with `when` or `unless` comes and goes: the transitions the system
+  runs in a Live Activity. The widget now knows a child by its place in the layout, so the node that comes or goes is
+  the one that animates.
+- `Node::sensitive()` marks what a node shows as private; the system hides it on a locked device when asked to.
+- The Dynamic Island's options: `IslandExpanded::priority(region, 0..=100)`, `IslandExpanded::below_if_too_wide(..)`
+  for the leading and trailing regions, and `Island::margins(IslandMargins::new()..)` for each presentation.
+- Request contract v2 gains the optional members `transition` and `privacy` on a node, `contentTransition` in a
+  style, `priority` and `belowIfTooWide` in the expanded island and `margins` in the island.
+- Breaking: `Node` has the public members `transition` and `privacy`, `Style` the member `content_transition`,
+  `IslandExpanded` the members `priority` and `below_if_too_wide`, and `Island` the member `margins`.
+
 ## 0.3.0
 
 - Pushes. `Start::push(Push::Token)` asks ActivityKit for a push token, which arrives as `Event::PushToken` with the

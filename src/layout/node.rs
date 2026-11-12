@@ -23,6 +23,12 @@ pub struct Node {
     /// What assistive technologies read of the node.
     #[serde(skip_serializing_if = "none")]
     pub accessibility: Option<Accessibility>,
+    /// How the node comes and goes when `if` or `unless` shows or hides it.
+    #[serde(skip_serializing_if = "none")]
+    pub transition: Option<Transition>,
+    /// Whether the system hides what the node shows on a locked device.
+    #[serde(skip_serializing_if = "none")]
+    pub privacy: Option<Privacy>,
 }
 
 impl From<Element> for Node {
@@ -33,6 +39,8 @@ impl From<Element> for Node {
             r#if: None,
             unless: None,
             accessibility: None,
+            transition: None,
+            privacy: None,
         }
     }
 }
@@ -48,11 +56,9 @@ impl<'de> Deserialize<'de> for Node {
             Some(_) => Err(D::Error::custom("expected a string")),
         };
         let (style, r#if, unless) = (key("style")?, key("if")?, key("unless")?);
-        let accessibility = members
-            .remove("accessibility")
-            .map(Accessibility::deserialize)
-            .transpose()
-            .map_err(D::Error::custom)?;
+        let accessibility = member(&mut members, "accessibility")?;
+        let transition = member(&mut members, "transition")?;
+        let privacy = member(&mut members, "privacy")?;
         let element =
             Element::deserialize(serde_json::Value::Object(members)).map_err(D::Error::custom)?;
         Ok(Self {
@@ -61,8 +67,50 @@ impl<'de> Deserialize<'de> for Node {
             r#if,
             unless,
             accessibility,
+            transition,
+            privacy,
         })
     }
+}
+
+/// A common member of a node that is no plain key: read strictly from the node's members, absent when not there.
+fn member<T: serde::de::DeserializeOwned, E: serde::de::Error>(
+    members: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) -> Result<Option<T>, E> {
+    members
+        .remove(name)
+        .map(T::deserialize)
+        .transpose()
+        .map_err(E::custom)
+}
+
+/// How a node with [`when`](Node::when) or [`unless`](Node::unless) comes and goes, the wire member `transition`:
+/// the transitions the system runs in a Live Activity. Without one the node fades.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Transition {
+    Opacity,
+    /// In from the leading edge, out to the trailing one.
+    Slide,
+    MoveTop,
+    MoveBottom,
+    MoveLeading,
+    MoveTrailing,
+    /// In from this edge while what was there leaves by the opposite one.
+    PushTop,
+    PushBottom,
+    PushLeading,
+    PushTrailing,
+}
+
+/// Whether a node shows something private, the wire member `privacy`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Privacy {
+    /// The system hides the node's content on a locked device and in the always-on display, when the person has
+    /// asked for that.
+    Sensitive,
 }
 
 /// What a node tells assistive technologies such as VoiceOver, the wire member `accessibility`: at least one member.
@@ -549,6 +597,18 @@ impl Node {
     /// What assistive technologies read of the node: see [`Accessibility`].
     pub fn accessibility(mut self, accessibility: Accessibility) -> Self {
         self.accessibility = Some(accessibility);
+        self
+    }
+
+    /// How the node comes and goes while [`when`](Self::when) or [`unless`](Self::unless) shows or hides it.
+    pub fn transition(mut self, transition: Transition) -> Self {
+        self.transition = Some(transition);
+        self
+    }
+
+    /// Marks what the node shows as private: see [`Privacy::Sensitive`].
+    pub fn sensitive(mut self) -> Self {
+        self.privacy = Some(Privacy::Sensitive);
         self
     }
 

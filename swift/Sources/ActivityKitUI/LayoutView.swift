@@ -39,6 +39,7 @@ struct LayoutNodeView: View {
 
     var body: some View {
         content.layoutStyle(node.style).modifier(LayoutAccessibilityModifier(accessibility: node.accessibility, isLabelOnly: isLabelOnly))
+            .modifier(LayoutPresentationModifier(transition: node.transition, isSensitive: node.isSensitive))
     }
 
     /// A button the host does not build, or below iOS 17, is drawn as its label alone: several views, no control.
@@ -85,8 +86,9 @@ struct LayoutNodeView: View {
         }
     }
 
+    /// A child is known by its place in the layout, so one that comes or goes is seen as that child, with its transition.
     private func stack(_ children: [LayoutRenderNode]) -> some View {
-        ForEach(children.indices, id: \.self) { LayoutNodeView(node: children[$0], views: views) }
+        ForEach(children, id: \.slot) { LayoutNodeView(node: $0, views: views) }
     }
 
     /// The label of a button or a link keeps the custom views and has no button of its own.

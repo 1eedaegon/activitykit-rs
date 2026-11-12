@@ -153,7 +153,8 @@ The Swift layer checks this, because it holds the started activity.
     },
     "compactLeading": Node,
     "compactTrailing": Node,
-    "minimal": Node
+    "minimal": Node,
+    "margins": { ... }             // optional; see "Options of the Dynamic Island"
   },
   "background": Color | Binding,   // optional; tint of the activity background
   "keyline": Color | Binding,      // optional; tint of the Dynamic Island keyline
@@ -177,7 +178,17 @@ Every node is an object with a `type`. Any node may also carry:
 - `style`: a style token;
 - `if` or `unless`, not both: a value key. With `if` the node and its subtree are drawn only when
   the value is truthy, with `unless` only when it is not;
-- `accessibility`: what assistive technologies read of the node, see [Accessibility](#accessibility).
+- `accessibility`: what assistive technologies read of the node, see [Accessibility](#accessibility);
+- `transition`: how the node comes and goes when its `if` or `unless` shows or hides it: `opacity`, `slide`,
+  `moveTop`, `moveBottom`, `moveLeading`, `moveTrailing`, `pushTop`, `pushBottom`, `pushLeading` or `pushTrailing`.
+  Without it the system chooses. These are the transitions the system runs in a Live Activity; it runs no others;
+- `privacy`: `sensitive` marks what the node and its subtree show as private. The system hides it on a locked device
+  and in the always-on display when the person has asked for that; while it does, the `accessibility` members of the
+  node and of the nodes it holds are not read out either. The symbol that an absent island part takes from the Lock
+  Screen tree stays as private as it was there.
+
+The widget knows a child by its place among its siblings in the layout, hidden ones counted, so a node that comes or
+goes is seen as that node, and takes its transition, while its siblings stay.
 
 In the table, `?` marks an optional member and a value key is a key of `snapshot.values`.
 
@@ -255,6 +266,26 @@ On update, and for the final content of an end, the Swift layer checks the rules
 and bound members included, against the layout and styles it stored at start. Rust checks an update or an end alone,
 since it keeps no layout; `LayoutStartInput::validate_update` and `validate_end` apply the Swift layer's check to a
 start and the request after it, and run the `updates` and `ends` fixtures.
+
+## Options of the Dynamic Island
+
+```jsonc
+"island": {
+  "expanded": { "leading": Node, "trailing": Node, "bottom": Node,
+                "priority": { "leading": 1 }, "belowIfTooWide": ["trailing"] },
+  "minimal": Node,
+  "margins": { "expanded": 8, "compactLeading": [0, 4, 0, 4] }
+}
+```
+
+| Member | Value |
+| --- | --- |
+| `expanded.priority` | an object with at least one of `leading`, `trailing`, `center`, `bottom`: a number from 0 to 100 for a region the layout has. The system gives the region with the higher one the width first; a region without one has 0 |
+| `expanded.belowIfTooWide` | 1 or 2 of `leading` and `trailing`, each once and each a region the layout has: the region goes below the camera when it is too wide to stand beside it |
+| `margins` | an object with at least one of `expanded`, `compactLeading`, `compactTrailing`, `minimal`: the margins of that presentation as a style's `padding`, one number from 0 to 64 or `[top, leading, bottom, trailing]`. A presentation without them keeps the system's |
+
+The options are no region and no part: `expanded` still needs a region, and `island` a part. Margins may be given for a
+presentation the layout leaves to its default.
 
 ## Accessibility
 
@@ -339,6 +370,7 @@ with at least one of these members:
 | `opacity` | number 0 to 1; or a binding |
 | `tint` | Color, for buttons, progress and gauges; or a binding |
 | `buttonStyle` | `automatic` `bordered` `borderedProminent` `plain` |
+| `contentTransition` | `numericText` `numericTextDown` `opacity` `interpolate` `identity`: how text and symbols with the style change when an update gives them another value. `numericText` rolls the digits upward, `numericTextDown` the other way |
 
 The members of a `frame` are checked one by one: a minimum above a maximum is accepted.
 
@@ -350,7 +382,7 @@ A Color is one of:
   dark mode alike;
 - `{ "light": hex, "dark": hex }`, with both members.
 
-A style is applied to its node in this order: font and text members, `color`, `tint` and
+A style is applied to its node in this order: font and text members with `contentTransition`, `color`, `tint` and
 `buttonStyle`, `padding`, `frame`, `background`, `cornerRadius`, `opacity`.
 
 With `fontFamily`, iOS draws the text in that font: with `font` at the text style's size at the
@@ -384,7 +416,7 @@ the two tints of the layout take a binding, and so do the URLs and the accessibi
 - A style that no node uses is checked all the same. A bound `size` and a `font` exclude each other,
   as a literal `size` does. A style whose only members are bound is not empty.
 - The other style members take no binding: `font`, `design`, `monospacedDigit`, `lineLimit`,
-  `minimumScaleFactor`, `alignment`, `padding`, `frame` and `buttonStyle`. They decide the text
+  `minimumScaleFactor`, `alignment`, `padding`, `frame`, `buttonStyle` and `contentTransition`. They decide the text
   style, how text wraps, the space a node takes and the shape of a button, which belong to the tree
   and are fixed with it. Members of nodes, such as `spacing` or a literal `value`, take no binding
   either. To change any of these, end the activity and start a new one.
@@ -499,8 +531,9 @@ validators in Rust and Swift, which check those as well and give the results the
   `staleAt`.
 - The layout is fixed at start: `update_layout` takes no `layout`. Not in the draft: seven style
   members and the two tints can be bound to values, so an update changes them.
-- Not part of 2.0: `layoutRef`, gradients, borders and `contentTransition`. Added to contract v2 after it, as
-  optional members: `accessibility` on a node, the `link` node and `layout.url`. The draft's
+- Not part of 2.0: `layoutRef`, gradients and borders. Added to contract v2 after it, as optional members:
+  `accessibility` on a node, the `link` node and `layout.url`; then `transition` and `privacy` on a node,
+  `contentTransition` in a style, and the island's `priority`, `belowIfTooWide` and `margins`. The draft's
   `image.source.appGroup` became `{ "file": name }`, with the App Group configured once in the widget
   extension instead of named in every request. Custom fonts came as the style member `fontFamily`, and
   custom views as the `custom` node.
