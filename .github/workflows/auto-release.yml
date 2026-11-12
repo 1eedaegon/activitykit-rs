@@ -1,0 +1,144 @@
+name: Auto release
+
+# After main passes CI, the subjects of the commits since the last tag decide the release: `feat` a minor version,
+# `fix`, `perf`, `refactor`, `docs` and `revert` a patch, the others none (tools/release.sh). This workflow then
+# writes the version commit (Cargo.toml, both lock files, the README's dependency line, the changelog), pushes it
+# to main, runs CI for that exact commit, waits for it, tags the commit and starts publish.yml, which publishes to
+# crates.io. A major version comes only from a run by hand with `major` checked: a commit with `!` or a BREAKING CHANGE
+# footer stops the automatic release until then. Before 1.0 a breaking change is a `feat`, as Cargo reads a 0.x
+# version. Pushes made by GITHUB_TOKEN start no workflows, and the CI run dispatched for the version commit does not
+# start this workflow again, so the run that prepares a release sees it through. A run by hand tags a version commit
+# that was left untagged. The push of the version commit needs main to accept pushes from GitHub Actions.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      major:
+        description: Prepare the next major version instead of using the commit-derived bump
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: auto-release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Plan, prepare or tag
+    if: >-
+      github.repository == '1eedaegon/activitykit-rs' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        (github.event.workflow_run.event == 'push' ||
+         github.event.workflow_run.event == 'workflow_dispatch')))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Require the current tip of main
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main --tags
+          head=$(git rev-parse HEAD)
+          main=$(git rev-parse origin/main)
+          [ "$head" = "$main" ] || {
+            echo "$head passed CI, but main has advanced to $main; the newer run owns release planning"
+            exit 1
+          }
+      - name: Configure the release actor
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - name: Plan the release
+        id: plan
+        env:
+          MANUAL_MAJOR: ${{ github.event_name == 'workflow_dispatch' && inputs.major || false }}
+        run: |
+          set -euo pipefail
+          if [ "$MANUAL_MAJOR" = true ]; then
+            tools/release.sh plan --major
+          else
+            tools/release.sh plan
+          fi
+      - name: Prepare the version commit, run its CI, tag it and start the release
+        if: steps.plan.outputs.action == 'prepare'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_MAJOR: ${{ github.event_name == 'workflow_dispatch' && inputs.major || false }}
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$MANUAL_MAJOR" = true ]; then
+            tools/release.sh prepare "$VERSION" --major
+          else
+            tools/release.sh prepare "$VERSION"
+          fi
+          git diff --check
+          bash tests/release/run.sh
+          if [ "$MANUAL_MAJOR" = true ]; then
+            git commit -am "chore: release v$VERSION" -m 'Release-Mode: manual-major'
+          else
+            git commit -am "chore: release v$VERSION"
+          fi
+          release_sha=$(git rev-parse HEAD)
+          git push origin HEAD:main
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            remote_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+            [ "$remote_sha" = "$release_sha" ] && break
+            [ "$attempt" = 10 ] && { echo "main did not reach $release_sha"; exit 1; }
+            sleep 2
+          done
+          gh workflow run ci.yml --ref main
+          # The dispatched run is found by the release commit, which no other run can have.
+          run_id=
+          for attempt in $(seq 1 30); do
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$release_sha&event=workflow_dispatch&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')
+            [ -n "$run_id" ] && break
+            sleep 4
+          done
+          [ -n "$run_id" ] || { echo "the CI run of $release_sha did not start"; exit 1; }
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 15
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin "v$VERSION"
+          gh workflow run publish.yml --ref main -f tag="v$VERSION" -f publish=true
+      - name: Tag a release commit that was left untagged and start the release
+        if: steps.plan.outputs.action == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+            tagged=$(git rev-list -n 1 "$TAG")
+            [ "$tagged" = "$head" ] || { echo "$TAG points to $tagged, not $head"; exit 1; }
+          else
+            git tag -a "$TAG" -m "$TAG"
+            git push origin "$TAG"
+          fi
+          gh workflow run publish.yml --ref main -f tag="$TAG" -f publish=true
+      - name: No release or recover a missing GitHub release
+        if: steps.plan.outputs.action == 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.previous_tag }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          tagged=$(git rev-list -n 1 "$TAG")
+          if [ "$tagged" = "$head" ] && ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh workflow run publish.yml --ref main -f tag="$TAG" -f publish=false
+          else
+            echo 'No release-bearing commits after the latest stable tag.'
+          fi

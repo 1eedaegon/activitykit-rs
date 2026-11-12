@@ -1,8 +1,12 @@
 # Changelog
 
+A release takes the subjects of its commits from `tools/release.sh`, above what was written by hand under
+"Unreleased".
+
 ## Unreleased
 
-Phase 1 of [the iOS surface plan](docs/prd-ios-surface.md). Breaking for Rust callers, so the next release is 0.4.0.
+Phase 1 of [the iOS surface plan](docs/prd-ios-surface.md). Breaking for Rust callers: a new minor version, as
+before 1.0.
 
 - Accessibility. Every node takes `accessibility(Accessibility::new().label(..).value(..).hint(..))`, each member a
   text or `Bound::key(..)` to a value of any type, or `Accessibility::new().hidden()` for decoration. The widget

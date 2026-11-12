@@ -253,6 +253,13 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 [C bridge](docs/bridge.md) · [Specification](docs/spec.md) · [Testing](docs/testing.md) ·
 [Plan](docs/prd-ios-surface.md) · [Changelog](CHANGELOG.md)
 
+## Releases
+
+Releases follow the subjects of the commits on `main`: a `feat:` gives the next minor version, a `fix:`, `perf:`,
+`refactor:`, `docs:` or `revert:` the next patch, and `test:`, `ci:`, `chore:`, `build:` and `style:` none. After CI
+passed on `main`, a workflow bumps the version, writes the changelog, tags the commit and publishes to crates.io. A
+major version is released only by running that workflow by hand ([testing](docs/testing.md#releases)).
+
 ## License
 
 [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.

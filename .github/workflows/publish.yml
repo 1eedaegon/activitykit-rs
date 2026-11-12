@@ -1,9 +1,10 @@
 name: Publish
 
-# Prepared for crates.io. A `v*` tag only validates: the tag matches the
-# crate's version, main's CI passed for the tag's exact commit, and the crate packages. Publishing needs a run by hand
-# with `publish` checked, the repository variable CRATES_IO_PUBLISH set to `true`, and `publish = false` gone from
-# Cargo.toml; until then it publishes nothing. The first publication is the owner's decision.
+# A `v*` tag validates the release and creates its GitHub release: the tag matches the crate's version, main's CI
+# passed for the tag's exact commit, the tests pass and the crate packages. auto-release.yml dispatches this workflow
+# with `publish` checked after it made a validated tag; a run by hand with the same input recovers a release that
+# stopped halfway. Publishing also needs the repository variable CRATES_IO_PUBLISH to be `true`. Trusted Publishing on
+# crates.io names this repository and publish.yml.
 
 on:
   push:
@@ -36,6 +37,7 @@ jobs:
       actions: read
     outputs:
       sha: ${{ steps.guard.outputs.sha }}
+      version: ${{ steps.guard.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,13 +63,42 @@ jobs:
             --jq '[.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch")] | length')
           [ "$runs" -gt 0 ] || { echo "no successful CI run on main for $sha"; exit 1; }
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - run: cargo test --locked
       # Builds the packaged crate from its .crate file, as crates.io would get it.
       - run: cargo package --locked
 
+  # The GitHub release of the tag, with the changelog section of its version as notes.
+  release:
+    name: Create the GitHub release
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create the release when it is missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -eu
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG already has a release"
+            exit 0
+          fi
+          tools/release.sh notes "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+
   crates-io:
     name: Publish to crates.io
-    needs: validate
+    needs: [validate, release]
     if: github.event_name == 'workflow_dispatch' && inputs.publish && vars.CRATES_IO_PUBLISH == 'true'
     runs-on: ubuntu-latest
     permissions:

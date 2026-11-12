@@ -12,6 +12,7 @@ sh tests/build/run.sh           # what build.rs does for each target ("host": on
 tests/ios-host/run.sh           # end to end on a simulator of its own (ONLY=Class/test for one test)
 sh tools/spec-coverage.sh       # the specification against the tests
 sh tests/ci/run.sh              # which changed paths start which CI job
+bash tests/release/run.sh       # the release tool, in repositories of its own
 ```
 
 - `src/kit/tests.rs`, `src/kit/write_tests.rs` and `src/kit/event_tests.rs` drive the whole API against
@@ -55,9 +56,32 @@ for changes that reach the Swift layer: the Swift package, every Rust source and
 files, the templates, the Swift tests, the build checks, the test host and `tests/ci/cache.sh`. One runs the Swift
 tests and the build checks for the device and both simulators, the other `tests/ios-host/run.sh`.
 
-`.github/workflows/publish.yml` runs on a `v*` tag: it checks the tag against the crate's version, that main's CI
-passed for the tag's exact commit, and that the crate packages. It publishes nothing until `publish = false` leaves
-`Cargo.toml` and the repository variable `CRATES_IO_PUBLISH` is `true`.
+### Releases
+
+Versions follow the subjects of the commits on `main`, which are conventional commits:
+
+| Subject | Release |
+| --- | --- |
+| `feat: …` | the next minor version |
+| `fix: …`, `perf: …`, `refactor: …`, `docs: …`, `revert: …` | the next patch version |
+| `test: …`, `ci: …`, `chore: …`, `build: …`, `style: …` | none |
+| `!` after the type, or a `BREAKING CHANGE:` footer | a major version, only by hand |
+
+`.github/workflows/auto-release.yml` runs when CI passed on `main`. `tools/release.sh plan` reads the commits since
+the last tag; the highest of them decides. For a release the workflow writes the version commit (`chore: release
+vX.Y.Z`: `Cargo.toml`, `Cargo.lock`, the test host's lock file, the README's dependency line for a new minor, and a
+changelog section with the commits' subjects, above whatever was written by hand under `## Unreleased`), pushes it to
+`main`, runs CI for that exact commit, tags it and starts `publish.yml`. A commit that breaks the API with `!` or
+a `BREAKING CHANGE:` footer stops the automatic release: run "Auto release" by hand with `major` checked. Before 1.0 a
+change that breaks callers is a `feat`: the minor moves, which is how Cargo reads a 0.x version. A subject that is
+not a conventional commit fails the plan; merge commits are passed over. `tests/release/run.sh` runs the tool in
+repositories of its own, and the specification job runs it.
+
+`.github/workflows/publish.yml` runs for a `v*` tag, pushed by hand or dispatched by the release workflow: it checks
+the tag against the crate's version, that main's CI passed for the tag's exact commit, that the tests pass and the
+crate packages, and creates the GitHub release with the changelog section as its notes. It publishes to crates.io
+when it was dispatched with `publish` checked and the repository variable `CRATES_IO_PUBLISH` is `true`. The push of
+the version commit needs `main` to accept pushes from GitHub Actions.
 
 ### Caches
 
