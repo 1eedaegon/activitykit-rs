@@ -11,6 +11,7 @@ public enum LayoutRegion: String, CaseIterable, Sendable {
         case .compactLeading, .compactTrailing, .minimal: return 3
         }
     }
+    /// Whether the region takes buttons and links.
     var allowsButtons: Bool {
         switch self {
         case .compactLeading, .compactTrailing, .minimal: return false
@@ -157,10 +158,65 @@ extension LayoutBindable where Value == LayoutColor {
     }
 }
 
-/// A node resolved against the values: what to draw and with which style.
+extension LayoutBindable where Value == String {
+    /// The literal, or the bound value when it is text, as far as it is a URL of the contract.
+    func urlText(_ values: [String: LayoutValue]) -> String? {
+        let text: String?
+        switch self {
+        case .literal(let value): text = value
+        case .bound(let key): text = values[key]?.string
+        }
+        return text.flatMap { LayoutRules.isURL($0) ? $0 : nil }
+    }
+    /// The URL to open, or nil when there is none or the system cannot read it as it is. From iOS 17 the system would
+    /// otherwise rewrite what it cannot read, and the app would be opened with another URL than the one sent.
+    func url(_ values: [String: LayoutValue]) -> URL? {
+        guard let text = urlText(values) else { return nil }
+        if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) { return URL(string: text, encodingInvalidCharacters: false) }
+        return URL(string: text)
+    }
+}
+
+/// What a node tells assistive technologies, resolved against the values. `combinesChildren` is true for a node that
+/// is drawn as several views and has a label, a value or a hint (a stack, a custom view, a link drawn without its
+/// URL): it is then one element that stands for what is inside, instead of each view inside taking the label.
+public struct LayoutRenderAccessibility: Equatable, Sendable {
+    public let label: String?, value: String?, hint: String?
+    public let hidden: Bool
+    public let combinesChildren: Bool
+    init(label: String? = nil, value: String? = nil, hint: String? = nil, hidden: Bool = false, combinesChildren: Bool = false) {
+        self.label = label; self.value = value; self.hint = hint; self.hidden = hidden; self.combinesChildren = combinesChildren
+    }
+}
+
+extension LayoutAccessibility {
+    /// Literals as given and bound members as a text node shows the value; a value that is missing or empty leaves its
+    /// member out. Nil when nothing is left to say.
+    func resolve(_ values: [String: LayoutValue], combining: Bool) -> LayoutRenderAccessibility? {
+        if hidden == true { return LayoutRenderAccessibility(hidden: true) }
+        func spoken(_ member: LayoutBindable<String>?) -> String? {
+            let text: String?
+            switch member {
+            case .literal(let value)?: text = value
+            case .bound(let key)?: text = values[key]?.text
+            case nil: text = nil
+            }
+            return text.flatMap { $0.isEmpty ? nil : $0 }
+        }
+        let label = spoken(self.label), value = spoken(self.value), hint = spoken(self.hint)
+        guard label != nil || value != nil || hint != nil else { return nil }
+        return LayoutRenderAccessibility(label: label, value: value, hint: hint, combinesChildren: combining)
+    }
+}
+
+/// A node resolved against the values: what to draw, with which style, and what assistive technologies read of it.
 public struct LayoutRenderNode: Equatable, Sendable {
     public let content: LayoutRenderContent
     public let style: LayoutRenderStyle
+    public let accessibility: LayoutRenderAccessibility?
+    init(content: LayoutRenderContent, style: LayoutRenderStyle, accessibility: LayoutRenderAccessibility? = nil) {
+        self.content = content; self.style = style; self.accessibility = accessibility
+    }
 }
 
 public indirect enum LayoutRenderContent: Equatable, Sendable {
@@ -181,6 +237,8 @@ public indirect enum LayoutRenderContent: Equatable, Sendable {
     case gauge(value: Double, range: ClosedRange<Double>, kind: LayoutMeterKind)
     case timer(interval: ClosedRange<Date>, countsDown: Bool)
     case button(actionId: String, label: LayoutRenderNode)
+    /// Without a URL, one the values do not hold or the system cannot read, the label is drawn without a link.
+    case link(url: URL?, label: LayoutRenderNode)
     /// The props with bound ones read from the values.
     case custom(name: String, props: [String: LayoutValue])
 }
@@ -245,9 +303,9 @@ extension LayoutNode {
     /// The first symbol node in document order, whatever its conditions.
     fileprivate var firstSymbol: LayoutNode? {
         switch content {
-        case .symbol: return LayoutNode(style: style, content: content)
+        case .symbol: return LayoutNode(style: style, accessibility: accessibility, content: content)
         case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _): return children.lazy.compactMap(\.firstSymbol).first
-        case let .button(_, child): return child.firstSymbol
+        case let .button(_, child), let .link(_, child): return child.firstSymbol
         default: return nil
         }
     }
@@ -262,6 +320,9 @@ extension LayoutDocument {
     public func background(values: [String: LayoutValue]) -> LayoutColorSpec? { layout.background?.resolve(values) }
     /// The tint of the Dynamic Island keyline, a bound one read from `values`.
     public func keyline(values: [String: LayoutValue]) -> LayoutColorSpec? { layout.keyline?.resolve(values) }
+
+    /// The URL a tap on the activity opens the app with, a bound one read from `values`; nil without one.
+    public func url(values: [String: LayoutValue]) -> URL? { layout.url?.url(values) }
 
     /// The tree a region shows: its own, or the default of an absent island part. The expanded island
     /// defaults to the lock screen tree in its bottom region, the compact leading and minimal parts to
@@ -295,7 +356,13 @@ extension LayoutDocument {
         case nil: break
         }
         guard let content = content(of: node.content, values) else { return nil }
-        return LayoutRenderNode(content: content, style: style(node.style, values: values))
+        let combining: Bool
+        switch content {
+        case .vstack, .hstack, .zstack, .custom, .link(url: nil, label: _): combining = true
+        default: combining = false
+        }
+        return LayoutRenderNode(content: content, style: style(node.style, values: values),
+                                accessibility: node.accessibility?.resolve(values, combining: combining))
     }
 
     private func content(of content: LayoutContent, _ values: [String: LayoutValue]) -> LayoutRenderContent? {
@@ -324,6 +391,7 @@ extension LayoutDocument {
             guard let from = values[start]?.number, let to = values[end]?.number, to > from else { return nil }
             return .timer(interval: Date(timeIntervalSince1970: from / 1000)...Date(timeIntervalSince1970: to / 1000), countsDown: countsDown ?? true)
         case let .button(actionId, child): return render(child, values: values).map { .button(actionId: actionId, label: $0) }
+        case let .link(url, child): return render(child, values: values).map { .link(url: url.url(values), label: $0) }
         case let .custom(name, props):
             let resolved = (props ?? [:]).compactMapValues { prop -> LayoutValue? in
                 switch prop {
@@ -341,7 +409,7 @@ extension LayoutDocument {
         func visit(_ node: LayoutNode) {
             switch node.content {
             case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _): children.forEach(visit)
-            case let .button(_, child): visit(child)
+            case let .button(_, child), let .link(_, child): visit(child)
             case let .custom(name, _): if !names.contains(name) { names.append(name) }
             default: break
             }

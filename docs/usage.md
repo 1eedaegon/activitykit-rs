@@ -64,10 +64,11 @@ let layout = Layout::new(vstack([
 | `progress(key)`, `gauge(key)` | a number value | `kind`, `range` (gauge) |
 | `timer(start, end)` | between two times in epoch milliseconds | `counts_up` |
 | `button(action_id, label)` | a button; iOS 17 and later | |
+| `link(url, label)` | a link that opens the app with a URL | |
 | `custom(name)` | a SwiftUI view the app registers | `prop(key, value)` |
 
-Every node takes `style(token)`, `when(key)` (drawn while the value is truthy) and `unless(key)`. A modifier that
-does not belong to a node leaves it as it is. Each builder returns a `Node`; the enum `Element` behind it is public
+Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)` and
+`accessibility(..)`. A modifier that does not belong to a node leaves it as it is. Each builder returns a `Node`; the enum `Element` behind it is public
 for anything the builders leave out.
 
 Without an `Island`, the expanded island shows the Lock Screen tree, the compact leading and minimal parts the tree's
@@ -82,7 +83,58 @@ or `#RRGGBB`/`#RRGGBBAA`), `size` (6 to 96), `opacity` (0 to 1), `corner_radius`
 name). `font_family` names a font that the widget extension bundles and lists under `UIAppFonts`.
 
 The [request contract](request-contract.md) has every rule and limit: at most 40 nodes on the Lock Screen, 8 levels,
-4 buttons per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
+4 buttons and links per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
+
+### Accessibility
+
+```rust
+use activitykit::Bound;
+use activitykit::layout::{hstack, path, progress, symbol, text, Accessibility};
+
+let row = hstack([
+    // A drawing has no name of its own: give it one.
+    path("M0 8 L8 0 L16 8", [16.0, 8.0]).accessibility(Accessibility::new().label("Rising")),
+    // The value follows every update; a number is read as text shows it.
+    progress("level").accessibility(Accessibility::new().label("Input level").value(Bound::key("percent"))),
+    // Decoration says nothing.
+    symbol("sparkles").accessibility(Accessibility::new().hidden()),
+    text(Bound::key("status")),
+])
+// A stack with a label is one element: VoiceOver reads "Recorder" instead of each child.
+.accessibility(Accessibility::new().label("Recorder").hint("Shows the recording"));
+```
+
+`label` says what a node is, `value` what it shows now and `hint` what acting on it does; each is text of 1 to 200
+characters or `Bound::key(..)` to a value of any type. `hidden()` takes a node and its subtree away from assistive
+technologies and stands alone. Without the member the system reads its own: the text of a `text`, the title of a
+button, the name of an SF Symbol; a `path`, an `image` and a `custom` view have none. A bound member whose value is
+empty is left out. Labels are part of the layout and count toward its weight: bind one when its text is a value
+already.
+
+### Links
+
+```rust
+use activitykit::{Bound, Layout};
+use activitykit::layout::{hstack, link, text};
+
+let layout = Layout::new(hstack([
+    text(Bound::key("status")),
+    // A tap on "Details" opens the app with this URL.
+    link("myapp://recording/42/details", text("Details")),
+]))
+// A tap anywhere else on the activity, on the Lock Screen or in the Dynamic Island, opens the app with this one.
+.url(Bound::key("target"));
+```
+
+A URL is 1 to 1024 ASCII characters with a scheme, such as `myapp://recording/42` or `https://example.com/r/42`;
+percent-encode a space and anything outside ASCII. `Bound::key(..)` names a text value that is a URL, checked at the
+start and on every update. A link stands where a button may (the Lock Screen and the expanded island, at most 4
+buttons and links per region) and neither holds the other. Without `Layout::url` a tap opens the app without a URL.
+
+The system opens the app that owns the activity and hands it the URL; the crate reports no event. The app takes it
+where it takes every URL it is opened with: `onOpenURL` in SwiftUI, `application(_:open:options:)` or a scene's
+`openURLContexts` in UIKit, or its framework's deep-link support. Check the URL there before acting on it: with
+pushes, a server writes it.
 
 ## Values
 

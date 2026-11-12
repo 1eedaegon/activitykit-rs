@@ -7,8 +7,12 @@ enum LayoutRules {
     static let maxNumber = 8_640_000_000_000_000.0
     static let maxWeight = 3584
     static let maxDepth = 8
-    static let maxButtons = 4
+    /// Buttons and links of one region, together.
+    static let maxControls = 4
     static let maxProps = 16
+    static let maxURL = 1024
+    /// A literal label, value or hint of a node's accessibility, in code points.
+    static let spoken = 1...200
     /// The ranges of the numbers that a style member takes, as a literal or bound to a value.
     static let sizes: ClosedRange<Double> = 6...96
     static let opacities: ClosedRange<Double> = 0...1
@@ -56,6 +60,19 @@ enum LayoutRules {
     static func isAssetName(_ text: String) -> Bool { matches(text, most: 64, first: isWord) { isWord($0) || [0x2e, 0x5f, 0x2d].contains($0) } }
     /// The PostScript or family name of a font: letters, digits, space, `.`, `_` and `-`.
     static func isFontFamily(_ text: String) -> Bool { matches(text, most: 64, first: isWord) { isWord($0) || [0x20, 0x2e, 0x5f, 0x2d].contains($0) } }
+    /// A URL: 1 to 1024 ASCII bytes, a scheme (a letter, then letters, digits, `+`, `.` and `-`), a colon, at least one
+    /// character after it, and nothing but the characters of RFC 3986, a `%` only before two hex digits. The form only:
+    /// what it names is the app's to judge.
+    static func isURL(_ text: String) -> Bool {
+        let bytes = Array(text.utf8)
+        guard bytes.count <= maxURL, let colon = bytes.firstIndex(of: 0x3a), colon > 0, colon < bytes.count - 1 else { return false }
+        let allowed = Array("-._~:/?#[]@!$&'()*+,;=".utf8)
+        func isPlain(_ part: ArraySlice<UInt8>) -> Bool { part.allSatisfy { isWord($0) || allowed.contains($0) } }
+        func isHex(_ byte: UInt8) -> Bool { isDigit(byte) || (0x41...0x46).contains(byte) || (0x61...0x66).contains(byte) }
+        let parts = bytes[(colon + 1)...].split(separator: 0x25, omittingEmptySubsequences: false)
+        return isLetter(bytes[0]) && bytes[1..<colon].allSatisfy { isWord($0) || [0x2b, 0x2e, 0x2d].contains($0) }
+            && isPlain(parts[0]) && parts.dropFirst().allSatisfy { $0.count >= 2 && $0.prefix(2).allSatisfy(isHex) && isPlain($0) }
+    }
     /// Lower-case words and digits joined by single dots.
     static func isSymbolName(_ text: String) -> Bool {
         let bytes = Array(text.utf8)
@@ -190,13 +207,25 @@ extension LayoutStyle {
     }
 }
 
+extension LayoutAccessibility {
+    /// At least one member; a literal is text of 1 to 200 code points; a hidden node says nothing else.
+    fileprivate var isValid: Bool {
+        let spoken = [label, value, hint].compactMap { $0 }
+        guard !spoken.isEmpty || hidden != nil, hidden != true || spoken.isEmpty else { return false }
+        return spoken.allSatisfy { $0.literal.map { LayoutRules.spoken.contains($0.unicodeScalars.count) } ?? true }
+    }
+    /// The value keys its bound members name.
+    fileprivate var keys: [String] { [label, value, hint].compactMap { $0?.key } }
+}
+
 extension LayoutBindable {
     /// A literal fits; a bound member fits when `resolve` turns its value into what it draws.
     fileprivate func fits<Resolved>(_ resolve: (LayoutBindable) -> Resolved?) -> Bool { key == nil || resolve(self) != nil }
 }
 
 extension LayoutDocument {
-    private struct Tally { var nodes = 0, buttons = 0 }
+    /// `controls` are the buttons and the links.
+    private struct Tally { var nodes = 0, controls = 0 }
 
     /// The rules of the layout and the style table that need no values.
     func validate() throws {
@@ -207,7 +236,8 @@ extension LayoutDocument {
             guard island.members.contains(where: { $0.value != nil }),
                   island.expanded?.members.contains(where: { $0.value != nil }) ?? true else { throw LayoutRules.layout }
         }
-        guard layout.background?.literal?.isValid ?? true, layout.keyline?.literal?.isValid ?? true else { throw LayoutRules.layout }
+        guard layout.background?.literal?.isValid ?? true, layout.keyline?.literal?.isValid ?? true,
+              layout.url?.literal.map(LayoutRules.isURL) ?? true else { throw LayoutRules.layout }
         for region in LayoutRegion.allCases {
             var tally = Tally()
             if let root = layout.node(in: region) { try check(root, in: region, depth: 1, inButton: false, tally: &tally) }
@@ -234,14 +264,21 @@ extension LayoutDocument {
                 && box.allSatisfy((1...1024).contains) && stroke.map((0.5...16).contains) ?? true
         case let .gauge(_, min, max, _): valid = (min ?? 0) < (max ?? 1) && (min ?? 0).isFinite && (max ?? 1).isFinite
         case let .button(actionId, child):
-            tally.buttons += 1
-            guard tally.buttons <= LayoutRules.maxButtons, region.allowsButtons, !inButton else { throw LayoutRules.limit }
+            tally.controls += 1
+            guard tally.controls <= LayoutRules.maxControls, region.allowsButtons, !inButton else { throw LayoutRules.limit }
             (children, valid) = ([child], LayoutRules.isActionID(actionId))
+        case let .link(url, child):
+            tally.controls += 1
+            guard tally.controls <= LayoutRules.maxControls, region.allowsButtons, !inButton else { throw LayoutRules.limit }
+            (children, valid) = ([child], url.literal.map(LayoutRules.isURL) ?? true)
         case .divider, .boundText, .progress, .timerText: break
         }
-        guard valid else { throw LayoutRules.layout }
+        guard valid, node.accessibility?.isValid ?? true else { throw LayoutRules.layout }
         let insideButton: Bool
-        if case .button = node.content { insideButton = true } else { insideButton = inButton }
+        switch node.content {
+        case .button, .link: insideButton = true
+        default: insideButton = inButton
+        }
         for child in children { try check(child, in: region, depth: depth + 1, inButton: insideButton, tally: &tally) }
     }
 
@@ -262,7 +299,8 @@ extension LayoutDocument {
     /// whether a node uses it or not, names a value that the member can take.
     func validateReferences(_ values: [String: LayoutValue]) throws {
         let tints = [layout.background, layout.keyline].allSatisfy { tint in tint?.fits { $0.resolve(values) } ?? true }
-        guard tints, (styles ?? [:]).values.allSatisfy({ $0.fits(values) }) else { throw LayoutRules.reference }
+        let url = layout.url?.fits { $0.urlText(values) } ?? true
+        guard tints, url, (styles ?? [:]).values.allSatisfy({ $0.fits(values) }) else { throw LayoutRules.reference }
         for region in LayoutRegion.allCases {
             if let root = layout.node(in: region) { try checkReferences(root, values) }
         }
@@ -270,6 +308,7 @@ extension LayoutDocument {
 
     private func checkReferences(_ node: LayoutNode, _ values: [String: LayoutValue]) throws {
         var valid = node.condition.map { values[$0.key] != nil } ?? true
+        valid = valid && node.accessibility?.keys.allSatisfy { values[$0] != nil } ?? true
         switch node.content {
         case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _):
             for child in children { try checkReferences(child, values) }
@@ -280,6 +319,9 @@ extension LayoutDocument {
             if let from = values[start]?.number, let to = values[end]?.number, LayoutRules.isTime(from), LayoutRules.isTime(to), to > from { break }
             valid = false
         case let .button(_, child): try checkReferences(child, values)
+        case let .link(url, child):
+            valid = valid && url.fits { $0.urlText(values) }
+            try checkReferences(child, values)
         case let .custom(_, props?): valid = valid && props.values.allSatisfy { $0.key.map { values[$0] != nil } ?? true }
         case .spacer, .divider, .text, .symbol, .image, .path, .custom: break
         }

@@ -7,8 +7,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 
 /// A value key in place of a literal: `{ "bind": "<key>" }` on the wire. The member reads the value
 /// on every render, so an update can change it. The value must be what the member takes as a literal:
-/// a color name or a hex color (never a light and dark pair), a weight name, or a number in the
-/// member's range.
+/// a color name or a hex color (never a light and dark pair), a weight name, a number in the
+/// member's range, or a URL. An accessibility member reads a value of any type.
 ///
 /// ```
 /// use activitykit::{Bound, Style};
@@ -30,8 +30,9 @@ impl Bound {
 }
 
 /// A member that is a literal or [`Bound`] to a value. Only `color`, `background`, `tint`,
-/// `opacity`, `size`, `weight` and `corner_radius` of a [`Style`], and the `background` and
-/// `keyline` of a layout, can be bound.
+/// `opacity`, `size`, `weight` and `corner_radius` of a [`Style`], the `background`, `keyline`
+/// and `url` of a layout, the `url` of a link and the `label`, `value` and `hint` of a node's
+/// accessibility can be bound.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Bindable<T> {

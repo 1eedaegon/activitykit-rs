@@ -111,7 +111,8 @@ private struct LayoutColorPair: LayoutObject {
 
 /// A literal, or the key of a value that the member reads on every render: `{"bind": "<key>"}` on the wire.
 /// The members that can be bound are `color`, `background`, `tint`, `opacity`, `size`, `weight` and `cornerRadius`
-/// of a style, and the `background` and `keyline` of a layout.
+/// of a style, the `background`, `keyline` and `url` of a layout, the `url` of a link, and the `label`, `value` and
+/// `hint` of a node's accessibility.
 public enum LayoutBindable<Value: Codable & Sendable>: Codable, Sendable {
     case literal(Value)
     case bound(String)
@@ -271,6 +272,22 @@ public struct LayoutStyle: Codable, Sendable, LayoutObject {
     }
 }
 
+/// What assistive technologies read of a node: a label, a value and a hint, each a literal or bound to a value, or
+/// that the node and its subtree are hidden from them.
+public struct LayoutAccessibility: Codable, Sendable, Equatable, LayoutObject {
+    public let label: LayoutBindable<String>?, value: LayoutBindable<String>?, hint: LayoutBindable<String>?
+    public let hidden: Bool?
+
+    public init(from decoder: Decoder) throws {
+        var object = try LayoutReader(decoder)
+        label = try object.take("label"); value = try object.take("value"); hint = try object.take("hint")
+        hidden = try object.take("hidden")
+        try object.finish()
+    }
+    public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
+    var members: LayoutMembers { [("label", label), ("value", value), ("hint", hint), ("hidden", hidden)] }
+}
+
 /// Renders a node only when the named value is truthy (`when`, the wire member `if`) or not truthy.
 public enum LayoutCondition: Sendable {
     case when(String)
@@ -298,12 +315,14 @@ public indirect enum LayoutContent: Sendable {
     case gauge(bind: String, min: Double?, max: Double?, kind: LayoutMeterKind?)
     case timerText(start: String, end: String, countsDown: Bool?)
     case button(actionId: String, child: LayoutNode)
+    /// A tap on `child` opens the app with `url`: a URL, or bound to a text value that is one.
+    case link(url: LayoutBindable<String>, child: LayoutNode)
     /// A view the app registers under `name` in its widget extension. Each prop is a literal or bound to a value.
     case custom(name: String, props: [String: LayoutBindable<LayoutValue>]?)
 }
 
 private enum LayoutNodeType: String, Decodable {
-    case vstack, hstack, zstack, spacer, divider, text, symbol, image, path, progress, gauge, timerText, button, custom
+    case vstack, hstack, zstack, spacer, divider, text, symbol, image, path, progress, gauge, timerText, button, link, custom
 }
 
 /// Where an image comes from: the asset catalog of the widget extension (`{"asset": name}`), or a PNG that the app
@@ -341,9 +360,10 @@ public enum LayoutImageSource: Codable, Sendable, Equatable, LayoutObject {
 public struct LayoutNode: Codable, Sendable, LayoutObject {
     public let style: String?
     public let condition: LayoutCondition?
+    public let accessibility: LayoutAccessibility?
     public let content: LayoutContent
-    init(style: String? = nil, condition: LayoutCondition? = nil, content: LayoutContent) {
-        self.style = style; self.condition = condition; self.content = content
+    init(style: String? = nil, condition: LayoutCondition? = nil, accessibility: LayoutAccessibility? = nil, content: LayoutContent) {
+        self.style = style; self.condition = condition; self.accessibility = accessibility; self.content = content
     }
 
     public init(from decoder: Decoder) throws {
@@ -353,6 +373,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         let when: String? = try object.take("if"), unless: String? = try object.take("unless")
         guard when == nil || unless == nil else { throw LayoutReader.mismatch }
         condition = when.map(LayoutCondition.when) ?? unless.map(LayoutCondition.unless)
+        accessibility = try object.take("accessibility")
         switch type {
         case .vstack: content = .vstack(children: try object.need("children"), spacing: try object.take("spacing"), alignment: try object.take("alignment"))
         case .hstack: content = .hstack(children: try object.need("children"), spacing: try object.take("spacing"), alignment: try object.take("alignment"))
@@ -374,6 +395,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case .gauge: content = .gauge(bind: try object.need("bind"), min: try object.take("min"), max: try object.take("max"), kind: try object.take("kind"))
         case .timerText: content = .timerText(start: try object.need("start"), end: try object.need("end"), countsDown: try object.take("countsDown"))
         case .button: content = .button(actionId: try object.need("actionId"), child: try object.need("child"))
+        case .link: content = .link(url: try object.need("url"), child: try object.need("child"))
         case .custom: content = .custom(name: try object.need("name"), props: try object.take("props"))
         }
         try object.finish()
@@ -388,7 +410,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case nil: break
         }
         let (type, own) = contentMembers
-        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless)]
+        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless), ("accessibility", accessibility)]
         return common + own
     }
     private var contentMembers: (type: String, own: LayoutMembers) {
@@ -408,6 +430,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case let .gauge(bind, min, max, kind): return ("gauge", [("bind", bind), ("min", min), ("max", max), ("kind", kind)])
         case let .timerText(start, end, countsDown): return ("timerText", [("start", start), ("end", end), ("countsDown", countsDown)])
         case let .button(actionId, child): return ("button", [("actionId", actionId), ("child", child)])
+        case let .link(url, child): return ("link", [("url", url), ("child", child)])
         case let .custom(name, props): return ("custom", [("name", name), ("props", props)])
         }
     }
@@ -442,19 +465,23 @@ public struct LayoutIsland: Codable, Sendable, LayoutObject {
     }
 }
 
-/// The wire member `layout`: one tree per region and the two tints.
+/// The wire member `layout`: one tree per region, the two tints and the URL a tap on the activity opens.
 public struct LayoutRegions: Codable, Sendable, LayoutObject {
     public let lockScreen: LayoutNode
     public let island: LayoutIsland?
     public let background: LayoutBindable<LayoutColor>?, keyline: LayoutBindable<LayoutColor>?
+    /// A URL, or bound to a text value that is one.
+    public let url: LayoutBindable<String>?
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         lockScreen = try object.need("lockScreen"); island = try object.take("island")
-        background = try object.take("background"); keyline = try object.take("keyline")
+        background = try object.take("background"); keyline = try object.take("keyline"); url = try object.take("url")
         try object.finish()
     }
     public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
-    var members: LayoutMembers { [("lockScreen", lockScreen), ("island", island), ("background", background), ("keyline", keyline)] }
+    var members: LayoutMembers {
+        [("lockScreen", lockScreen), ("island", island), ("background", background), ("keyline", keyline), ("url", url)]
+    }
 }
 
 /// What an activity keeps for its whole life: the layout and the style table.

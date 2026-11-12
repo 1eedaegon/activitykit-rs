@@ -72,6 +72,28 @@ extension and the settings below go into that project. The app target needs:
 
 Start activities while the app is in the foreground.
 
+### Receiving a link's URL
+
+A [`link` node or the layout's URL](usage.md#links) opens the app with that URL. The crate has no part in that: the
+app receives it like any URL, so register nothing for it in Info.plist unless other apps should open the scheme too.
+
+```swift
+@main
+struct Recorder: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView().onOpenURL { url in
+                // Validate before acting: a pushed layout carries a server's URL.
+                route(url)
+            }
+        }
+    }
+}
+```
+
+In UIKit the URL comes to `scene(_:openURLContexts:)`, or to `scene(_:willConnectTo:options:)` when the tap launched
+the app.
+
 ## Pushes
 
 - **Push Notifications** capability on the app target (`aps-environment` in the entitlements), for push tokens,

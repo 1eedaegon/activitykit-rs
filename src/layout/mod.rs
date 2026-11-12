@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// What [`ActivityKit::start`](crate::ActivityKit::start) draws: the Lock Screen tree, the Dynamic Island, the two
-/// tints and the style table that nodes name with [`Node::style`].
+/// tints, the URL a tap opens and the style table that nodes name with [`Node::style`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layout {
     pub lock_screen: Node,
@@ -35,6 +35,8 @@ pub struct Layout {
     pub background: Option<Bindable<Color>>,
     /// The tint of the Dynamic Island keyline.
     pub keyline: Option<Bindable<Color>>,
+    /// The URL a tap on the activity opens the app with.
+    pub url: Option<Bindable<String>>,
     /// Styles by token, 0 to 24.
     pub styles: BTreeMap<String, Style>,
 }
@@ -46,6 +48,7 @@ impl Layout {
             island: None,
             background: None,
             keyline: None,
+            url: None,
             styles: BTreeMap::new(),
         }
     }
@@ -71,6 +74,14 @@ impl Layout {
         self
     }
 
+    /// The URL a tap on the activity opens the app with, on the Lock Screen and in the Dynamic Island: a URL as a
+    /// [`link`] takes it, or [`Bound`](crate::Bound) to a text value that is one. Without it a tap opens the app
+    /// without a URL.
+    pub fn url(mut self, url: impl Into<Bindable<String>>) -> Self {
+        self.url = Some(url.into());
+        self
+    }
+
     /// The wire member `layout` and the style table, absent when empty.
     pub(crate) fn into_wire(self) -> (LayoutRegions, Option<BTreeMap<String, Style>>) {
         let regions = LayoutRegions {
@@ -78,6 +89,7 @@ impl Layout {
             island: self.island,
             background: self.background,
             keyline: self.keyline,
+            url: self.url,
         };
         (regions, (!self.styles.is_empty()).then_some(self.styles))
     }

@@ -183,14 +183,15 @@
           }
         },
         "background": { "$ref": "#/$defs/bindableColor" },
-        "keyline": { "$ref": "#/$defs/bindableColor" }
+        "keyline": { "$ref": "#/$defs/bindableColor" },
+        "url": { "$ref": "#/$defs/bindableUrl" }
       }
     },
     "node": {
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["vstack", "hstack", "zstack", "spacer", "divider", "text", "symbol", "image", "path", "progress", "gauge", "timerText", "button", "custom"] }
+        "type": { "enum": ["vstack", "hstack", "zstack", "spacer", "divider", "text", "symbol", "image", "path", "progress", "gauge", "timerText", "button", "link", "custom"] }
       },
       "not": { "required": ["if", "unless"], "properties": { "if": true, "unless": true } },
       "allOf": [
@@ -207,6 +208,7 @@
         { "if": { "required": ["type"], "properties": { "type": { "const": "gauge" } } }, "then": { "$ref": "#/$defs/gauge" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "timerText" } } }, "then": { "$ref": "#/$defs/timerText" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "button" } } }, "then": { "$ref": "#/$defs/button" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "link" } } }, "then": { "$ref": "#/$defs/link" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "custom" } } }, "then": { "$ref": "#/$defs/custom" } }
       ]
     },
@@ -216,7 +218,7 @@
       "additionalProperties": false,
       "required": ["type", "children"],
       "properties": {
-        "type": { "const": "vstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "vstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "children": { "$ref": "#/$defs/children" },
         "spacing": { "type": "number", "minimum": 0, "maximum": 64 },
         "alignment": { "enum": ["leading", "center", "trailing"] }
@@ -227,7 +229,7 @@
       "additionalProperties": false,
       "required": ["type", "children"],
       "properties": {
-        "type": { "const": "hstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "hstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "children": { "$ref": "#/$defs/children" },
         "spacing": { "type": "number", "minimum": 0, "maximum": 64 },
         "alignment": { "enum": ["top", "center", "bottom", "firstTextBaseline"] }
@@ -238,7 +240,7 @@
       "additionalProperties": false,
       "required": ["type", "children"],
       "properties": {
-        "type": { "const": "zstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "zstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "children": { "$ref": "#/$defs/children" },
         "alignment": { "$ref": "#/$defs/anchor" }
       }
@@ -248,7 +250,7 @@
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "const": "spacer" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "spacer" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "minLength": { "type": "number", "minimum": 0, "maximum": 256 }
       }
     },
@@ -257,7 +259,7 @@
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "const": "divider" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }
+        "type": { "const": "divider" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }
       }
     },
     "text": {
@@ -265,7 +267,7 @@
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "const": "text" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "text" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "value": { "type": "string", "maxLength": 200 },
         "bind": { "$ref": "#/$defs/name" }
       },
@@ -279,7 +281,7 @@
       "additionalProperties": false,
       "required": ["type", "name"],
       "properties": {
-        "type": { "const": "symbol" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "symbol" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "name": { "type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$" },
         "rendering": { "enum": ["monochrome", "hierarchical", "palette", "multicolor"] },
         "variableBind": { "$ref": "#/$defs/name" }
@@ -290,7 +292,7 @@
       "additionalProperties": false,
       "required": ["type", "source"],
       "properties": {
-        "type": { "const": "image" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "image" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "source": {
           "oneOf": [
             {
@@ -314,7 +316,7 @@
       "additionalProperties": false,
       "required": ["type", "d", "box"],
       "properties": {
-        "type": { "const": "path" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "path" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "d": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[MLHVCSQTZmlhvcsqtz0-9eE+., \\t\\r\\n-]+$" },
         "box": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 1, "maximum": 1024 } },
         "stroke": { "type": "number", "minimum": 0.5, "maximum": 16 }
@@ -325,7 +327,7 @@
       "additionalProperties": false,
       "required": ["type", "bind"],
       "properties": {
-        "type": { "const": "progress" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "progress" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "bind": { "$ref": "#/$defs/name" },
         "kind": { "enum": ["linear", "circular"] }
       }
@@ -335,7 +337,7 @@
       "additionalProperties": false,
       "required": ["type", "bind"],
       "properties": {
-        "type": { "const": "gauge" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "gauge" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "bind": { "$ref": "#/$defs/name" },
         "min": { "type": "number" },
         "max": { "type": "number" },
@@ -347,7 +349,7 @@
       "additionalProperties": false,
       "required": ["type", "start", "end"],
       "properties": {
-        "type": { "const": "timerText" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "timerText" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "start": { "$ref": "#/$defs/name" },
         "end": { "$ref": "#/$defs/name" },
         "countsDown": { "type": "boolean" }
@@ -358,8 +360,19 @@
       "additionalProperties": false,
       "required": ["type", "actionId", "child"],
       "properties": {
-        "type": { "const": "button" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "button" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "actionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$" },
+        "child": { "$ref": "#/$defs/node" }
+      }
+    },
+    "link": {
+      "description": "A tap on the child opens the app with the URL. A link stands where a button may, and neither holds the other.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "url", "child"],
+      "properties": {
+        "type": { "const": "link" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
+        "url": { "$ref": "#/$defs/bindableUrl" },
         "child": { "$ref": "#/$defs/node" }
       }
     },
@@ -369,7 +382,7 @@
       "additionalProperties": false,
       "required": ["type", "name"],
       "properties": {
-        "type": { "const": "custom" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" },
+        "type": { "const": "custom" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" },
         "name": { "$ref": "#/$defs/fileName" },
         "props": {
           "type": "object", "minProperties": 1, "maxProperties": 16,
@@ -441,6 +454,24 @@
       "properties": { "bind": { "$ref": "#/$defs/name" } }
     },
     "bindableColor": { "anyOf": [{ "$ref": "#/$defs/color" }, { "$ref": "#/$defs/bound" }] },
+    "url": {
+      "description": "A scheme, a colon and at least one more character, in the characters of RFC 3986, a percent sign only before two hex digits. A bound URL names a text value of this form.",
+      "type": "string", "maxLength": 1024, "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:([A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=-]|%[0-9A-Fa-f]{2})+$"
+    },
+    "bindableUrl": { "anyOf": [{ "$ref": "#/$defs/url" }, { "$ref": "#/$defs/bound" }] },
+    "spoken": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "$ref": "#/$defs/bound" }] },
+    "accessibility": {
+      "description": "What assistive technologies read of a node. A bound member reads a value of any type; a hidden node takes no other member.",
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "label": { "$ref": "#/$defs/spoken" }, "value": { "$ref": "#/$defs/spoken" }, "hint": { "$ref": "#/$defs/spoken" },
+        "hidden": { "type": "boolean" }
+      },
+      "not": {
+        "required": ["hidden"], "properties": { "hidden": { "const": true } },
+        "anyOf": [{ "required": ["label"] }, { "required": ["value"] }, { "required": ["hint"] }]
+      }
+    },
     "color": {
       "anyOf": [
         { "$ref": "#/$defs/colorName" },

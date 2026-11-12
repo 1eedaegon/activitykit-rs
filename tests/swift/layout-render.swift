@@ -21,6 +21,8 @@ extension LifecycleTests {
         try testRenderStyles()
         try testRenderBoundStyles()
         try testIslandDefaults()
+        try testRenderAccessibility()
+        try testRenderLinks()
     }
 
     // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
@@ -275,5 +277,87 @@ extension LifecycleTests {
         let sessionValues = try layoutRequest(sessionLayout).snapshot.values
         for region in LayoutRegion.allCases { expect(full.render(region, values: sessionValues) != nil, "session layout renders \(region)") }
         expect(children(full.render(.lockScreen, values: sessionValues)).count == 3, "the session note is hidden and the pause button shown")
+    }
+
+    // AK-ACCESS-3
+    @MainActor private static func testRenderAccessibility() throws {
+        let document = try layoutDocument(#"{"type":"vstack","accessibility":{"label":"Recorder"},"children":["#
+            + #"{"type":"symbol","name":"mic.fill","accessibility":{"label":"Recording"}},"#
+            + #"{"type":"progress","bind":"level","accessibility":{"label":{"bind":"title"},"value":{"bind":"level"},"hint":"Input level"}},"#
+            + #"{"type":"divider","accessibility":{"hidden":true}},{"type":"text","value":"plain"},"#
+            + #"{"type":"text","value":"shown","accessibility":{"hidden":false}},"#
+            + #"{"type":"hstack","children":[{"type":"divider"}],"accessibility":{"hidden":true}}]}"#)
+        let root = document.render(.lockScreen, values: ["title": .string("Rec"), "level": .number(0.5)])
+        expect(root?.accessibility == LayoutRenderAccessibility(label: "Recorder", combinesChildren: true),
+               "a stack with a label is one element that stands for its children")
+        let rows = children(root)
+        expect(rows.count == 6 && rows[0].accessibility == LayoutRenderAccessibility(label: "Recording"), "a literal label is read as given")
+        expect(rows[1].accessibility == LayoutRenderAccessibility(label: "Rec", value: "0.5", hint: "Input level"),
+               "bound members read their values as a text node shows them")
+        expect(rows[2].accessibility == LayoutRenderAccessibility(hidden: true), "a hidden node")
+        expect(rows[3].accessibility == nil && rows[4].accessibility == nil, "no members, or only a false hidden flag, change nothing")
+        expect(rows[5].accessibility == LayoutRenderAccessibility(hidden: true), "a hidden stack is hidden, not combined")
+
+        let flags = children(document.render(.lockScreen, values: ["title": .bool(true), "level": .number(3)]))
+        expect(flags[1].accessibility == LayoutRenderAccessibility(label: "true", value: "3", hint: "Input level"), "a flag and a whole number as text")
+        let empty = children(document.render(.lockScreen, values: ["title": .string(""), "level": .number(0.5)]))
+        expect(empty[1].accessibility == LayoutRenderAccessibility(value: "0.5", hint: "Input level"), "an empty value leaves its member out")
+        let missing = children(document.render(.lockScreen, values: ["level": .number(0.5)]))
+        expect(missing[1].accessibility == LayoutRenderAccessibility(value: "0.5", hint: "Input level"), "a missing value leaves its member out")
+
+        let only = try layoutDocument(#"{"type":"vstack","children":[{"type":"divider"}],"accessibility":{"label":{"bind":"title"}}}"#)
+        expect(only.render(.lockScreen, values: [:]).map { $0.accessibility == nil } == true, "a stack whose only member has no value stays as it is")
+        expect(only.render(.lockScreen, values: ["title": .string("Rec")])?.accessibility == LayoutRenderAccessibility(label: "Rec", combinesChildren: true),
+               "a bound label combines a stack once it has a value")
+        let custom = try layoutDocument(#"{"type":"custom","name":"ring","accessibility":{"label":"Level"}}"#)
+        expect(custom.render(.lockScreen, values: [:])?.accessibility == LayoutRenderAccessibility(label: "Level", combinesChildren: true),
+               "a custom view with a label is one element, whatever it draws")
+        let plain = LayoutRenderNode(content: .divider, style: .plain)
+        expect(plain.accessibility == nil && plain == LayoutRenderNode(content: .divider, style: .plain, accessibility: nil), "a node is made without the member")
+    }
+
+    // AK-LINK-2, AK-LINK-5
+    @MainActor private static func testRenderLinks() throws {
+        let document = try layoutDocument(#"{"type":"vstack","children":[{"type":"link","url":"app://rec/1","child":{"type":"text","value":"Open"},"style":"l"},"#
+            + #"{"type":"link","url":{"bind":"target"},"child":{"type":"text","value":"Bound"},"accessibility":{"label":"Open the recording"}},"#
+            + #"{"type":"link","url":"app://hidden","child":{"type":"text","value":"x","if":"off"}}]}"#,
+            layout: #","url":{"bind":"target"}"#, styles: #"{"l":{"tint":"red"}}"#)
+        func label(_ text: String) -> LayoutRenderNode { LayoutRenderNode(content: .text(text), style: .plain) }
+        let rows = children(document.render(.lockScreen, values: ["target": .string("app://rec/2")]))
+        expect(rows.count == 2, "a link whose child draws nothing draws nothing")
+        expect(rows[0].content == .link(url: URL(string: "app://rec/1"), label: label("Open")) && rows[0].style.tint == .semantic(.red),
+               "a link carries its URL, its child and its own style")
+        expect(rows[1].content == .link(url: URL(string: "app://rec/2"), label: label("Bound"))
+            && rows[1].accessibility == LayoutRenderAccessibility(label: "Open the recording"), "a bound URL reads its value")
+        expect(document.url(values: ["target": .string("app://rec/2")]) == URL(string: "app://rec/2"), "the layout's bound URL reads its value")
+
+        for values: [String: LayoutValue] in [[:], ["target": .string("rec 2")], ["target": .string("")], ["target": .number(1)], ["target": .bool(true)]] {
+            let loose = children(document.render(.lockScreen, values: values))
+            expect(loose.count == 2 && loose[1].content == .link(url: nil, label: label("Bound")), "a link without a URL draws its child without a link: \(values)")
+            expect(loose[1].accessibility == LayoutRenderAccessibility(label: "Open the recording", combinesChildren: true),
+                   "drawn without its link, a labelled child is one element: \(values)")
+            expect(document.url(values: values) == nil, "a layout URL that is none is left out: \(values)")
+        }
+        // A URL of the contract that the system cannot read as it is: it is not rewritten into another one.
+        let unread = try layoutDocument(#"{"type":"link","url":"app://a/[1]","child":{"type":"text","value":"Open"}}"#, layout: #","url":"app://a/[1]""#)
+        expect(unread.render(.lockScreen, values: [:])?.content == .link(url: nil, label: label("Open")) && unread.url(values: [:]) == nil,
+               "a URL the system cannot read is left out, never changed")
+        let literal = try layoutDocument(#"{"type":"divider"}"#, layout: #","url":"https://example.com/a?b=c&d=%20#frag""#)
+        expect(literal.url(values: [:])?.absoluteString == "https://example.com/a?b=c&d=%20#frag", "a literal layout URL")
+        let bare = try layoutDocument(#"{"type":"divider"}"#)
+        expect(bare.url(values: [:]) == nil, "a layout without a URL has none")
+
+        let linked = try layoutDocument(#"{"type":"link","url":"app://a","child":{"type":"hstack","children":[{"type":"symbol","name":"mic.fill"},{"type":"custom","name":"ring"}]}}"#)
+        expect(linked.render(.compactLeading, values: [:])?.content == .symbol(name: "mic.fill", rendering: nil, variableValue: nil),
+               "the default of an absent island part looks through a link")
+        expect(linked.customViewNames == ["ring"], "the custom views inside a link are known")
+
+        for (url, valid) in [("app://rec/1", true), ("a:b", true), ("x-my.app+v2:/", true), ("app://[::1]:80/p!$&'()*+,;=~_-.%41", true),
+                             ("", false), ("app", false), ("app:", false), (":app", false), ("1app://x", false), ("a_b:c", false), ("app://a b", false),
+                             ("app://a%2Fb%e9", true), ("app://a%", false), ("app://a%4", false), ("app://a%zz", false), ("app://a%%41", false),
+                             ("app://\u{d55c}", false), ("app://a\"b", false), ("app://a|b", false), ("app://a\n", false),
+                             ("app://" + String(repeating: "a", count: 1018), true), ("app://" + String(repeating: "a", count: 1019), false)] {
+            expect(LayoutRules.isURL(url) == valid, "the URL rule: \(url.prefix(40))")
+        }
     }
 }

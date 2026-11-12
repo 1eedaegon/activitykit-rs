@@ -4,7 +4,7 @@
 use super::{PushWire, path, *};
 use crate::{
     Error, Result, Value,
-    layout::{ColorName, Dimension, Element, FontWeight, Frame, Padding},
+    layout::{Accessibility, ColorName, Dimension, Element, FontWeight, Frame, Padding},
 };
 use serde::de::DeserializeOwned;
 use std::ops::RangeInclusive;
@@ -56,8 +56,12 @@ impl Validate for EndInput {
 const MAX_WEIGHT: usize = 3584;
 const MAX_NUMBER: f64 = 8_640_000_000_000_000.0;
 const MAX_DEPTH: usize = 8;
-const MAX_BUTTONS: usize = 4;
+/// Buttons and links of one region, together.
+const MAX_CONTROLS: usize = 4;
 const MAX_PROPS: usize = 16;
+const MAX_URL: usize = 1024;
+/// A literal label, value or hint of a node's accessibility, in code points.
+const SPOKEN: RangeInclusive<usize> = 1..=200;
 // The ranges of the numbers that a style member takes, as a literal or bound to a value.
 const SIZES: RangeInclusive<f64> = 6.0..=96.0;
 const OPACITIES: RangeInclusive<f64> = 0.0..=1.0;
@@ -160,6 +164,27 @@ fn symbol(name: &str) -> bool {
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
     };
     name.len() <= 64 && name.split('.').all(part)
+}
+
+/// A URL: 1 to 1024 ASCII bytes, a scheme (`^[A-Za-z][A-Za-z0-9+.-]*:`), at least one character after it, and
+/// nothing but the characters of RFC 3986, a `%` only before two hex digits. The form only: what the URL names is the
+/// app's to judge.
+fn url(text: &str) -> bool {
+    let plain = |part: &str| {
+        part.bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"-._~:/?#[]@!$&'()*+,;=".contains(&c))
+    };
+    let escape = |part: &str| {
+        part.len() >= 2 && part.bytes().take(2).all(|c| c.is_ascii_hexdigit()) && plain(part)
+    };
+    text.len() <= MAX_URL
+        && text.split_once(':').is_some_and(|(scheme, rest)| {
+            let mut parts = rest.split('%');
+            word(scheme, MAX_URL, u8::is_ascii_alphabetic, b"+.-")
+                && !rest.is_empty()
+                && parts.next().is_some_and(plain)
+                && parts.all(escape)
+        })
 }
 
 fn within(member: Option<f64>, range: RangeInclusive<f64>) -> bool {
@@ -339,7 +364,8 @@ struct Scope<'a> {
 #[derive(Default)]
 struct Count {
     nodes: usize,
-    buttons: usize,
+    /// Buttons and links.
+    controls: usize,
 }
 
 impl Scope<'_> {
@@ -355,12 +381,41 @@ impl Scope<'_> {
         }))
     }
 
+    /// A URL, or a binding to a text value that is one.
+    fn target(&self, target: &Bindable<String>) -> bool {
+        match target {
+            Bindable::Literal(text) => url(text),
+            Bindable::Bound(bound) => {
+                matches!(self.values.get(&bound.bind), Some(Value::Text(text)) if url(text))
+            }
+        }
+    }
+
+    /// At least one member; a literal is text of 1 to 200 code points and a bound member names a value, of any
+    /// type; a hidden node says nothing else.
+    fn accessibility(&self, accessibility: &Accessibility) -> Result<()> {
+        let spoken = [
+            &accessibility.label,
+            &accessibility.value,
+            &accessibility.hint,
+        ];
+        require(*accessibility != Accessibility::default())?;
+        require(
+            accessibility.hidden != Some(true) || spoken.iter().all(|member| member.is_none()),
+        )?;
+        require(spoken.into_iter().flatten().all(|member| match member {
+            Bindable::Literal(text) => SPOKEN.contains(&text.chars().count()),
+            Bindable::Bound(bound) => self.values.contains_key(&bound.bind),
+        }))
+    }
+
     fn layout(&self, layout: &LayoutRegions) -> Result<()> {
         [&layout.background, &layout.keyline]
             .into_iter()
             .flatten()
             .filter_map(Bindable::literal)
             .try_for_each(color)?;
+        require(layout.url.as_ref().is_none_or(|target| self.target(target)))?;
         self.bindings(layout)?;
         self.region(&layout.lock_screen, 40, true)?;
         let Some(island) = &layout.island else {
@@ -424,7 +479,7 @@ impl Scope<'_> {
     fn region(&self, root: &Node, most_nodes: usize, buttons: bool) -> Result<()> {
         let mut count = Count::default();
         self.node(root, 1, buttons, &mut count)?;
-        require(count.nodes <= most_nodes && count.buttons <= MAX_BUTTONS)
+        require(count.nodes <= most_nodes && count.controls <= MAX_CONTROLS)
     }
 
     fn number(&self, key: &str) -> Option<f64> {
@@ -447,7 +502,7 @@ impl Scope<'_> {
             .try_for_each(|node| self.node(node, depth + 1, buttons, count))
     }
 
-    /// `buttons` is false in a region without buttons and inside a button.
+    /// `buttons` is false in a region without buttons and links, and inside a button or a link.
     fn node(&self, node: &Node, depth: usize, buttons: bool, count: &mut Count) -> Result<()> {
         count.nodes += 1;
         let styled = |token: &String| self.styles.is_some_and(|styles| styles.contains_key(token));
@@ -455,6 +510,9 @@ impl Scope<'_> {
         let known = |key: &String| self.values.contains_key(key);
         require(node.r#if.is_none() || node.unless.is_none())?;
         require(node.r#if.as_ref().is_none_or(known) && node.unless.as_ref().is_none_or(known))?;
+        if let Some(accessibility) = &node.accessibility {
+            self.accessibility(accessibility)?;
+        }
         match &node.element {
             Element::Vstack {
                 children, spacing, ..
@@ -467,8 +525,13 @@ impl Scope<'_> {
             }
             Element::Zstack { children, .. } => self.children(children, depth, buttons, count),
             Element::Button { action_id, child } => {
-                count.buttons += 1;
+                count.controls += 1;
                 require(buttons && word(action_id, 64, u8::is_ascii_alphanumeric, b"._:-"))?;
+                self.node(child, depth + 1, false, count)
+            }
+            Element::Link { url: target, child } => {
+                count.controls += 1;
+                require(buttons && self.target(target))?;
                 self.node(child, depth + 1, false, count)
             }
             leaf => self.leaf(leaf),
@@ -519,7 +582,8 @@ impl Scope<'_> {
             | Element::Vstack { .. }
             | Element::Hstack { .. }
             | Element::Zstack { .. }
-            | Element::Button { .. } => Ok(()),
+            | Element::Button { .. }
+            | Element::Link { .. } => Ok(()),
         }
     }
 }

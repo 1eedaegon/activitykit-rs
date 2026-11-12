@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+Phase 1 of [the iOS surface plan](docs/prd-ios-surface.md). Breaking for Rust callers, so the next release is 0.4.0.
+
+- Accessibility. Every node takes `accessibility(Accessibility::new().label(..).value(..).hint(..))`, each member a
+  text or `Bound::key(..)` to a value of any type, or `Accessibility::new().hidden()` for decoration. The widget
+  gives them to VoiceOver; a stack with one becomes a single element that stands for its children.
+- Links. `link(url, label)` opens the app with a URL when its label is tapped, and `Layout::url(..)` when the
+  activity is tapped elsewhere, on the Lock Screen and in the Dynamic Island. A URL is 1 to 1024 ASCII characters
+  with a scheme, or `Bound::key(..)` to a text value that is one. A link stands where a button may, and buttons and
+  links together are at most 4 per region. The app receives the URL as any URL it is opened with; the crate reports no
+  event.
+- Request contract v2 gains three optional members: `accessibility` on a node, the node `link`, and `layout.url`.
+  A 0.3 reader refuses a request that carries them; the crate and its Swift layer ship together.
+- Breaking: `Node` has the public member `accessibility`, `Layout` and `contract::LayoutRegions` the member `url`, and
+  `Element` the variant `Link`, so a struct literal needs the new member and a match over `Element` an arm for it.
+
 ## 0.3.0
 
 - Pushes. `Start::push(Push::Token)` asks ActivityKit for a push token, which arrives as `Event::PushToken` with the

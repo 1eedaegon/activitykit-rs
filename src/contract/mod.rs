@@ -13,6 +13,8 @@ mod limit_tests;
 mod model_tests;
 #[cfg(test)]
 mod rule_tests;
+#[cfg(test)]
+mod surface_tests;
 
 pub use crate::layout::{Island, IslandExpanded};
 pub(crate) use validation::valid_handle;
@@ -54,8 +56,8 @@ pub struct LayoutSnapshot {
     pub timestamp: Option<u64>,
 }
 
-/// The wire member `layout`: one tree per region and the two tints. The layout is fixed when the activity starts;
-/// only a bound `background` or `keyline` follows the values.
+/// The wire member `layout`: one tree per region, the two tints and the URL a tap opens. The layout is fixed when
+/// the activity starts; only a bound `background`, `keyline` or `url` follows the values.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LayoutRegions {
@@ -68,6 +70,9 @@ pub struct LayoutRegions {
     /// Tint of the Dynamic Island keyline.
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub keyline: Option<Bindable<Color>>,
+    /// The URL a tap on the activity opens the app with: a URL, or bound to a text value that is one.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub url: Option<Bindable<String>>,
 }
 
 /// Lock screen visibility of the Android notification. iOS checks it and then ignores it.

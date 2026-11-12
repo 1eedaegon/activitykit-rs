@@ -156,9 +156,12 @@ The Swift layer checks this, because it holds the started activity.
     "minimal": Node
   },
   "background": Color | Binding,   // optional; tint of the activity background
-  "keyline": Color | Binding       // optional; tint of the Dynamic Island keyline
+  "keyline": Color | Binding,      // optional; tint of the Dynamic Island keyline
+  "url": Url | Binding             // optional; what a tap on the activity opens the app with
 }
 ```
+
+Without `url` a tap opens the app without a URL. [Links and URLs](#links-and-urls) has the rule of a URL.
 
 An island part that the layout leaves out is drawn with a default:
 
@@ -173,7 +176,8 @@ Every node is an object with a `type`. Any node may also carry:
 
 - `style`: a style token;
 - `if` or `unless`, not both: a value key. With `if` the node and its subtree are drawn only when
-  the value is truthy, with `unless` only when it is not.
+  the value is truthy, with `unless` only when it is not;
+- `accessibility`: what assistive technologies read of the node, see [Accessibility](#accessibility).
 
 In the table, `?` marks an optional member and a value key is a key of `snapshot.values`.
 
@@ -192,6 +196,7 @@ In the table, `?` marks an optional member and a value key is a key of `snapshot
 | `gauge` | `bind`: value key (number); `min`?, `max`?: numbers, 0 and 1 when left out; `min` must be below `max`, and the check uses the default of a member that is left out; `kind`?: `linear` `circular` |
 | `timerText` | `start`, `end`: value keys (times as in v1: integers from 0 to 8640000000000000, in epoch milliseconds; the `end` value after the `start` value); `countsDown`?: boolean, true when left out |
 | `button` | `actionId`: `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`; `child`: Node |
+| `link` | `url`: a URL or a binding, see [Links and URLs](#links-and-urls); `child`: Node |
 | `custom` | `name`: `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, a view the app registers; `props`?: 1 to 16 entries, see [Custom nodes](#custom-nodes) |
 
 `d` is SVG path data within these limits:
@@ -218,11 +223,11 @@ feed as whitespace, and both accept path data without a command.
 ## Structural limits
 
 - Depth: at most 8. The root node of a region has depth 1, and a node in `children` or the
-  `child` of a button is one level deeper than its parent.
+  `child` of a button or a link is one level deeper than its parent.
 - Nodes per region, containers included: `lockScreen` 40, each expanded region 12,
   `compactLeading` 3, `compactTrailing` 3, `minimal` 3.
-- Buttons: only in `lockScreen` and the expanded regions, never inside another button at any
-  depth, and at most 4 per region.
+- Buttons and links: only in `lockScreen` and the expanded regions, never inside a button or a
+  link at any depth, and at most 4 per region, buttons and links together.
 
 ## Reference rules
 
@@ -238,7 +243,10 @@ These rules need the layout, the styles and the values together, so they are che
 - every `style` names a token of `styles`. A `style` in a request without `styles` is invalid;
 - every [bound member](#bound-style-members), in every style whether a node uses it or not, names
   a key of `snapshot.values` whose value the member takes;
-- every binding among the `props` of a `custom` node names a key of `snapshot.values`, of any type.
+- every binding among the `props` of a `custom` node names a key of `snapshot.values`, of any type;
+- every bound `label`, `value` and `hint` of a node's `accessibility` names a key of
+  `snapshot.values`, of any type;
+- a bound `url`, of the layout or of a link, names a string that is a URL.
 
 A style that no node uses and a value that no node reads are allowed. The number that a
 `progress` or a `gauge` reads is not range-checked; a progress bar shows it clamped to 0..1.
@@ -247,6 +255,65 @@ On update, and for the final content of an end, the Swift layer checks the rules
 and bound members included, against the layout and styles it stored at start. Rust checks an update or an end alone,
 since it keeps no layout; `LayoutStartInput::validate_update` and `validate_end` apply the Swift layer's check to a
 start and the request after it, and run the `updates` and `ends` fixtures.
+
+## Accessibility
+
+```jsonc
+{ "type": "progress", "bind": "level",
+  "accessibility": { "label": "Input level", "value": { "bind": "percent" }, "hint": "Shows how loud the room is" } }
+{ "type": "symbol", "name": "sparkles", "accessibility": { "hidden": true } }
+```
+
+`accessibility` tells assistive technologies such as VoiceOver what a node is. Any node may carry it, with at least
+one of these members:
+
+| Member | Value |
+| --- | --- |
+| `label` | what the node is: text of 1 to 200 code points, or a binding |
+| `value` | what it shows now, such as `40 percent`: text of 1 to 200 code points, or a binding |
+| `hint` | what happens when the person acts on it: text of 1 to 200 code points, or a binding |
+| `hidden` | boolean; `true` hides the node and its subtree, and then stands alone |
+
+- A binding names a key of `snapshot.values`, of any type, and is read as a `text` node shows that value: text as it
+  is, a number in its shortest form, `true` or `false`.
+- A value that is missing or empty leaves its member out, and the system reads what it would read without it.
+- `hidden: true` together with `label`, `value` or `hint` is `INVALID_INPUT`; `hidden: false` changes nothing.
+- On a `vstack`, `hstack`, `zstack` or `custom` node, a `label`, `value` or `hint` makes the node one element that
+  stands for what is inside: the labels inside are not read one by one, and a button or a link inside stays an action
+  of that element. The same holds for a button or a link that is drawn as its label alone.
+- Without the member the system reads its own: the text of a `text`, the title of a button, the name of an SF Symbol.
+  A `path`, an `image` and a `custom` view have none, so give them a label or hide them.
+- The member is part of the layout and counts toward the weight like any object.
+
+## Links and URLs
+
+```jsonc
+"layout": { "lockScreen": { "type": "link", "url": "myapp://recording/1", "child": { "type": "text", "value": "Open" } },
+            "url": { "bind": "target" } }
+```
+
+`layout.url` is what a tap on the activity opens the app with, on the Lock Screen and in every presentation of the
+Dynamic Island. A `link` node does the same for a tap on its `child`, where the system draws links: on the Lock Screen
+and in the expanded island.
+
+A URL is a string of 1 to 1024 bytes that matches
+``^[A-Za-z][A-Za-z0-9+.-]*:([A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=-]|%[0-9A-Fa-f]{2})+$``: a scheme, a colon and at least
+one more character, all of them characters of RFC 3986, with a `%` only before two hex digits. A space, a quote, `<`,
+`>`, `\`, `^`, a backtick, `{`, `|`, `}`, a control character or a character outside ASCII is `INVALID_INPUT`:
+percent-encode it.
+
+- The rule checks the form only. The system gives the URL to the app that owns the activity and opens nothing else,
+  so any scheme is taken, and the app decides what it follows. With pushes a server writes the URL: the app treats it
+  as it treats any URL it is opened with.
+- A binding names a string value that is a URL. Every layer checks it at start, and the Swift layer again on every
+  update and for the final content of an end.
+- A link follows the rules of a button: see [Structural limits](#structural-limits). Its `child` is one node and may
+  be a stack.
+- The widget draws a link whose URL the system cannot read as it is (a `[` outside a host, for one), or whose bound
+  value is no URL when a push brought it, as its child without a link, and leaves such a `layout.url` out. It never
+  opens the app with another URL than the one sent.
+- The crate reports no event for a followed URL. The app receives it as it receives any URL: `onOpenURL` in SwiftUI,
+  `application(_:open:options:)` or a scene's `openURLContexts` in UIKit, or the deep-link support of its framework.
 
 ## Styles
 
@@ -295,7 +362,8 @@ nothing reports it. `fontFamily` takes no binding.
 
 A Binding is `{ "bind": "<value key>" }` in place of a literal. The member reads that value each
 time the activity is drawn, so an update that sends a new value changes it. Seven style members and
-the two tints of the layout take a binding:
+the two tints of the layout take a binding, and so do the URLs and the accessibility members described
+[above](#accessibility):
 
 | Member | The value it names |
 | --- | --- |
@@ -315,7 +383,7 @@ the two tints of the layout take a binding:
   it keeps the styles. A value that does not fit is `INVALID_INPUT`, like any other value error.
 - A style that no node uses is checked all the same. A bound `size` and a `font` exclude each other,
   as a literal `size` does. A style whose only members are bound is not empty.
-- The other members take no binding: `font`, `design`, `monospacedDigit`, `lineLimit`,
+- The other style members take no binding: `font`, `design`, `monospacedDigit`, `lineLimit`,
   `minimumScaleFactor`, `alignment`, `padding`, `frame` and `buttonStyle`. They decide the text
   style, how text wraps, the space a node takes and the shape of a button, which belong to the tree
   and are fixed with it. Members of nodes, such as `spacing` or a literal `value`, take no binding
@@ -419,7 +487,8 @@ total  = 48 + 2 + 2                            = 52    layout, {} for styles, {}
 ## What the schema covers
 
 The JSON Schema checks shapes, ranges and patterns, including the characters allowed in `d`, the
-shape of a binding (`$defs/bound`), the props of a custom node and `fontFamily` beside `design`. It
+shape of a binding (`$defs/bound`), the props of a custom node, `fontFamily` beside `design`, the form
+of a URL and the members of `accessibility`. It
 leaves the grammar of `d`, `min` below `max`, lone surrogates, the structural limits, the reference
 rules (the values of bound members and the bindings of props among them) and the weight to the
 validators in Rust and Swift, which check those as well and give the results the fixtures record.
@@ -430,7 +499,8 @@ validators in Rust and Swift, which check those as well and give the results the
   `staleAt`.
 - The layout is fixed at start: `update_layout` takes no `layout`. Not in the draft: seven style
   members and the two tints can be bound to values, so an update changes them.
-- Not part of 2.0: `layoutRef`, gradients, borders and `contentTransition`. The draft's
+- Not part of 2.0: `layoutRef`, gradients, borders and `contentTransition`. Added to contract v2 after it, as
+  optional members: `accessibility` on a node, the `link` node and `layout.url`. The draft's
   `image.source.appGroup` became `{ "file": name }`, with the App Group configured once in the widget
   extension instead of named in every request. Custom fonts came as the style member `fontFamily`, and
   custom views as the `custom` node.

@@ -6,8 +6,8 @@ import WidgetKit
 @_exported import ActivityKitViews
 import ActivityKitIntent
 
-/// Draws every activity the app starts with activitykit, on the Lock Screen and in the Dynamic Island. A widget
-/// extension needs only this:
+/// Draws every activity the app starts with activitykit, on the Lock Screen and in the Dynamic Island, and opens the
+/// app with the layout's URL when the person taps one. A widget extension needs only this:
 ///
 /// ```swift
 /// import ActivityKitWidget
@@ -43,6 +43,7 @@ public struct ActivityKitLayoutWidget: Widget {
             }
             // The Dynamic Island is always dark.
             .keylineTint(context.attributes.document.keyline(values: context.state.values).map { Color($0, scheme: .dark) })
+            .widgetURL(context.attributes.document.url(values: context.state.values))
         }
     }
 }
@@ -55,6 +56,7 @@ private struct LayoutLockScreen: View {
     var body: some View {
         LayoutRegionView(context: context, region: .lockScreen)
             .activityBackgroundTint(context.attributes.document.background(values: context.state.values).map { Color($0, scheme: scheme) })
+            .widgetURL(context.attributes.document.url(values: context.state.values))
     }
 }
 

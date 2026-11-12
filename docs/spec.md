@@ -162,6 +162,19 @@ Errors are variants of `activitykit::Error`. iOS versions are where ActivityKit 
 | AK-CUSTOM-3 | A name with no registered view draws nothing and is reported as `layout.custom.<name>` in `degraded_features()`. | No `ActivityKitCustomViews` class in the app → `["layout.custom.ring"]`. | — | iOS 16.2+ |
 | AK-FONT-1 | `font_family` names a font of the widget extension (not together with `design`) and draws with it at the style's size; an unknown font draws the system font. | `fontFamily` with `design` → error. | `InvalidInput` | iOS 16.2+ |
 
+## Accessibility and links
+
+| ID | Behavior | Input → result | Errors | Platform |
+| --- | --- | --- | --- | --- |
+| AK-ACCESS-1 | Any node carries what assistive technologies read: `Node::accessibility(Accessibility::new().label(..).value(..).hint(..))`, each member text or `Bound`, or `.hidden()`. The wire member is `accessibility`, absent when the node has none. | `symbol("mic.fill").accessibility(Accessibility::new().label("Recording"))` → `{type: symbol, name, accessibility: {label}}`. | — | all |
+| AK-ACCESS-2 | `accessibility` has at least one member; a literal `label`, `value` or `hint` is text of 1 to 200 code points; a bound one names a value, of any type; `hidden: true` stands alone. The member is read strictly, like every other. | `{}`, `{label: ""}`, 201 code points, `{hidden: true, label: "a"}`, a binding to a missing key, an unknown member → error; `{hidden: false, label: "a"}` and a label bound to a number → accepted. | `InvalidInput` | all |
+| AK-ACCESS-3 | The renderer reads a literal as given and a bound member as a `text` node shows the value; a value that is missing or empty leaves its member out, and a node with nothing left keeps what the system reads. A hidden node is hidden with its subtree. A node drawn as several views (a stack, a custom view, a link or a button drawn as its label alone) with a label, value or hint is one element that stands for what is inside. | `label` bound to `"Rec"`, `value` to `0.5` → label `Rec`, value `0.5`; the label's value empty → no label; a `vstack` or a `custom` with a label → one combined element. | — | iOS 16.2+ |
+| AK-LINK-1 | `link(url, label)` writes the node `link` with its `url` and `child`, and `Layout::url(..)` the layout's `url`; both take a URL or `Bound`. | `link("app://rec/1", text("Open"))` → `{type: link, url, child}`; `Layout::url(Bound::key("target"))` → `layout.url: {bind: target}`. | — | all |
+| AK-LINK-2 | A URL is 1 to 1024 ASCII bytes: a scheme (`^[A-Za-z][A-Za-z0-9+.-]*:`), at least one more character, and only characters of RFC 3986 (letters, digits and ``-._~:/?#[]@!$&'()*+,;=``, and `%` before two hex digits). The form only: any scheme is taken. | `a:b`, `https://example.com/a?b=c&d=%20#frag` → accepted; `app`, `app:`, `1app://x`, `app://a b`, `app://a%4`, a character outside ASCII, 1025 bytes → error. | `InvalidInput` | all |
+| AK-LINK-3 | A link stands where a button may: on the Lock Screen and in the expanded regions, never inside a button or a link at any depth, and no button inside it; buttons and links together are at most 4 per region; its child is one level deeper. | A link in `minimal`, a link in a link, a button in a link, one button and four links on the Lock Screen → error; one button and three links → accepted. | `InvalidInput` | all |
+| AK-LINK-4 | A bound URL, of the layout or of a link, names a text value that is a URL, at start and on every update and final content. | `target: "app://rec/1"` → accepted; `"rec/1"`, `1`, a missing key → error; an update to `"rec 2"` → error. | `InvalidInput` | all |
+| AK-LINK-5 | The widget opens the app with the layout's URL on a tap on the activity, on the Lock Screen and in the Dynamic Island, and with a link's URL on a tap on its child. A link whose URL has no value, is no URL or cannot be read by the system as it is draws its child without a link and keeps its own style, and such a layout URL is left out: the app is never opened with another URL than the one sent. The default of an absent island part looks through a link as through a button, and the custom views inside a link are known. The crate reports no event: the app receives the URL as any URL it is opened with. | A link bound to `"rec 2"` by a push, or `app://a/[1]` → its child, no link. | — | iOS 16.2+ |
+
 ## Layout, values, errors and the contract
 
 | ID | Behavior | Input → result | Errors | Platform |
@@ -177,14 +190,14 @@ Errors are variants of `activitykit::Error`. iOS versions are where ActivityKit 
 | AK-ERROR-4 | `SystemLimit` says whether the app's or the device's limit was reached. | `targetMaximumExceeded` → `App`; `globalMaximumExceeded` → `Device`. | — | all |
 | AK-ERROR-5 | `Error` and `LimitScope` leave room for more: a match needs a `_` arm. | A match without `_` does not compile. | — | all |
 | AK-DOCS-1 | The docs and the rustdoc state the 8-hour and 12-hour limits, the four-hour dismissal, what an alert shows, that relevance is kept and stale dates clear, that dropping ends or cancels nothing, and what is not supported yet. | — | — | all |
-| AK-CONTRACT-1 | The Rust validator gives every fixture its verdict, code and weight. | 1048 requests and 34 updates. | `InvalidInput`, `PayloadTooLarge` | all |
+| AK-CONTRACT-1 | The Rust validator gives every fixture its verdict, code and weight. | 1202 requests, 39 updates and 6 ends. | `InvalidInput`, `PayloadTooLarge` | all |
 | AK-CONTRACT-2 | The Swift validator gives every fixture the same. | — | the same | Mac host |
 | AK-CONTRACT-3 | Every fixture sent through the C functions gets the same answer. | — | the same | Mac host |
 | AK-CONTRACT-4 | An update is checked against its start: keys, types, references, weight. | — | `InvalidInput`, `PayloadTooLarge` | all |
 | AK-CONTRACT-5 | Input is strict: unknown members, `null`, wrong types and JSON nested too deep are rejected, a request must read back as itself, and only the three v2 requests exist. | — | `InvalidInput` | all |
 | AK-CONTRACT-6 | The payload weight follows the contract's formula in Rust and Swift. | `{lockScreen: text Hello}` → 52. | — | all |
 | AK-CONTRACT-7 | Path data follows the contract's grammar, not an SVG parser's. | `M0 0 A…` → error. | `InvalidInput` | all |
-| AK-CONTRACT-8 | A tree is at most 8 deep; regions have their node and button limits. | 41 nodes on the Lock Screen → error. | `InvalidInput` | all |
+| AK-CONTRACT-8 | A tree is at most 8 deep; regions have their node and button limits (links count with the buttons, AK-LINK-3). | 41 nodes on the Lock Screen → error. | `InvalidInput` | all |
 | AK-CONTRACT-9 | References between layout, styles and values hold, bound members included. | A bound size of 200 → error. | `InvalidInput` | all |
 | AK-CONTRACT-10 | Each rule of requests, values, styles and nodes rejects what breaks it and takes its limits. | — | `InvalidInput` | all |
 | AK-CONTRACT-11 | A number read from JSON text keeps the value that was written. | `96.00000000000001` stays outside 6..96. | `InvalidInput` | all |
@@ -263,6 +276,7 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 - AK-PUSH-3: No test subscribes a channel at APNs, since the broadcast capability is set only at developer.apple.com, and no test runs below iOS 18, so the floor is read, not run; the checks before ActivityKit are tested.
 - AK-PUSH-8: No test turns frequent pushes off in Settings.
 - AK-RENDER-1 to AK-RENDER-15: On the Mac the renderer is tested where it turns a layout and values into resolved nodes; the SwiftUI drawing of each node runs only on iOS, where the test host draws layouts on the Lock Screen and checks what it can read there, not pixels.
+- AK-ACCESS-3, AK-LINK-5: The Mac tests prove what the renderer resolves: the label, value, hint and URL of each node. That SwiftUI gives them to VoiceOver, that a stack is read as one element, and that a tap opens the app with the URL run only on iOS, and the simulator suite has no scenario for them yet; the widget's SwiftUI is compiled for the simulator.
 - AK-BUILD-2: On an Intel Mac the `aarch64-apple-ios-sim` Rust target is not installed; CI's Apple-silicon runner builds it.
 
 ## Tests
@@ -428,3 +442,11 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 | AK-RENDER-14 | `tests/swift/layout-render.swift::testIslandDefaults` (Swift host) |
 | AK-RENDER-15 | `tests/swift/layout-render.swift::testRenderStyles` (Swift host)<br>`tests/swift/layout-render.swift::testRenderBoundStyles` (Swift host) |
 | AK-RENDER-16 | `tests/ios-host/src/lib.rs::every_node` (simulator)<br>`tests/ios-host/UITests/HostTests.swift::testEveryNodeTypeDraws` (simulator) |
+| AK-ACCESS-1 | `src/layout/tests.rs::accessibility_builders_write_their_members` (unit)<br>`src/contract/surface_tests.rs::accessibility_and_links_keep_their_wire_shape` (unit)<br>`src/push_tests.rs::a_start_payload_carries_links_and_accessibility_with_the_layout` (unit) |
+| AK-ACCESS-2 | `src/contract/surface_tests.rs::rejects_each_accessibility_rule` (unit)<br>`src/contract/surface_tests.rs::accepts_the_limits_of_accessibility` (unit)<br>`src/contract/surface_tests.rs::the_new_members_are_read_strictly` (unit)<br>`src/contract/surface_tests.rs::a_built_node_meets_the_same_rules` (unit)<br>`tests/contract.rs::every_fixture_gets_its_verdict_code_and_weight` (unit)<br>`tests/swift/layout-fixtures.swift::testLayoutFixtures` (Swift host) |
+| AK-ACCESS-3 | `tests/swift/layout-render.swift::testRenderAccessibility` (Swift host) |
+| AK-LINK-1 | `src/layout/tests.rs::link_and_layout_url_builders_write_the_contract` (unit)<br>`src/contract/surface_tests.rs::accessibility_and_links_keep_their_wire_shape` (unit)<br>`src/contract/surface_tests.rs::the_new_members_are_read_strictly` (unit)<br>`src/push_tests.rs::a_start_payload_carries_links_and_accessibility_with_the_layout` (unit) |
+| AK-LINK-2 | `src/contract/surface_tests.rs::a_url_is_ascii_with_a_scheme` (unit)<br>`tests/contract.rs::every_fixture_gets_its_verdict_code_and_weight` (unit)<br>`tests/swift/layout-fixtures.swift::testLayoutFixtures` (Swift host)<br>`tests/swift/layout-render.swift::testRenderLinks` (Swift host) |
+| AK-LINK-3 | `src/contract/surface_tests.rs::a_link_stands_where_a_button_may` (unit)<br>`tests/contract.rs::every_fixture_gets_its_verdict_code_and_weight` (unit)<br>`tests/swift/layout-fixtures.swift::testLayoutFixtures` (Swift host) |
+| AK-LINK-4 | `src/contract/surface_tests.rs::a_bound_url_names_a_text_value_that_is_a_url` (unit)<br>`tests/contract.rs::every_update_fixture_is_checked_against_its_start` (unit)<br>`tests/contract.rs::every_end_fixture_is_checked_against_its_start` (unit)<br>`tests/swift/layout-fixtures.swift::testLayoutFixtures` (Swift host) |
+| AK-LINK-5 | `tests/swift/layout-render.swift::testRenderLinks` (Swift host) |
