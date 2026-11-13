@@ -362,3 +362,12 @@ fn island_options_have_builders() {
         json!({"minimal":{"type":"symbol","name":"mic"}})
     );
 }
+
+// AK-TOGGLE-1
+#[test]
+fn the_toggle_builder_writes_its_node() {
+    assert_eq!(
+        wire(toggle("mute", "muted", text("Mute")).style("s")),
+        json!({"type":"toggle","actionId":"mute","bind":"muted","child":{"type":"text","value":"Mute"},"style":"s"})
+    );
+}

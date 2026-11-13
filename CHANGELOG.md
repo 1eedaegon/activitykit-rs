@@ -8,11 +8,21 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 The start options and the alert sound of phase 3 of [the iOS surface plan](docs/prd-ios-surface.md).
 
 - `Start::scheduled(at, alert)` starts an activity at a later time (iOS 26), with the alert the system shows then.
-  Until `at` the handle is `State::Pending`; a pending activity holds its key and takes updates and an end.
+  Until `at` the handle is `State::Pending`; a pending activity holds its key and can be ended, and takes no
+  update until it began (`Error::Conflict`).
 - `Start::transient()` asks for a transient activity (iOS 18), which the system ends by itself.
 - `Alert::sound(name)` names the sound of an alert, of an update, of a scheduled start and of a push payload.
 - Below the iOS a start option needs, the start answers `Error::UnsupportedFeature` before ActivityKit is asked.
 - The bridge's `ak_start` takes `style` and `scheduled` beside the request, and an alert a `sound`.
+
+The toggle of phase 3.
+
+- `toggle(action_id, key, label)` draws a switch that shows the flag `key` (iOS 17). A tap arrives as
+  `Event::Action` with `on`, the state the person asked for; the app's update moves the switch. `on` is `None` for
+  a button.
+- Request contract v2 gains the node `toggle`; the bridge's `action` event may carry `on`, and the action intent a
+  third parameter for it.
+- Breaking: `Element` has the variant `Toggle`.
 
 ## 0.4.0 - 2026-11-13
 

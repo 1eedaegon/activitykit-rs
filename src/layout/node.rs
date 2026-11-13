@@ -262,6 +262,13 @@ pub enum Element {
         url: Bindable<String>,
         child: Box<Node>,
     },
+    /// A switch that shows the flag `bind` beside `child`, and whose tap arrives as an action under `action_id`.
+    #[serde(rename_all = "camelCase")]
+    Toggle {
+        action_id: String,
+        bind: String,
+        child: Box<Node>,
+    },
     /// A SwiftUI view that the app registers under `name` in its widget extension. Each prop is a
     /// literal or [`Bound`](super::Bound) to a value, which the view reads on every render. Android
     /// shows no custom view.
@@ -528,6 +535,22 @@ pub fn button(action_id: impl Into<String>, label: impl Into<Node>) -> Node {
 pub fn link(url: impl Into<Bindable<String>>, label: impl Into<Node>) -> Node {
     Element::Link {
         url: url.into(),
+        child: Box::new(label.into()),
+    }
+    .into()
+}
+
+/// A toggle (iOS 17 and later) that shows the flag `key` beside `label`. A tap arrives as
+/// [`Event::Action`](crate::Event::Action) with `action_id` and the state the person asked for, the opposite of the
+/// flag; it does not change the activity, so update the value to move the switch. It stands where a [`button`] may.
+pub fn toggle(
+    action_id: impl Into<String>,
+    key: impl Into<String>,
+    label: impl Into<Node>,
+) -> Node {
+    Element::Toggle {
+        action_id: action_id.into(),
+        bind: key.into(),
         child: Box::new(label.into()),
     }
     .into()

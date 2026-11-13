@@ -80,8 +80,8 @@ pub struct Authorization {
     pub supported: bool,
     /// Supported, and turned on for this app in Settings.
     pub enabled: bool,
-    /// Supported, and the OS runs a button's intent: iOS 17 and later. It does not check that the app links the
-    /// intent (`ActivityKitIntent`).
+    /// Supported, and the OS runs the intent of a button or a toggle: iOS 17 and later. It does not check that the
+    /// app links the intent (`ActivityKitIntent`).
     pub buttons: bool,
     /// Supported, and the person allows frequent pushes for the app in Settings, which the app offers with
     /// `NSSupportsLiveActivitiesFrequentUpdates` in its Info.plist (iOS 16.2); false where that is unknown.

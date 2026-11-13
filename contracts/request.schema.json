@@ -221,7 +221,7 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["vstack", "hstack", "zstack", "spacer", "divider", "text", "symbol", "image", "path", "progress", "gauge", "timerText", "button", "link", "custom"] }
+        "type": { "enum": ["vstack", "hstack", "zstack", "spacer", "divider", "text", "symbol", "image", "path", "progress", "gauge", "timerText", "button", "link", "toggle", "custom"] }
       },
       "not": { "required": ["if", "unless"], "properties": { "if": true, "unless": true } },
       "allOf": [
@@ -239,6 +239,7 @@
         { "if": { "required": ["type"], "properties": { "type": { "const": "timerText" } } }, "then": { "$ref": "#/$defs/timerText" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "button" } } }, "then": { "$ref": "#/$defs/button" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "link" } } }, "then": { "$ref": "#/$defs/link" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "toggle" } } }, "then": { "$ref": "#/$defs/toggle" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "custom" } } }, "then": { "$ref": "#/$defs/custom" } }
       ]
     },
@@ -403,6 +404,18 @@
       "properties": {
         "type": { "const": "link" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "url": { "$ref": "#/$defs/bindableUrl" },
+        "child": { "$ref": "#/$defs/node" }
+      }
+    },
+    "toggle": {
+      "description": "A switch that shows a boolean value; a tap is an action with the state asked for. It stands where a button may.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "actionId", "bind", "child"],
+      "properties": {
+        "type": { "const": "toggle" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "actionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$" },
+        "bind": { "$ref": "#/$defs/name" },
         "child": { "$ref": "#/$defs/node" }
       }
     },

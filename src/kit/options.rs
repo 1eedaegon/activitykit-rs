@@ -72,8 +72,9 @@ impl Start {
         }
     }
 
-    /// A transient activity (iOS 18 and later; [`Error::UnsupportedFeature`] before): the system ends it when the
-    /// person locks the device or leaves the app, so it suits what only matters while the app is in use.
+    /// A transient activity (iOS 18 and later; [`Error::UnsupportedFeature`] before). By Apple's description it shows
+    /// in the expanded Dynamic Island and the system ends it when the person locks the device, collapses that
+    /// presentation or leaves the app; the crate asks for it and promises no more.
     pub fn transient(mut self) -> Self {
         self.transient = true;
         self
@@ -82,7 +83,10 @@ impl Start {
     /// Starts the activity at `at` instead of now (iOS 26 and later; [`Error::UnsupportedFeature`] before). The system
     /// shows `alert` when it starts it, which is why a scheduled start needs one. Until then the handle is
     /// [`Pending`](crate::State::Pending), the activity counts toward the system's limit, and its key is taken: the
-    /// same keyed start returns it. [`Event::State`](crate::Event::State) reports the start.
+    /// same keyed start returns it, whatever its time, as a keyed start returns a running activity whatever it asks
+    /// for beside its content. It can be ended while it waits, and [`Event::State`](crate::Event::State) reports the
+    /// start; an update before that is [`Error::Conflict`], since the activity begins with the content of its start
+    /// whatever was sent meanwhile. A time that has passed starts it at once.
     pub fn scheduled(mut self, at: SystemTime, alert: Alert) -> Self {
         self.scheduled = Some((at, alert));
         self

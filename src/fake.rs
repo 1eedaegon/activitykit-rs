@@ -189,6 +189,15 @@ impl FakeBridge {
                 ok(record(&activity))
             }
             Call::Update => {
+                // An activity that waits for its scheduled start takes no update, as in the Swift lifecycle.
+                let waits =
+                    |activity: &FakeActivity| activity.id == id && activity.state == State::Pending;
+                if state.activities.iter().any(waits) {
+                    return error(
+                        "CONFLICT",
+                        "The activity has not started yet; update it once it is active.",
+                    );
+                }
                 let live = |activity: &&mut FakeActivity| {
                     activity.id == id && matches!(activity.state, State::Active | State::Stale)
                 };

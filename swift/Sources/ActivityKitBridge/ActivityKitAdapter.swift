@@ -77,6 +77,11 @@ struct ActivityKitAdapter<Attributes: BridgeActivityAttributes> {
                 return try SystemActivity.request(attributes: attributes, content: content, pushType: pushType, style: transient ? .transient : .standard,
                                                   alertConfiguration: Self.configuration(scheduled.alert), start: date(scheduled.at))
             }
+            #else
+            // An app built before the iOS 26 SDK has no such request, whatever the device runs.
+            if #available(iOS 26.0, *) {
+                throw ActivityFailure("CONFIGURATION_REQUIRED", "A scheduled start needs the app built with the iOS 26 SDK.")
+            }
             #endif
             throw ActivityFailure.unsupportedFeature("scheduledStart", minimumIos: "26.0")
         }

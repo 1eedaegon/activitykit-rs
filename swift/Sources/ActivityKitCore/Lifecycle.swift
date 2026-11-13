@@ -65,7 +65,8 @@ struct Receipt<Activity: LifecycleActivity> {
     var snapshot: Activity.Snapshot? { activity?.snapshot ?? Activity.snapshot(in: entry.content) }
 }
 
-/// An activity that takes updates and holds its key: also one that waits for its scheduled start.
+/// An activity that holds its key and can be ended: also one that waits for its scheduled start, which takes no
+/// update until it began.
 private func isLive(_ state: String) -> Bool { ["active", "stale", "pending"].contains(state) }
 private func isTerminal(_ state: String) -> Bool { ["ended", "dismissed"].contains(state) }
 
@@ -134,6 +135,11 @@ final class ActivityLifecycle<Activity: LifecycleActivity> {
         try await queue.run {
             try self.load()
             let activity = try await self.active(id)
+            // ActivityKit takes an update of an activity that waits for its scheduled start, without an error, and
+            // then begins it with the content of its start: the update would be accepted here and never shown.
+            guard activity.state != "pending" else {
+                throw ActivityFailure("CONFLICT", "The activity has not started yet; update it once it is active.")
+            }
             try validate(activity)
             let receipt = self.receipts.first { $0.id == id }
             let current = Activity.revision(of: activity.snapshot), revision = Activity.revision(of: snapshot)

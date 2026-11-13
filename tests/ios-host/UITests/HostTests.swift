@@ -77,10 +77,15 @@ class HostCase: XCTestCase {
         XCTAssertTrue(waitUntil(10) { app.state != .runningForeground }, "the app leaves the foreground")
     }
 
-    /// Pulls the Lock Screen down over the Home Screen, and allows Live Activities if the system asks.
-    func showLockScreen(until text: String) {
+    /// Pulls the Lock Screen down over the Home Screen.
+    func pullLockScreenDown() {
         let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.01))
         top.press(forDuration: 0.1, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8)))
+    }
+
+    /// Pulls the Lock Screen down until `text` shows, and allows Live Activities if the system asks.
+    func showLockScreen(until text: String) {
+        pullLockScreenDown()
         // A new simulator can take half a minute to draw its first activity.
         let shown = springboard.staticTexts[text].waitForExistence(timeout: 45)
         if !shown {
@@ -204,9 +209,20 @@ final class HostTests: HostCase {
         waitFor("PASS background-start", timeout: 30)
     }
 
-    // AK-START-13, AK-START-14, AK-ALERT-1
-    /// A scheduled start is pending until its time and then active; an alert names a sound; and ActivityKit takes a
-    /// transient start. The scenario reports what the system did with that activity after the app left the foreground.
+    // AK-START-14
+    /// A scheduled start is pending until its time, holds its key and takes no update, and is then active and on the
+    /// Lock Screen with the content of its start.
+    func testScheduledStart() throws {
+        launch("scheduled-start")
+        waitFor("PASS scheduled-start", timeout: 150)
+        goHome()
+        showLockScreen(until: "Soon")
+        try capture("scheduled-start")
+    }
+
+    // AK-START-13, AK-ALERT-1
+    /// ActivityKit takes an alert with a named sound and a transient start. The scenario reports what the system did
+    /// with that activity after the app left the foreground.
     func testStartOptions() throws {
         launch("start-options")
         waitFor("transient", timeout: 120)
@@ -217,6 +233,39 @@ final class HostTests: HostCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
         waitFor("PASS start-options", timeout: 30)
         try capture("start-options-report")
+    }
+
+    // AK-TOGGLE-1
+    /// A toggle on the Lock Screen shows its flag; a tap reaches Rust with the state asked for, and the app's update
+    /// moves the switch.
+    func testToggleAsksForTheOtherState() throws {
+        launch("toggle")
+        waitFor("shown")
+        goHome()
+        showLockScreen(until: "Toggles")
+        let toggle = springboard.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Mute")).firstMatch
+        let shown = toggle.waitForExistence(timeout: 30)
+        if !shown {
+            try? capture("toggle-missing")
+            print("the Lock Screen without the toggle:\n\(springboard.debugDescription)")
+        }
+        XCTAssertTrue(shown, "the toggle shows on the Lock Screen")
+        XCTAssertEqual(toggle.elementType, .switch, "as a switch")
+        XCTAssertEqual(toggle.value as? String, "0", "that is off, like its flag")
+        try capture("toggle-off")
+        toggle.tap()
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        waitFor("muted true", timeout: 60)
+        goHome()
+        showLockScreen(until: "Toggles")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 30), "the toggle is still there")
+        XCTAssertTrue(waitUntil(15) { toggle.value as? String == "1" }, "and on, once the app set the flag")
+        try capture("toggle-on")
+        toggle.tap()
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        waitFor("PASS toggle", timeout: 60)
     }
 
     // AK-KIT-3, AK-LIST-4

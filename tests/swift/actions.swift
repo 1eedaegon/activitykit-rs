@@ -32,6 +32,31 @@ extension LifecycleTests {
         return condition()
     }
 
+    // AK-TOGGLE-1
+    /// The tap of a toggle carries the state the person asked for, from the intent through the relay to the bridge's
+    /// event; the tap of a button carries none.
+    @MainActor static func testToggleTaps() async throws {
+        let center = NotificationCenter()
+        let relay = ActionRelay(center: center) { _ in "job:1" }
+        let heard = TapLog()
+        relay.register(heard.record)
+        let asked = try await ActionPost.post(activityId: "la-1", actionId: "mute", isOn: true, center: center)
+        let plain = try await ActionPost.post(activityId: "la-1", actionId: "stop", center: center)
+        let undone = try await ActionPost.post(activityId: "la-1", actionId: "mute", isOn: false, center: center)
+        expect(asked && plain && undone, "each tap is acknowledged")
+        expect(heard.actions == [LiveActivityAction(activityId: "la-1", actionId: "mute", activityKey: "job:1", isOn: true),
+                                 LiveActivityAction(activityId: "la-1", actionId: "stop", activityKey: "job:1"),
+                                 LiveActivityAction(activityId: "la-1", actionId: "mute", activityKey: "job:1", isOn: false)],
+               "the relay hands on the state a toggle was asked for, and none for a button")
+        func event(_ action: LiveActivityAction) throws -> NSDictionary {
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(BridgeEvent.action(action))) as? NSDictionary ?? [:]
+        }
+        try await verify(try event(heard.actions[0]) == ["type": "action", "activityId": "la-1", "actionId": "mute", "activityKey": "job:1", "on": true],
+                         "the bridge's event says which state was asked for")
+        try await verify(try event(heard.actions[1]) == ["type": "action", "activityId": "la-1", "actionId": "stop", "activityKey": "job:1"],
+                         "and nothing of a state for a button")
+    }
+
     // AK-EVENT-3, AK-EVENT-4, AK-EVENT-6, AK-EVENT-14
     @MainActor static func testActionRelay() async throws {
         let center = NotificationCenter()

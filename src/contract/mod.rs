@@ -17,6 +17,8 @@ mod presentation_tests;
 mod rule_tests;
 #[cfg(test)]
 mod surface_tests;
+#[cfg(test)]
+mod toggle_tests;
 
 pub use crate::layout::{Island, IslandExpanded};
 pub use validation::{Validate, validate_request};

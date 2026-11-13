@@ -329,12 +329,14 @@ public indirect enum LayoutContent: Sendable {
     case button(actionId: String, child: LayoutNode)
     /// A tap on `child` opens the app with `url`: a URL, or bound to a text value that is one.
     case link(url: LayoutBindable<String>, child: LayoutNode)
+    /// A switch that shows the flag `bind` beside `child`; its tap is an action with the state asked for.
+    case toggle(actionId: String, bind: String, child: LayoutNode)
     /// A view the app registers under `name` in its widget extension. Each prop is a literal or bound to a value.
     case custom(name: String, props: [String: LayoutBindable<LayoutValue>]?)
 }
 
 private enum LayoutNodeType: String, Decodable {
-    case vstack, hstack, zstack, spacer, divider, text, symbol, image, path, progress, gauge, timerText, button, link, custom
+    case vstack, hstack, zstack, spacer, divider, text, symbol, image, path, progress, gauge, timerText, button, link, toggle, custom
 }
 
 /// Where an image comes from: the asset catalog of the widget extension (`{"asset": name}`), or a PNG that the app
@@ -412,6 +414,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case .timerText: content = .timerText(start: try object.need("start"), end: try object.need("end"), countsDown: try object.take("countsDown"))
         case .button: content = .button(actionId: try object.need("actionId"), child: try object.need("child"))
         case .link: content = .link(url: try object.need("url"), child: try object.need("child"))
+        case .toggle: content = .toggle(actionId: try object.need("actionId"), bind: try object.need("bind"), child: try object.need("child"))
         case .custom: content = .custom(name: try object.need("name"), props: try object.take("props"))
         }
         try object.finish()
@@ -448,6 +451,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case let .timerText(start, end, countsDown): return ("timerText", [("start", start), ("end", end), ("countsDown", countsDown)])
         case let .button(actionId, child): return ("button", [("actionId", actionId), ("child", child)])
         case let .link(url, child): return ("link", [("url", url), ("child", child)])
+        case let .toggle(actionId, bind, child): return ("toggle", [("actionId", actionId), ("bind", bind), ("child", child)])
         case let .custom(name, props): return ("custom", [("name", name), ("props", props)])
         }
     }

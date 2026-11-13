@@ -9,8 +9,8 @@ use activitykit::{
     Style, Update, Value,
     layout::{
         Accessibility, ButtonStyle, Font, Frame, ImageSource, IndicatorKind, button, custom,
-        divider, gauge, hstack, image, link, path, progress, spacer, symbol, text, timer, vstack,
-        zstack,
+        divider, gauge, hstack, image, link, path, progress, spacer, symbol, text, timer, toggle,
+        vstack, zstack,
     },
     values,
 };
@@ -100,7 +100,9 @@ pub extern "C" fn ak_host_run(report: Report) {
             "background-start" => background_start(&reporter),
             "every-node" => every_node(&reporter),
             "surface" => surface(&reporter),
+            "scheduled-start" => scheduled_start(&reporter),
             "start-options" => start_options(&reporter),
+            "toggle" => toggle_flag(&reporter),
             "policies" => policies(&reporter),
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
@@ -682,31 +684,70 @@ fn surface(reporter: &Reporter) -> Outcome {
     Ok(())
 }
 
-// AK-START-13, AK-START-14, AK-ALERT-1
-/// A start at a later time, which is pending until then and holds its key; an alert with a named sound; and a
-/// transient activity, which ActivityKit takes. What the system then does with it once the person leaves the app
-/// (the UI test sends it to the background) the scenario reports and does not judge.
-fn start_options(reporter: &Reporter) -> Outcome {
+/// The first state of `wanted` that `accept` takes, within `limit`.
+fn state_of(
+    events: &activitykit::async_channel::Receiver<Event>,
+    wanted: &Activity,
+    limit: Duration,
+    accept: fn(State) -> bool,
+) -> Option<State> {
+    next_event(events, limit, |event| match event {
+        Event::State {
+            activity, state, ..
+        } if activity == *wanted && accept(state) => Some(state),
+        _ => None,
+    })
+}
+
+// AK-START-14
+/// A start at a later time: pending until then, listed pending, its key taken, no update taken, and active at its
+/// time. What ActivityKit makes of a time that has passed the scenario reports; an end while the activity waits
+/// removes it. The activity that began stays, for the UI test to read on the Lock Screen.
+fn scheduled_start(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let events = kit.events();
-    let values = || values! { "status" => "Soon", "tone" => "green", "level" => 0.1 };
-    let state_of = |wanted: Activity, limit: Duration, accept: fn(State) -> bool| {
-        next_event(&events, limit, |event| match event {
-            Event::State {
-                activity, state, ..
-            } if activity == wanted && accept(state) => Some(state),
-            _ => None,
-        })
+    let values = |status: &str| values! { "status" => status, "tone" => "green", "level" => 0.1 };
+    let alert = || Alert::new("Starting", "The recording begins");
+    let scheduled = |key: &str, status: &str, at: SystemTime| {
+        Start::new(layout(), values(status))
+            .key(key)
+            .scheduled(at, alert())
     };
 
-    let begins = SystemTime::now() + Duration::from_secs(12);
-    let scheduled = || {
-        Start::new(layout(), values())
-            .key("scheduled")
-            .scheduled(begins, Alert::new("Starting", "The recording begins"))
-    };
-    let later =
-        block_on(kit.start_with(scheduled())).map_err(|error| format!("schedule: {error}"))?;
+    let passed = SystemTime::now() - Duration::from_secs(60);
+    match block_on(kit.start_with(scheduled("passed", "Passed", passed))) {
+        Ok(activity) => {
+            reporter.say(format!(
+                "a start scheduled a minute ago is taken: {:?}",
+                activity.state()
+            ));
+            block_on(activity.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
+        }
+        Err(error) => reporter.say(format!(
+            "a start scheduled a minute ago is refused: {error}"
+        )),
+    }
+
+    let hour = SystemTime::now() + Duration::from_secs(3600);
+    let waiting = block_on(kit.start_with(scheduled("waiting", "Waiting", hour)))
+        .map_err(|error| format!("schedule an hour ahead: {error}"))?;
+    check(waiting.state() == State::Pending, "it is pending")?;
+    block_on(waiting.end(End::immediately()))
+        .map_err(|error| format!("end while pending: {error}"))?;
+    let listed = block_on(kit.activities()).map_err(|error| error.to_string())?;
+    let left = listed
+        .iter()
+        .find(|activity| **activity == waiting)
+        .map(Activity::state);
+    reporter.say(format!("ended while pending: the list then says {left:?}"));
+    check(
+        !matches!(left, Some(State::Pending | State::Active)),
+        "an activity ended while pending no longer waits",
+    )?;
+
+    let begins = SystemTime::now() + Duration::from_secs(15);
+    let start = || scheduled("scheduled", "Soon", begins);
+    let later = block_on(kit.start_with(start())).map_err(|error| format!("schedule: {error}"))?;
     check(
         later.state() == State::Pending,
         format!("a scheduled start is pending, not {:?}", later.state()),
@@ -717,10 +758,16 @@ fn start_options(reporter: &Reporter) -> Outcome {
         found.is_some_and(|activity| activity.state() == State::Pending),
         "the list shows the pending activity",
     )?;
-    let again = block_on(kit.start_with(scheduled())).map_err(|error| format!("again: {error}"))?;
+    let again = block_on(kit.start_with(start())).map_err(|error| format!("again: {error}"))?;
     check(again == later, "the key of a pending activity is taken")?;
+    // ActivityKit would take an update now and still begin the activity with the content of its start.
+    let early = block_on(later.update(values("Changed")));
+    check(
+        matches!(early, Err(Error::Conflict(_))),
+        format!("an update while pending is refused, not {early:?}"),
+    )?;
     reporter.say(format!("pending {}", later.id()));
-    let began = state_of(later.clone(), Duration::from_secs(45), |state| {
+    let began = state_of(&events, &later, Duration::from_secs(45), |state| {
         state == State::Active
     });
     check(
@@ -731,11 +778,25 @@ fn start_options(reporter: &Reporter) -> Outcome {
         SystemTime::now() + Duration::from_secs(2) >= begins,
         "and not before its time",
     )?;
+    reporter.say("began: the Lock Screen shows it");
+    Ok(())
+}
+
+// AK-START-13, AK-ALERT-1
+/// An alert with a named sound, and a transient activity, which ActivityKit takes. What the system then does with it
+/// once the person leaves the app (the UI test sends it to the background) the scenario reports and does not judge.
+fn start_options(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let events = kit.events();
+    let values = || values! { "status" => "Soon", "tone" => "green", "level" => 0.1 };
+
+    let plain =
+        block_on(kit.start(layout(), values())).map_err(|error| format!("start: {error}"))?;
     let loud = Update::new(values! { "status" => "Loud", "tone" => "red", "level" => 0.9 })
         .alert(Alert::new("Loud", "The level is high").sound("chime.aiff"));
-    block_on(later.update_with(loud)).map_err(|error| format!("an alert with a sound: {error}"))?;
-    block_on(later.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
-    reporter.say("scheduled, started at its time, alerted with a sound, ended");
+    block_on(plain.update_with(loud)).map_err(|error| format!("an alert with a sound: {error}"))?;
+    block_on(plain.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
+    reporter.say("alerted with a named sound, ended");
 
     let brief =
         block_on(kit.start_with(Start::new(layout(), values()).key("transient").transient()))
@@ -754,7 +815,7 @@ fn start_options(reporter: &Reporter) -> Outcome {
         thread::sleep(Duration::from_millis(100));
     }
     let left = Instant::now();
-    let over = state_of(brief.clone(), Duration::from_secs(25), |state| {
+    let over = state_of(&events, &brief, Duration::from_secs(25), |state| {
         matches!(state, State::Ended | State::Dismissed)
     });
     // What the system does with a transient activity is the system's: the scenario says what it saw.
@@ -777,6 +838,44 @@ fn start_options(reporter: &Reporter) -> Outcome {
             }
         }
     }
+    Ok(())
+}
+
+// AK-TOGGLE-1
+/// A toggle shows a flag. Each tap arrives with the state the person asked for, the opposite of the flag, and the
+/// app's update moves the switch: the UI test flips it on and off again.
+fn toggle_flag(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let events = kit.events();
+    let layout =
+        Layout::new(vstack([text("Toggles"), toggle("mute", "muted", text("Mute"))]).spacing(6.0));
+    let activity = block_on(kit.start(layout, values! { "muted" => false }))
+        .map_err(|error| format!("start: {error}"))?;
+    reporter.say("shown: flip Mute on the Lock Screen, twice");
+    for asked in [true, false] {
+        let tap = next_event(&events, Duration::from_secs(120), |event| match event {
+            Event::Action {
+                activity,
+                action,
+                on,
+                ..
+            } => Some((activity, action, on)),
+            _ => None,
+        });
+        let (tapped, action, on) = tap.ok_or("no tap within 2 minutes")?;
+        check(
+            action == "mute" && tapped == activity,
+            "the tap names the toggle and the activity",
+        )?;
+        check(
+            on == Some(asked),
+            format!("the tap asks for {asked}, not {on:?}"),
+        )?;
+        block_on(activity.update(values! { "muted" => asked }))
+            .map_err(|error| format!("update: {error}"))?;
+        reporter.say(format!("muted {asked}"));
+    }
+    block_on(activity.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
     Ok(())
 }
 

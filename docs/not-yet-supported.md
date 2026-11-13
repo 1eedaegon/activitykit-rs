@@ -6,7 +6,6 @@ built; the types that would carry them (`Event`, `Error`, `State`, `Authorizatio
 | Feature | iOS | What it needs |
 | --- | --- | --- |
 | A channel for a push-to-start (`input-push-channel`) | 18.0 | A channel made at APNs before the start; the crate builds start payloads for the push-to-start token. |
-| Toggles | 17.0 | A toggle node bound to a value, which a Live Activity intent flips. |
 | The small region for Apple Watch and CarPlay | 18.0 (Watch), 26.0 (CarPlay) | A layout region of its own; without it the system shows the compact views. |
 | Receipts without values | — | The Swift layer can keep a digest instead of the accepted values (`ReceiptMode.redacted`, tested on the Mac); the crate keeps the values and has no option for it yet. |
 

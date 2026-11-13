@@ -1434,6 +1434,30 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "divider" }, "margins": { "expanded": [1, 2, 3, 4] } } }, "snapshot": { "revision": 0, "values": {} } },
       "weight": 153
+    },
+    {
+      "name": "starts a layout with a toggle on the lock screen and in an expanded region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "text", "value": "Recorder" }, { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "Mute" } }] }, "island": { "expanded": { "bottom": { "type": "toggle", "actionId": "island.mute", "bind": "muted", "child": { "type": "symbol", "name": "mic.slash" } } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "weight": 334
+    },
+    {
+      "name": "accepts a toggle, a link and two buttons in one region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "button", "actionId": "tap", "child": { "type": "text", "value": "a" } }, { "type": "button", "actionId": "two", "child": { "type": "text", "value": "a" } }] } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "weight": 375
+    },
+    {
+      "name": "accepts a toggle with a style, a condition and accessibility members",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "Mute" }, "style": "s", "unless": "busy", "accessibility": { "label": "Mute the microphone" } } }, "styles": { "s": { "tint": "red" } }, "snapshot": { "revision": 0, "values": { "muted": true, "busy": false } } },
+      "weight": 235
+    },
+    {
+      "name": "accepts a toggle below six stacks",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } }] }] }] }] }] }] } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "weight": 320
     }
   ],
   "invalid": [
@@ -7502,6 +7526,162 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "margins": { "expanded": 8 } } }, "snapshot": { "revision": 0, "values": {} } },
       "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle without a flag",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle without an action id",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "bind": "muted", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle without a child",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted" } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle with a null child",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": null } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle whose flag is a literal",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": true, "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle whose flag is a binding object",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": { "bind": "muted" }, "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle with an unknown member",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" }, "value": true } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle with a url",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" }, "url": "app://rec/1" } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle with an empty action id",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "", "bind": "muted", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle whose action id holds a space",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute it", "bind": "muted", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle whose action id is 65 characters",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bind": "muted", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle whose flag names no value",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "absent", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle whose child names a missing value",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "bind": "absent" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle bound to text",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": "no" } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle bound to a number",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": 0 } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle in the compactLeading part",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "compactLeading": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle in the compactTrailing part",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "compactTrailing": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle in the minimal part",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "a" }, "island": { "minimal": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle inside a toggle",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a button inside a toggle",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "button", "actionId": "tap", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a link inside a toggle",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle inside a button",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "button", "actionId": "tap", "child": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle inside a link",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "link", "url": "app://rec/1", "child": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a button below a stack inside a toggle",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "vstack", "children": [{ "type": "button", "actionId": "tap", "child": { "type": "text", "value": "a" } }] } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects five toggles, links and buttons on the lock screen",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } }, { "type": "toggle", "actionId": "b", "bind": "muted", "child": { "type": "text", "value": "a" } }, { "type": "link", "url": "app://rec/1", "child": { "type": "text", "value": "a" } }, { "type": "button", "actionId": "tap", "child": { "type": "text", "value": "a" } }, { "type": "button", "actionId": "two", "child": { "type": "text", "value": "a" } }] } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle below seven stacks",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } }] }] }] }] }] }] }] } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
     }
   ],
   "updates": [
@@ -7737,6 +7917,18 @@
       "name": "rejects an update that binds a link url to text without a scheme",
       "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "link", "url": { "bind": "target" }, "child": { "type": "text", "value": "Open" } } }, "snapshot": { "revision": 0, "values": { "target": "app://rec/1" } } },
       "update": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": { "target": "rec/2" } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "updates the flag a toggle shows",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "Mute" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "update": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": { "muted": true } } },
+      "weight": 125
+    },
+    {
+      "name": "rejects an update that turns the flag of a toggle into text",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "Mute" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "update": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": { "muted": "yes" } } },
       "code": "INVALID_INPUT"
     }
   ],

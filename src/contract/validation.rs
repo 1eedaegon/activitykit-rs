@@ -69,7 +69,7 @@ impl Validate for EndInput {
 const MAX_WEIGHT: usize = 3584;
 const MAX_NUMBER: f64 = 8_640_000_000_000_000.0;
 const MAX_DEPTH: usize = 8;
-/// Buttons and links of one region, together.
+/// Buttons, links and toggles of one region, together.
 const MAX_CONTROLS: usize = 4;
 const MAX_PROPS: usize = 16;
 const MAX_URL: usize = 1024;
@@ -158,6 +158,11 @@ fn word(value: &str, max: usize, first: fn(&u8) -> bool, extra: &[u8]) -> bool {
 /// A value key or a style token.
 fn name(value: &str) -> bool {
     word(value, 32, u8::is_ascii_alphabetic, b"_")
+}
+
+/// The action id of a button or a toggle.
+fn action(id: &str) -> bool {
+    word(id, 64, u8::is_ascii_alphanumeric, b"._:-")
 }
 
 /// An asset name, an image file name or the name of a custom view.
@@ -426,7 +431,7 @@ struct Scope<'a> {
 #[derive(Default)]
 struct Count {
     nodes: usize,
-    /// Buttons and links.
+    /// Buttons, links and toggles.
     controls: usize,
 }
 
@@ -566,7 +571,7 @@ impl Scope<'_> {
             .try_for_each(|node| self.node(node, depth + 1, buttons, count))
     }
 
-    /// `buttons` is false in a region without buttons and links, and inside a button or a link.
+    /// `buttons` is false in a region without buttons, links and toggles, and inside one of them.
     fn node(&self, node: &Node, depth: usize, buttons: bool, count: &mut Count) -> Result<()> {
         count.nodes += 1;
         let styled = |token: &String| self.styles.is_some_and(|styles| styles.contains_key(token));
@@ -590,12 +595,22 @@ impl Scope<'_> {
             Element::Zstack { children, .. } => self.children(children, depth, buttons, count),
             Element::Button { action_id, child } => {
                 count.controls += 1;
-                require(buttons && word(action_id, 64, u8::is_ascii_alphanumeric, b"._:-"))?;
+                require(buttons && action(action_id))?;
                 self.node(child, depth + 1, false, count)
             }
             Element::Link { url: target, child } => {
                 count.controls += 1;
                 require(buttons && self.target(target))?;
+                self.node(child, depth + 1, false, count)
+            }
+            Element::Toggle {
+                action_id,
+                bind,
+                child,
+            } => {
+                count.controls += 1;
+                let flag = matches!(self.values.get(bind), Some(Value::Bool(_)));
+                require(buttons && flag && action(action_id))?;
                 self.node(child, depth + 1, false, count)
             }
             leaf => self.leaf(leaf),
@@ -647,7 +662,8 @@ impl Scope<'_> {
             | Element::Hstack { .. }
             | Element::Zstack { .. }
             | Element::Button { .. }
-            | Element::Link { .. } => Ok(()),
+            | Element::Link { .. }
+            | Element::Toggle { .. } => Ok(()),
         }
     }
 }

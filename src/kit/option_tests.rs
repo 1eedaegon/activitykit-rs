@@ -57,9 +57,14 @@ fn a_scheduled_start_carries_its_time_and_its_alert_and_is_pending() {
         json!({"at": 1_790_000_000_000u64, "alert": {"title": "Soon", "body": "The recording starts", "sound": "chime.aiff"}})
     );
     assert!(request.get("style").is_none() && request.get("alert").is_none());
-    // The system reports the start when its time comes.
+    // Until it began it takes no update: ActivityKit would begin it with the content of its start all the same.
+    let early = block_on(activity.update(values! { "tone" => "red", "level" => 0.9 }));
+    assert_eq!(early.unwrap_err().code(), "CONFLICT");
+    // The system reports the start when its time comes, and the activity then takes updates.
     fake.emit(json!({"type": "state", "activityId": activity.id(), "activityKey": "later", "state": "active"}));
     assert_eq!(activity.state(), State::Active);
+    fake.lock().activities[0].state = State::Active;
+    block_on(activity.update(values! { "tone" => "red", "level" => 0.9 })).unwrap();
 }
 
 // AK-START-14
@@ -133,4 +138,27 @@ fn an_alert_names_its_sound() {
         );
     }
     assert_eq!(fake.sent(Call::Update).len(), 2);
+}
+
+// AK-TOGGLE-1
+#[test]
+fn a_tap_on_a_toggle_says_which_state_was_asked_for() {
+    let (kit, fake) = kit();
+    let activity = started(&kit);
+    let events = kit.events();
+    let tap = |state: serde_json::Value| {
+        let mut event = json!({"type": "action", "activityId": activity.id(), "actionId": "mute", "activityKey": activity.key()});
+        if !state.is_null() {
+            event["on"] = state;
+        }
+        fake.emit(event);
+        match events.try_recv() {
+            Ok(Event::Action { action, on, .. }) => (action, on),
+            other => panic!("an action, not {other:?}"),
+        }
+    };
+    assert_eq!(tap(json!(true)), ("mute".into(), Some(true)));
+    assert_eq!(tap(json!(false)), ("mute".into(), Some(false)));
+    // A button asks for no state.
+    assert_eq!(tap(json!(null)), ("mute".into(), None));
 }

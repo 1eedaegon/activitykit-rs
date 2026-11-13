@@ -200,6 +200,7 @@ extension LifecycleTests {
         try testBridgeAuthorizationAndImages()
         try await testBridgeUnsupported()
         try await testBridgeEvents()
+        try await testToggleTaps()
         try await testSettings()
         try await testBridgeFixtures()
         Systems.install(UnsupportedSystem())
@@ -209,7 +210,7 @@ extension LifecycleTests {
     // AK-START-13, AK-START-14, AK-ALERT-1
     /// What a start asks of ActivityKit beside its content travels beside the request, like the relevance: a transient
     /// activity, the time and alert of a scheduled start, and the sound of an alert. A scheduled activity is pending:
-    /// its key is taken, and it takes updates and an end.
+    /// its key is taken and it can be ended, and it takes no update until it began.
     @MainActor static func testBridgeStartOptions() async throws {
         let system = install()
         func request(_ key: String) -> String { layoutJSON(key: key, lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0) }
@@ -232,9 +233,12 @@ extension LifecycleTests {
         let again = await call(C.start, #"{"request":\#(request("opt:4")),"scheduled":\#(schedule)}"#)
         expect(data(again)["id"] as? String == id && system.backend?.starts.count == 3, "the key of a pending activity is taken: the same start returns it")
         let update = #"{"id":"\#(id)","snapshot":{"revision":1,"values":{"title":"Later","progress":0.3}}}"#
-        let updated = await call(C.update, #"{"request":\#(update),"alert":{"title":"Loud","body":"High level","sound":"alarm.caf"}}"#)
-        expect(updated["ok"] as? Bool == true, "a pending activity takes an update")
-        expect(system.backend?.alerts.last == AlertText(title: "Loud", body: "High level", sound: "alarm.caf"), "an alert's sound reaches the backend")
+        let early = await call(C.update, #"{"request":\#(update)}"#)
+        expect(code(early) == "CONFLICT" && system.backend?.base.updates == 0, "a pending activity takes no update: it would begin with its start's content")
+        let running = #"{"id":"\#(data(plain)["id"] as? String ?? "")","snapshot":{"revision":1,"values":{"title":"Loud","progress":0.9}}}"#
+        let alerted = await call(C.update, #"{"request":\#(running),"alert":{"title":"Loud","body":"High level","sound":"alarm.caf"}}"#)
+        expect(alerted["ok"] as? Bool == true && system.backend?.alerts.last == AlertText(title: "Loud", body: "High level", sound: "alarm.caf"),
+               "an alert's sound reaches the backend")
         let listed = (await list())["data"] as? [[String: Any]] ?? []
         expect(listed.contains { $0["id"] as? String == id && $0["state"] as? String == "pending" }, "the list shows it pending")
         let ended = await call(C.end, #"{"request":{"id":"\#(id)","policy":{"kind":"immediate"}}}"#)
@@ -245,7 +249,7 @@ extension LifecycleTests {
             let refused = await call(C.start, #"{"request":\#(request("opt:5")),"scheduled":\#(broken)}"#)
             expect(code(refused) == "INVALID_INPUT", "a scheduled start needs a time and an alert: \(broken)")
         }
-        let unsound = await call(C.update, #"{"request":{"id":"\#(data(plain)["id"] as? String ?? "")","snapshot":{"revision":1,"values":{"title":"x","progress":0.3}}},"alert":{"title":"a","body":"b","sound":"a/b.caf"}}"#)
+        let unsound = await call(C.update, #"{"request":{"id":"\#(data(plain)["id"] as? String ?? "")","snapshot":{"revision":2,"values":{"title":"x","progress":0.3}}},"alert":{"title":"a","body":"b","sound":"a/b.caf"}}"#)
         expect(code(unsound) == "INVALID_INPUT", "a sound that is no file name is refused")
     }
 

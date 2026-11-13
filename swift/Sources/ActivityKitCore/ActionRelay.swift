@@ -1,12 +1,14 @@
 import Foundation
 
-/// A tap on a layout button, as the app receives it. `activityKey` is absent once ActivityKit no longer knows the activity.
+/// A tap on a layout button or toggle, as the app receives it. `activityKey` is absent once ActivityKit no longer
+/// knows the activity; `isOn` is the state the person asked a toggle for, absent for a button.
 public struct LiveActivityAction: Encodable, Equatable, Sendable {
     public let activityId: String
     public let actionId: String
     public let activityKey: String?
-    public init(activityId: String, actionId: String, activityKey: String?) {
-        self.activityId = activityId; self.actionId = actionId; self.activityKey = activityKey
+    public let isOn: Bool?
+    public init(activityId: String, actionId: String, activityKey: String?, isOn: Bool? = nil) {
+        self.activityId = activityId; self.actionId = actionId; self.activityKey = activityKey; self.isOn = isOn
     }
 }
 
@@ -51,7 +53,8 @@ public final class ActionRelay {
               let actionId = info["actionId"] as? String, let acknowledgement = info["acknowledgement"] as? Progress else { return }
         queue.async {
             guard !acknowledgement.isFinished, !self.pending.contains(where: { $0.acknowledgement === acknowledgement }) else { return }
-            let tap = (LiveActivityAction(activityId: activityId, actionId: actionId, activityKey: self.activityKey(activityId)), acknowledgement)
+            let action = LiveActivityAction(activityId: activityId, actionId: actionId, activityKey: self.activityKey(activityId), isOn: info["isOn"] as? Bool)
+            let tap = (action, acknowledgement)
             if self.sink != nil { return self.deliver(tap) }
             self.pending.append(tap)
             // A dropped tap is acknowledged too, so that its intent stops posting it.

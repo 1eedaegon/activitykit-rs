@@ -77,6 +77,8 @@ fn the_docs_state_the_system_limits_and_behaviors() {
         "Start::scheduled(at, alert)",
         "Alert::sound",
         "State::Pending",
+        "toggle(\"mute\", \"muted\", text(\"Mute\"))",
+        "on: Some(muted)",
     ] {
         says(&usage, phrase, "docs/usage.md");
     }
@@ -91,7 +93,7 @@ fn the_docs_state_the_system_limits_and_behaviors() {
         says(&usage, phrase, "docs/usage.md");
     }
     let later = read("docs/not-yet-supported.md");
-    for phrase in ["Toggles", "Apple Watch and CarPlay", "Left out"] {
+    for phrase in ["Apple Watch and CarPlay", "Left out"] {
         says(&later, phrase, "docs/not-yet-supported.md");
     }
 }

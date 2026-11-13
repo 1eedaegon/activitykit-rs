@@ -1,7 +1,7 @@
 import AppIntents
 import Foundation
 
-/// The action of a layout `button` node. Link this product to the app target and to the widget extension (which gets
+/// The action of a layout `button` or `toggle` node. Link this product to the app target and to the widget extension (which gets
 /// it through `ActivityKitWidget`). The widget builds the button with it; the system runs `perform()` in the app, so
 /// the app needs the type in its binary and its App Intents metadata, which Xcode extracts from a linked package
 /// product. It depends on nothing else of the package, so the app links it without a second copy of the Swift code
@@ -14,17 +14,20 @@ public struct ActivityKitActionIntent: LiveActivityIntent {
 
     @Parameter(title: "Activity") public var activityId: String
     @Parameter(title: "Action") public var actionId: String
+    /// The state the person asked a toggle for; a button has none.
+    @Parameter(title: "On") public var isOn: Bool?
 
     public init() {}
-    public init(activityId: String, actionId: String) {
+    public init(activityId: String, actionId: String, isOn: Bool? = nil) {
         self.activityId = activityId
         self.actionId = actionId
+        self.isOn = isOn
     }
 
     /// Runs in the app process and hands the tap to activitykit's bridge (`ActionPost`): every 100 ms for up to 5 s
     /// until the bridge acknowledges it, which it does once the app has taken the event.
     public func perform() async throws -> some IntentResult {
-        try await ActionPost.post(activityId: activityId, actionId: actionId)
+        try await ActionPost.post(activityId: activityId, actionId: actionId, isOn: isOn)
         return .result()
     }
 }

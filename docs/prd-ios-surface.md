@@ -2,8 +2,8 @@
 
 Status: phases 1 and 2 are built and are in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5,
 AK-MOTION-1 and 2, AK-PRIVACY-1, AK-ISLAND-1 and 2), except their simulator scenarios and the small region of
-phase 2. Of phase 3 the start options and the alert sound are built (AK-START-13 and 14, AK-ALERT-1); the toggle is
-planned. Each requirement moves into the specification with its tests when it
+phase 2. Phase 3 is built (AK-START-13 and 14, AK-ALERT-1, AK-TOGGLE-1), each with a scenario on the simulator. Phase
+4, a layout that follows staleness, is planned. Each requirement moves into the specification with its tests when it
 is built, and leaves [Not yet supported](not-yet-supported.md).
 
 ## Why
@@ -19,10 +19,11 @@ what this crate builds, in which order, what it deliberately leaves to the layer
 ## Who uses it
 
 - An iOS app in Rust that uses `activitykit` directly.
-- `liveactivity-rs`, which re-exports `Node`, `Element`, `Style`, `Bindable` and the validator. **A member name chosen
-  here becomes the name Android projects from**, so names say what a member means, not which SwiftUI call draws it:
-  `url` and `link`, not `widgetURL`; `accessibility.label`, not `accessibilityLabel`.
+- `liveactivity-rs`, which re-exports `Node`, `Element`, `Style`, `Bindable` and the validator.
 - A server that builds push payloads with `activitykit::push::Payload` from the same layout.
+
+Names say what a member means, not which SwiftUI call draws it: `url` and `link`, not `widgetURL`;
+`accessibility.label`, not `accessibilityLabel`.
 
 ## Goals
 
@@ -104,8 +105,8 @@ Render and contract only. Built, except the small region.
 
 Decisions:
 
-- **Flat words for a transition** (`moveTop`, not `{ "move": "top" }`): one enumeration in every layer, nothing to
-  nest, and a name that says the same on Android.
+- **Flat words for a transition** (`moveTop`, not `{ "move": "top" }`): one enumeration in every layer and nothing
+  to nest.
 - **A child is known by its place in the layout.** The widget used to number the children it drew, so a child that
   came or went renumbered those after it and the wrong one animated. The place among all siblings, hidden ones
   counted, is stable.
@@ -120,12 +121,11 @@ General animation is not a goal: ActivityKit runs its own animation of at most t
 
 ### Phase 3: interaction and start options
 
-These reach the bridge, the lifecycle or the intents, so each has a scenario on the simulator. The start options and
-the alert sound are built; the toggle is not.
+These reach the bridge, the lifecycle or the intents, so each has a scenario on the simulator. All four are built.
 
 | ID | Requirement | Shape | iOS |
 | --- | --- | --- | --- |
-| AK-TOGGLE-1 | A toggle shows a flag and reports a tap as an action with the state asked for. Not built. | node `{ "type": "toggle", "actionId", "bind", "child" }`; `Event::Action` gains the new state (proposed) | 17 |
+| AK-TOGGLE-1 | A toggle shows a flag and reports a tap as an action with the state asked for. | node `{ "type": "toggle", "actionId", "bind", "child" }`; `Event::Action` gains `on` | 17 |
 | AK-START-13 | A start may be transient: the system ends the activity by itself. | `Start::transient()`, `"style": "transient"` beside the request | 18 |
 | AK-START-14 | A start may be scheduled, with the alert the system requires; the activity is `Pending` until then and its key is taken. | `Start::scheduled(at, alert)`, `"scheduled"` beside the request | 26 |
 | AK-ALERT-1 | An alert names its sound, in an update, a scheduled start and a push payload. | `Alert::sound(name)` | 16.2 |
@@ -136,15 +136,42 @@ Decisions and findings:
 
 - **Beside the request, not in it.** The style and the schedule are what ActivityKit takes for one call, like the
   relevance; the contract request and a keyed start's fingerprint stay as they are.
-- **A pending activity is live.** It holds its key and takes updates and an end, so the lifecycle counts `pending`
-  with `active` and `stale`. On the simulator (iOS 26.3) a start scheduled 12 s ahead was pending, was listed
-  pending, and became active at its time.
+- **A pending activity holds its key and can be ended, and takes no update.** On the simulator (iOS 26.3) a start
+  scheduled 15 s ahead was pending, was listed pending, and became active at its time; one ended while pending left
+  the list. ActivityKit also took an update of the pending activity without an error, and then began it with the
+  content of its start: the handle would have said one thing and the Lock Screen another. So an update answers
+  `Conflict` until the activity began. A start scheduled a minute in the past was active at once.
 - **What a transient activity does is the system's.** Apple describes it as shown in the expanded Dynamic Island and
   ended when the person locks the device, collapses that presentation or leaves the app. The simulator took the
   start, and still listed the activity active 25 s after the test host left the foreground; the crate promises the
   request, not the ending.
+- **A toggle's tap asks, the app answers.** The intent of a toggle is the button's, with the state asked for: the
+  opposite of the flag shown. Nothing changes until the app updates the value, so the switch never shows a state the
+  app did not accept. On the simulator the switch was off, a tap reached Rust with `on: Some(true)`, the update turned
+  it on, and the next tap asked for `false`.
 - **A sound is a file name.** The same rule as an image's name, checked in Rust and in the bridge, so that it names
   nothing outside the folders the system reads sounds from.
+
+### Phase 4: staleness
+
+ActivityKit has a stale state: content with a stale date becomes stale when that date passes, the activity's state
+is `stale`, and the widget is told so when it draws (`isStale`). The crate already sets the date (`stale_at`) and
+reports the state (`State::Stale`); what is missing is a layout that looks different while its content is out of
+date, without the app having to be running to send an update.
+
+| ID | Requirement | Contract | iOS |
+| --- | --- | --- | --- |
+| AK-STALE-1 | A node is drawn only while the content is stale, or only while it is not. | node member `ifStale`: `true` or `false`; `Node::when_stale()`, `Node::unless_stale()` | 16.2 |
+
+Decisions:
+
+- **A member of its own, not a value.** Staleness is the system's, not the app's: it is no key of `values`, so `if`
+  and `unless` keep meaning a value, and a node may carry both kinds of condition, which must both hold.
+- **Only a condition.** A dimmed or relabelled variant is two nodes, one for each case; a style that changes with
+  staleness can come later if two nodes prove clumsy.
+
+Known limit: on the iOS 26.3 simulator ActivityKit reported no `stale` state for a stale date that had passed (the
+specification says so). Whether the widget is redrawn as stale there is what the scenario of this phase finds out.
 
 ## Left to the layers above
 
@@ -197,14 +224,15 @@ heard by a test, and versions below the simulator's are read, not run.
 | --- | --- | --- |
 | 0.4.0 | Phase 1 | spec (AK-ACCESS, AK-LINK), request-contract, usage, ios-setup (receiving a URL), changelog |
 | the next minor | Phase 2 without the small region | spec (AK-MOTION, AK-PRIVACY, AK-ISLAND), request-contract, usage |
-| later | Phase 3, and the small region | spec, bridge, usage; the "Planned" list of the spec empties |
+| the minor after | Phase 3 | spec (AK-START-13 and 14, AK-ALERT-1, AK-TOGGLE-1), bridge, usage |
+| later | The small region | with a watch to look at |
 
 The version of a release follows its commits ([testing](testing.md#releases)); phases 1 and 2 are one release when
 they reach `main` together.
 
 ## Open questions
 
-1. Should `Event::Action` of a toggle carry the state asked for, or should the app read the value it last sent?
+1. (Settled) `Event::Action` of a toggle carries the state asked for, so an app need not keep what it last sent.
 2. Does the small region need its own node limit, or the compact parts' 3? And what does a layout without one show
    on a watch once the widget declares the family?
 3. Is a per-node `transition` enough, or does a layout need one default for all of its nodes?

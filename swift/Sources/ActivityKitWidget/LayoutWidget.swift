@@ -97,7 +97,8 @@ private struct LayoutRegionView: View {
     let region: LayoutRegion
 
     var body: some View {
-        LayoutView(document: context.attributes.document, values: context.state.values, region: region, button: button, custom: custom)
+        LayoutView(document: context.attributes.document, values: context.state.values, region: region, button: button, toggle: toggle,
+                   custom: custom)
     }
 
     /// Buttons run `ActivityKitActionIntent` in the app process.
@@ -106,6 +107,15 @@ private struct LayoutRegionView: View {
         let activityId = context.attributes.instanceID
         return { actionId, label in
             AnyView(Button(intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId)) { label })
+        }
+    }
+
+    /// Toggles run the same intent, with the state the person asks for: the opposite of the one shown.
+    private var toggle: LayoutView.ToggleBuilder? {
+        guard #available(iOS 17.0, *) else { return nil }
+        let activityId = context.attributes.instanceID
+        return { actionId, isOn, label in
+            AnyView(Toggle(isOn: isOn, intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId, isOn: !isOn)) { label })
         }
     }
 

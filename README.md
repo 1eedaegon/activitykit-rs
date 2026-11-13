@@ -90,6 +90,7 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 | Motion | `Style::content_transition(..)`, `node.transition(..)` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Private content | `node.sensitive()` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17 | [events](docs/usage.md#events) |
+| Toggles | `toggle(action_id, key, label)`, `Event::Action { on, .. }` | 17 | [toggles](docs/usage.md#toggles) |
 | Links | `link(url, label)`, `Layout::url(..)` | 16.2 | [links](docs/usage.md#links) |
 | Accessibility | `node.accessibility(Accessibility::new().label(..))` | 16.2 | [accessibility](docs/usage.md#accessibility) |
 | Images the app draws | `kit.write_image(name, &png)`, `image(ImageSource::file(name))` | 16.2 | [drawn images](docs/usage.md#drawn-images) |
@@ -252,7 +253,7 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 ## Limits
 
 - iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons need iOS 17.
-- A layout holds at most 40 nodes on the Lock Screen, 8 levels, 4 buttons and links per region, 24 styles and 32
+- A layout holds at most 40 nodes on the Lock Screen, 8 levels, 4 buttons, links and toggles per region, 24 styles and 32
   values, and layout, styles and values together weigh at most 3584 ([the contract](docs/request-contract.md)).
 - An activity starts only while the app is in the foreground, or a short while after it left it. The system ends it
   after 8 hours and removes it from the Lock Screen after 12.

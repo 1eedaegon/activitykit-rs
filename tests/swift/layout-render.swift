@@ -24,6 +24,7 @@ extension LifecycleTests {
         try testRenderAccessibility()
         try testRenderLinks()
         try testRenderPresentation()
+        try testRenderToggles()
     }
 
     // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
@@ -414,5 +415,26 @@ extension LifecycleTests {
         expect(bare.render(.compactLeading, values: [:])?.isSensitive == false, "the default symbol of a layout that marks nothing is public")
         expect(bare.priority(of: .expandedLeading) == 0 && !bare.isBelowIfTooWide(.expandedLeading) && bare.margins(for: .expanded) == nil,
                "a layout without an island has no options")
+    }
+
+    // AK-TOGGLE-1
+    @MainActor private static func testRenderToggles() throws {
+        let document = try layoutDocument(#"{"type":"vstack","children":[{"type":"toggle","actionId":"mute","bind":"muted","child":{"type":"text","value":"Mute"},"style":"t","#
+            + #""accessibility":{"label":"Mute the microphone"}},{"type":"toggle","actionId":"gone","bind":"muted","child":{"type":"text","value":"x","if":"off"}}]}"#,
+            styles: #"{"t":{"tint":"red"}}"#)
+        func label(_ text: String) -> LayoutRenderNode { LayoutRenderNode(content: .text(text), style: .plain) }
+        let on = children(document.render(.lockScreen, values: ["muted": .bool(true)]))
+        expect(on.count == 1 && on[0].content == .toggle(actionId: "mute", isOn: true, label: label("Mute")) && on[0].style.tint == .semantic(.red),
+               "a toggle carries its action, the flag it shows and its label; one without a label draws nothing")
+        expect(on[0].accessibility == LayoutRenderAccessibility(label: "Mute the microphone"), "a toggle is a control: its label is its own")
+        let off = children(document.render(.lockScreen, values: ["muted": .bool(false)]))
+        expect(off.first?.content == .toggle(actionId: "mute", isOn: false, label: label("Mute")), "the flag follows the value")
+        for values: [String: LayoutValue] in [[:], ["muted": .string("yes")], ["muted": .number(1)]] {
+            expect(children(document.render(.lockScreen, values: values)).isEmpty, "a toggle without a flag to show draws nothing: \(values)")
+        }
+        let held = try layoutDocument(#"{"type":"toggle","actionId":"mute","bind":"muted","child":{"type":"hstack","children":[{"type":"symbol","name":"mic.slash"},{"type":"custom","name":"ring"}]}}"#)
+        expect(held.render(.compactLeading, values: [:])?.content == .symbol(name: "mic.slash", rendering: nil, variableValue: nil),
+               "the default of an absent island part looks through a toggle")
+        expect(held.customViewNames == ["ring"], "the custom views inside a toggle are known")
     }
 }

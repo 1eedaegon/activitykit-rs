@@ -43,8 +43,9 @@ void ak_set_event_handler(ak_event_handler handler);
 are what ActivityKit takes beside the content and are not part of it, nor of a keyed start's fingerprint. `style` is
 `"transient"` or absent (iOS 18; `UNSUPPORTED_FEATURE` with `transient` and `18.0` before). `scheduled` starts the
 activity at `at`, a time of the contract, with the alert the system requires (iOS 26; `UNSUPPORTED_FEATURE` with
-`scheduledStart` and `26.0` before); the record's state is then `pending`, and a pending activity holds its key and
-takes updates and an end like an active one. The `sound` of an alert is a file name of the contract, as an image's
+`scheduledStart` and `26.0` before); the record's state is then `pending`. A pending activity holds its key and can
+be ended; `ak_update` answers `CONFLICT` for it until it began, since ActivityKit would take the update and still
+begin the activity with the content of its start. The `sound` of an alert is a file name of the contract, as an image's
 is; another style, a time outside the contract's or a sound that is no file name is `INVALID_INPUT`. Without a
 relevance an update or end keeps the activity's score. A
 reply is `{"ok":true,"data":…}` or `{"ok":false,"error":{"code","message"}}` with a code of the contract, plus
@@ -72,6 +73,7 @@ for a handler, at most 16.
 ```json
 {"type":"started","activityId":"la-ios-layout-…","activityKey":"rec"}
 {"type":"action","activityId":"la-ios-layout-…","actionId":"stop","activityKey":"rec"}
+{"type":"action","activityId":"la-ios-layout-…","actionId":"mute","activityKey":"rec","on":true}
 {"type":"state","activityId":"la-ios-layout-…","activityKey":"rec","state":"dismissed"}
 {"type":"authorization","authorization":{"supported":true,"enabled":false,"buttons":true,"frequentPushes":false}}
 {"type":"pushToken","activityId":"la-ios-layout-…","activityKey":"rec","token":"0a1b…"}
@@ -90,7 +92,8 @@ comes for every content ActivityKit shows above the one it showed when the watch
 or the app's own update reported back, which Rust tells apart by the revision. These three sequences are read off the
 main actor.
 
-`activityKey` of an action is absent once ActivityKit no longer lists the activity. The handler runs on whichever
+`activityKey` of an action is absent once ActivityKit no longer lists the activity; `on` is the state the person
+asked a toggle for, absent for a button. The handler runs on whichever
 thread reports the event. For a tap that is the action relay's queue: the tap's intent posts it every 100 ms for up to
 5 seconds until the handler returns (`ActionPost`), and Rust returns once every receiver has taken the event, or after
 4 seconds.

@@ -192,12 +192,14 @@ impl Inner {
                 activity_id,
                 action_id,
                 activity_key,
+                on,
             } => {
                 let activity = self.handle(&activity_id, activity_key.as_deref());
                 self.hub.tap(|acknowledgement| Event::Action {
                     activity: activity.clone(),
                     action: action_id.clone(),
                     acknowledgement,
+                    on,
                 });
             }
             WireEvent::State {
@@ -259,6 +261,9 @@ enum WireEvent {
         action_id: String,
         #[serde(default)]
         activity_key: Option<String>,
+        /// The state a toggle was asked for; absent for a button.
+        #[serde(default)]
+        on: Option<bool>,
     },
     #[serde(rename_all = "camelCase")]
     State {

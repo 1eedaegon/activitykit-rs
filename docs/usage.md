@@ -65,6 +65,7 @@ let layout = Layout::new(vstack([
 | `timer(start, end)` | between two times in epoch milliseconds | `counts_up` |
 | `button(action_id, label)` | a button; iOS 17 and later | |
 | `link(url, label)` | a link that opens the app with a URL | |
+| `toggle(action_id, key, label)` | a switch that shows the flag `key`; iOS 17 and later | |
 | `custom(name)` | a SwiftUI view the app registers | `prop(key, value)` |
 
 Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)`,
@@ -83,7 +84,30 @@ or `#RRGGBB`/`#RRGGBBAA`), `size` (6 to 96), `opacity` (0 to 1), `corner_radius`
 name). `font_family` names a font that the widget extension bundles and lists under `UIAppFonts`.
 
 The [request contract](request-contract.md) has every rule and limit: at most 40 nodes on the Lock Screen, 8 levels,
-4 buttons and links per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
+4 buttons, links and toggles per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
+
+### Toggles
+
+```rust
+use activitykit::{Event, Layout, values};
+use activitykit::layout::{text, toggle};
+
+let layout = Layout::new(toggle("mute", "muted", text("Mute")));
+let activity = kit.start(layout, values! { "muted" => false }).await?;
+
+while let Ok(event) = events.recv().await {
+    // `on` is the state the person asked for: the opposite of the flag the switch showed.
+    if let Event::Action { activity, action, on: Some(muted), .. } = event {
+        if action == "mute" {
+            activity.update(values! { "muted" => muted }).await?;
+        }
+    }
+}
+```
+
+A toggle shows a flag, a value that is `true` or `false`. A tap changes nothing by itself: it arrives as
+`Event::Action` with the toggle's action id and `on`, and the update moves the switch. A button's tap has `on: None`.
+A toggle stands where a button may, and counts with buttons and links toward the 4 of a region.
 
 ### Motion and privacy
 
@@ -248,7 +272,9 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
   collapses that presentation or leaves the app.
 - `Start::scheduled(at, alert)` starts the activity at a later time (iOS 26; `Error::UnsupportedFeature` before),
   with the alert the system shows then. Until `at` the handle is `State::Pending`, the activity counts toward the
-  system's limit, and its key is taken; it takes updates and an end, and `Event::State` reports the start.
+  system's limit, and its key is taken. It can be ended, and `Event::State` reports the start; an update before that
+  is `Error::Conflict`, because the activity begins with the content of its start whatever was sent meanwhile. A
+  time that has passed starts it at once.
 - `Alert::sound("chime.aiff")` names the alert's sound: a file in the app's bundle or in its `Library/Sounds`, by a
   file name of 1 to 64 of `A-Za-z0-9._-`. Without it the app's alerts play the system's default sound.
 - An alert lights up the screen and expands the Dynamic Island (without one, the Lock Screen presentation shows as a
