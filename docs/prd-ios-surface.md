@@ -226,13 +226,12 @@ heard by a test, and versions below the simulator's are read, not run.
 
 | Release | Content | Docs |
 | --- | --- | --- |
-| 0.4.0 | Phase 1 | spec (AK-ACCESS, AK-LINK), request-contract, usage, ios-setup (receiving a URL), changelog |
-| the next minor | Phase 2 without the small region | spec (AK-MOTION, AK-PRIVACY, AK-ISLAND), request-contract, usage |
-| the minor after | Phase 3 | spec (AK-START-13 and 14, AK-ALERT-1, AK-TOGGLE-1), bridge, usage |
+| 0.4.0 | Phases 1 and 2, without the small region | spec (AK-ACCESS, AK-LINK, AK-MOTION, AK-PRIVACY, AK-ISLAND), request-contract, usage, ios-setup (receiving a URL), changelog |
+| 0.5.0 | Phases 3 and 4 | spec (AK-START-13 and 14, AK-ALERT-1, AK-TOGGLE-1, AK-STALE-1), request-contract, bridge, usage |
 | later | The small region | with a watch to look at |
 
-The version of a release follows its commits ([testing](testing.md#releases)); phases 1 and 2 are one release when
-they reach `main` together.
+The version of a release follows its commits ([testing](testing.md#releases)): phases that reach `main` together are
+one release.
 
 ## Open questions
 
