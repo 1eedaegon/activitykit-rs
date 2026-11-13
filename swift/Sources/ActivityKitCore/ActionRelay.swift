@@ -18,10 +18,11 @@ public struct LiveActivityAction: Encodable, Equatable, Sendable {
 /// intent posts it again every 100 ms and keeps an app that the system launched for the tap running. A post of a tap
 /// that waits here or is acknowledged is ignored.
 public final class ActionRelay {
-    public static let notification = Notification.Name("activitykit.action")
+    /// Named after the project (github.com/1eedaegon/activitykit-rs), so that no other library posts it.
+    public static let notification = Notification.Name("io.github.1eedaegon.activitykit.action")
     public static let pendingLimit = 16
     private typealias Tap = (action: LiveActivityAction, acknowledgement: Progress)
-    private let queue = DispatchQueue(label: "activitykit.actions")
+    private let queue = DispatchQueue(label: "io.github.1eedaegon.activitykit.actions")
     private let center: NotificationCenter
     private let activityKey: (String) -> String?
     private var observer: NSObjectProtocol?

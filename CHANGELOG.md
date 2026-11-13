@@ -24,6 +24,13 @@ The toggle of phase 3.
   third parameter for it.
 - Breaking: `Element` has the variant `Toggle`.
 
+Names.
+
+- Breaking for a host that observes taps itself: the notification a tap is posted with
+  (`ActionRelay.notification`, `ActionPost.notification`) is named `io.github.1eedaegon.activitykit.action`, after
+  the project. Under its old literal name, `activitykit.action`, nothing arrives any more: read the constant
+  instead. What the library stores keeps its paths.
+
 ## 0.4.0 - 2026-11-13
 
 - docs: the plan for the iOS surface a cross-platform layer needs (`3725d26`)

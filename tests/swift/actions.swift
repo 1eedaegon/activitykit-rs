@@ -103,6 +103,7 @@ extension LifecycleTests {
 
         // The intent's side: it posts until the relay acknowledges the tap, for at most 5 s.
         expect(ActionPost.notification == ActionRelay.notification, "the intent posts what the relay observes")
+        expect(ActionRelay.notification.rawValue == "io.github.1eedaegon.activitykit.action", "under the project's name, which no other library posts")
         expect(UInt64(ActionPost.attempts) * ActionPost.interval == 5_000_000_000, "the intent posts a tap for at most 5 s")
         let posting = NotificationCenter()
         let listening = ActionRelay(center: posting) { $0 == "la-2" ? "job:2" : nil }

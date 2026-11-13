@@ -6,7 +6,7 @@ import Foundation
 /// Only Foundation, so that the host tests run it.
 public enum ActionPost {
     /// The notification that `ActionRelay` observes.
-    public static let notification = Notification.Name("activitykit.action")
+    public static let notification = Notification.Name("io.github.1eedaegon.activitykit.action")
     public static let attempts = 50
     /// Between two posts, in nanoseconds.
     public static let interval: UInt64 = 100_000_000

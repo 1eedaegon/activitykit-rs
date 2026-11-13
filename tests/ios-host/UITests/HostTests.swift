@@ -4,7 +4,7 @@ import XCTest
 /// app is in the background.
 final class Finished: @unchecked Sendable {
     static let shared = Finished()
-    static let name = "dev.activitykit.host.finished" as CFString
+    static let name = "io.github.1eedaegon.activitykit.host.finished" as CFString
     private let lock = NSLock()
     private var heard = false
     var value: Bool {
@@ -16,7 +16,7 @@ final class Finished: @unchecked Sendable {
 /// Drives the Rust scenarios of the host app on a simulator. The app shows the last line a scenario reported under
 /// the identifier `status`. Screenshots go to the folder in `AK_SHOTS` (run.sh sets it), else to the runner's Documents.
 class HostCase: XCTestCase {
-    let app = XCUIApplication(bundleIdentifier: "dev.activitykit.host")
+    let app = XCUIApplication(bundleIdentifier: "io.github.1eedaegon.activitykit.host")
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
     override func setUp() {
