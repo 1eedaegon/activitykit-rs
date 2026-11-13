@@ -43,7 +43,7 @@ targets:
         NSSupportsLiveActivities: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.activitykit.host
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.1eedaegon.activitykit.host
         RUST_TARGET[sdk=iphoneos*]: aarch64-apple-ios
         RUST_TARGET[sdk=iphonesimulator*][arch=x86_64]: x86_64-apple-ios
         RUST_TARGET[sdk=iphonesimulator*][arch=arm64]: aarch64-apple-ios-sim
@@ -59,7 +59,7 @@ targets:
         product: ActivityKitWidget
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.activitykit.host.widget
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.1eedaegon.activitykit.host.widget
         INFOPLIST_FILE: ../../templates/ios/Widget-Info.plist
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
@@ -72,7 +72,7 @@ targets:
       - target: ActivityKitHost
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.activitykit.host.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.1eedaegon.activitykit.host.uitests
         TEST_TARGET_NAME: ActivityKitHost
         GENERATE_INFOPLIST_FILE: YES
 schemes:

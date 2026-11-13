@@ -7,6 +7,9 @@ public struct LayoutView: View {
     /// Wraps the label of a button node in the host's button, for example `Button(intent:)`, so the package
     /// never names an intent type. Without a builder, or below iOS 17, a button shows its label only.
     public typealias ButtonBuilder = (_ actionId: String, _ label: AnyView) -> AnyView
+    /// Wraps the label of a toggle node in the host's toggle, for example `Toggle(isOn:intent:)`, whose intent asks for
+    /// the opposite of `isOn`. Without a builder, or below iOS 17, a toggle shows its label only.
+    public typealias ToggleBuilder = (_ actionId: String, _ isOn: Bool, _ label: AnyView) -> AnyView
     /// The view of a `custom` node with its props, bound ones read from the current values, or nil when the host has no
     /// view of that name. Without a builder, or for nil, the node draws nothing.
     public typealias CustomBuilder = (_ name: String, _ props: [String: LayoutValue]) -> AnyView?
@@ -14,10 +17,12 @@ public struct LayoutView: View {
     private let node: LayoutRenderNode?
     private let views: LayoutNodeView.Builders
 
-    public init(document: LayoutDocument, values: [String: LayoutValue], region: LayoutRegion, button: ButtonBuilder? = nil,
-                custom: CustomBuilder? = nil) {
-        node = document.render(region, values: values)
-        views = LayoutNodeView.Builders(button: button, custom: custom)
+    /// `isStale` is what the system says of the content when it draws the activity: it chooses the nodes that are
+    /// drawn only while the content is stale, or only while it is not.
+    public init(document: LayoutDocument, values: [String: LayoutValue], region: LayoutRegion, isStale: Bool = false,
+                button: ButtonBuilder? = nil, toggle: ToggleBuilder? = nil, custom: CustomBuilder? = nil) {
+        node = document.render(region, values: values, isStale: isStale)
+        views = LayoutNodeView.Builders(button: button, toggle: toggle, custom: custom)
     }
 
     public var body: some View {
@@ -28,9 +33,10 @@ public struct LayoutView: View {
 /// One resolved node and its subtree.
 @available(iOS 16.1, *)
 struct LayoutNodeView: View {
-    /// What the host draws: buttons and custom views.
+    /// What the host draws: buttons, toggles and custom views.
     struct Builders {
         let button: LayoutView.ButtonBuilder?
+        let toggle: LayoutView.ToggleBuilder?
         let custom: LayoutView.CustomBuilder?
     }
 
@@ -42,11 +48,20 @@ struct LayoutNodeView: View {
             .modifier(LayoutPresentationModifier(transition: node.transition, isSensitive: node.isSensitive))
     }
 
-    /// A button the host does not build, or below iOS 17, is drawn as its label alone: several views, no control.
+    /// A button or a toggle the host does not build, or below iOS 17, is drawn as its label alone: several views, no
+    /// control.
     private var isLabelOnly: Bool {
-        guard case .button = node.content else { return false }
-        if #available(iOS 17.0, *), views.button != nil { return false }
-        return true
+        guard #available(iOS 17.0, *) else {
+            switch node.content {
+            case .button, .toggle: return true
+            default: return false
+            }
+        }
+        switch node.content {
+        case .button: return views.button == nil
+        case .toggle: return views.toggle == nil
+        default: return false
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -81,6 +96,8 @@ struct LayoutNodeView: View {
             wrap(label, as: actionId)
         case let .link(url, label):
             if let url { Link(destination: url) { plain(label) } } else { plain(label) }
+        case let .toggle(actionId, isOn, label):
+            wrap(label, as: actionId, isOn: isOn)
         case let .custom(name, props):
             if let view = views.custom?(name, props) { view }
         }
@@ -91,9 +108,15 @@ struct LayoutNodeView: View {
         ForEach(children, id: \.slot) { LayoutNodeView(node: $0, views: views) }
     }
 
-    /// The label of a button or a link keeps the custom views and has no button of its own.
+    /// The label of a button, a link or a toggle keeps the custom views and has no control of its own.
     private func plain(_ label: LayoutRenderNode) -> LayoutNodeView {
-        LayoutNodeView(node: label, views: Builders(button: nil, custom: views.custom))
+        LayoutNodeView(node: label, views: Builders(button: nil, toggle: nil, custom: views.custom))
+    }
+
+    private func wrap(_ label: LayoutRenderNode, as actionId: String, isOn: Bool) -> AnyView {
+        let view = AnyView(plain(label))
+        if #available(iOS 17.0, *), let toggle = views.toggle { return toggle(actionId, isOn, view) }
+        return view
     }
 
     private func wrap(_ label: LayoutRenderNode, as actionId: String) -> AnyView {

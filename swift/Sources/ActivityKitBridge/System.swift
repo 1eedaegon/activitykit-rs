@@ -92,17 +92,22 @@ final class Presentations {
         let alert: AlertText?
     }
 
-    /// The relevance of a start, and what it asks ActivityKit for.
+    /// The relevance of a start, and what it asks ActivityKit for: a push token or channel, a transient activity,
+    /// a start at a later time.
     struct Start: Equatable {
         let relevance: Double?
         let push: LayoutPush?
+        let transient: Bool
+        let scheduled: ScheduledStart?
     }
 
     private var starts: [String: Start] = [:]
     private var updates: [String: Update] = [:]
     private var ends: [String: Double] = [:]
 
-    func expectStart(key: String, relevance: Double?, push: LayoutPush? = nil) { starts[key] = Start(relevance: relevance, push: push) }
+    func expectStart(key: String, relevance: Double?, push: LayoutPush? = nil, transient: Bool = false, scheduled: ScheduledStart? = nil) {
+        starts[key] = Start(relevance: relevance, push: push, transient: transient, scheduled: scheduled)
+    }
     func forgetStart(key: String) { starts[key] = nil }
     /// The relevance and the push of the start with this activity key.
     func start(key: String) -> Start? { starts[key] }

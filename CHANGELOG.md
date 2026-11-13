@@ -5,6 +5,40 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+The start options and the alert sound of phase 3 of [the iOS surface plan](docs/prd-ios-surface.md).
+
+- `Start::scheduled(at, alert)` starts an activity at a later time (iOS 26), with the alert the system shows then.
+  Until `at` the handle is `State::Pending`; a pending activity holds its key and can be ended, and takes no
+  update until it began (`Error::Conflict`).
+- `Start::transient()` asks for a transient activity (iOS 18), which the system ends by itself.
+- `Alert::sound(name)` names the sound of an alert, of an update, of a scheduled start and of a push payload.
+- Below the iOS a start option needs, the start answers `Error::UnsupportedFeature` before ActivityKit is asked.
+- The bridge's `ak_start` takes `style` and `scheduled` beside the request, and an alert a `sound`.
+
+The toggle of phase 3.
+
+- `toggle(action_id, key, label)` draws a switch that shows the flag `key` (iOS 17). A tap arrives as
+  `Event::Action` with `on`, the state the person asked for; the app's update moves the switch. `on` is `None` for
+  a button.
+- Request contract v2 gains the node `toggle`; the bridge's `action` event may carry `on`, and the action intent a
+  third parameter for it.
+- Breaking: `Element` has the variant `Toggle`.
+
+A layout that follows staleness, phase 4 of the plan.
+
+- `Node::when_stale()` draws a node only while the content is stale, `Node::unless_stale()` only while it is not:
+  the system says which when it draws the activity, so a layout changes after its stale date without an update and
+  without the app running.
+- Request contract v2 gains the node member `ifStale`; `LayoutView` and `LayoutDocument.render` take `isStale`.
+- Breaking: `Node` has the public member `if_stale`.
+
+Names.
+
+- Breaking for a host that observes taps itself: the notification a tap is posted with
+  (`ActionRelay.notification`, `ActionPost.notification`) is named `io.github.1eedaegon.activitykit.action`, after
+  the project. Under its old literal name, `activitykit.action`, nothing arrives any more: read the constant
+  instead. What the library stores keeps its paths.
+
 ## 0.4.0 - 2026-11-13
 
 - docs: the plan for the iOS surface a cross-platform layer needs (`3725d26`)

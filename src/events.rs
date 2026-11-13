@@ -42,8 +42,9 @@ pub enum Event {
     /// An activity began while the app was running: one the app started, or one the system or a push started.
     #[non_exhaustive]
     Started { activity: Activity },
-    /// A tap on a [`button`](crate::layout::button) of `activity`; `action` is the button's action id. The tap
-    /// does not change the activity: update it if the button should change. The tap holds its intent, and so an app
+    /// A tap on a [`button`](crate::layout::button) or a [`toggle`](crate::layout::toggle) of `activity`; `action` is
+    /// its action id, and `on` the state the person asked a toggle for, `None` for a button. The tap
+    /// does not change the activity: update it if the button or the switch should change. The tap holds its intent, and so an app
     /// that the system launched for it, until this event and its clones are dropped or `acknowledgement` says the tap
     /// is handled: keep the event, or the acknowledgement, while the app acts on the tap.
     #[non_exhaustive]
@@ -51,6 +52,7 @@ pub enum Event {
         activity: Activity,
         action: String,
         acknowledgement: Acknowledgement,
+        on: Option<bool>,
     },
     /// ActivityKit reports a new lifecycle state of `activity`. Changes while the app was not running are not
     /// replayed; [`ActivityKit::activities`](crate::ActivityKit::activities) gives the current state.

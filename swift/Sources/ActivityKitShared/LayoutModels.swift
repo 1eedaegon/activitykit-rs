@@ -329,12 +329,14 @@ public indirect enum LayoutContent: Sendable {
     case button(actionId: String, child: LayoutNode)
     /// A tap on `child` opens the app with `url`: a URL, or bound to a text value that is one.
     case link(url: LayoutBindable<String>, child: LayoutNode)
+    /// A switch that shows the flag `bind` beside `child`; its tap is an action with the state asked for.
+    case toggle(actionId: String, bind: String, child: LayoutNode)
     /// A view the app registers under `name` in its widget extension. Each prop is a literal or bound to a value.
     case custom(name: String, props: [String: LayoutBindable<LayoutValue>]?)
 }
 
 private enum LayoutNodeType: String, Decodable {
-    case vstack, hstack, zstack, spacer, divider, text, symbol, image, path, progress, gauge, timerText, button, link, custom
+    case vstack, hstack, zstack, spacer, divider, text, symbol, image, path, progress, gauge, timerText, button, link, toggle, custom
 }
 
 /// Where an image comes from: the asset catalog of the widget extension (`{"asset": name}`), or a PNG that the app
@@ -372,6 +374,8 @@ public enum LayoutImageSource: Codable, Sendable, Equatable, LayoutObject {
 public struct LayoutNode: Codable, Sendable, LayoutObject {
     public let style: String?
     public let condition: LayoutCondition?
+    /// `true`: rendered only while the content is stale; `false`: only while it is not. The wire member `ifStale`.
+    public let ifStale: Bool?
     public let accessibility: LayoutAccessibility?
     public let transition: LayoutTransition?
     public let privacy: LayoutPrivacy?
@@ -379,7 +383,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
     init(style: String? = nil, condition: LayoutCondition? = nil, accessibility: LayoutAccessibility? = nil, privacy: LayoutPrivacy? = nil,
          content: LayoutContent) {
         self.style = style; self.condition = condition; self.accessibility = accessibility; self.privacy = privacy; self.content = content
-        transition = nil
+        ifStale = nil; transition = nil
     }
 
     public init(from decoder: Decoder) throws {
@@ -389,6 +393,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         let when: String? = try object.take("if"), unless: String? = try object.take("unless")
         guard when == nil || unless == nil else { throw LayoutReader.mismatch }
         condition = when.map(LayoutCondition.when) ?? unless.map(LayoutCondition.unless)
+        ifStale = try object.take("ifStale")
         accessibility = try object.take("accessibility"); transition = try object.take("transition"); privacy = try object.take("privacy")
         switch type {
         case .vstack: content = .vstack(children: try object.need("children"), spacing: try object.take("spacing"), alignment: try object.take("alignment"))
@@ -412,6 +417,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case .timerText: content = .timerText(start: try object.need("start"), end: try object.need("end"), countsDown: try object.take("countsDown"))
         case .button: content = .button(actionId: try object.need("actionId"), child: try object.need("child"))
         case .link: content = .link(url: try object.need("url"), child: try object.need("child"))
+        case .toggle: content = .toggle(actionId: try object.need("actionId"), bind: try object.need("bind"), child: try object.need("child"))
         case .custom: content = .custom(name: try object.need("name"), props: try object.take("props"))
         }
         try object.finish()
@@ -426,7 +432,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case nil: break
         }
         let (type, own) = contentMembers
-        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless), ("accessibility", accessibility),
+        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless), ("ifStale", ifStale), ("accessibility", accessibility),
                                      ("transition", transition), ("privacy", privacy)]
         return common + own
     }
@@ -448,6 +454,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case let .timerText(start, end, countsDown): return ("timerText", [("start", start), ("end", end), ("countsDown", countsDown)])
         case let .button(actionId, child): return ("button", [("actionId", actionId), ("child", child)])
         case let .link(url, child): return ("link", [("url", url), ("child", child)])
+        case let .toggle(actionId, bind, child): return ("toggle", [("actionId", actionId), ("bind", bind), ("child", child)])
         case let .custom(name, props): return ("custom", [("name", name), ("props", props)])
         }
     }

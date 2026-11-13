@@ -25,7 +25,7 @@ fn layout_weight(input: &Value) -> usize {
 }
 
 // AK-CONTRACT-1, AK-CONTRACT-12, AK-END-7, AK-START-5, AK-ACCESS-2, AK-LINK-2, AK-LINK-3,
-// AK-MOTION-1, AK-MOTION-2, AK-PRIVACY-1, AK-ISLAND-1, AK-ISLAND-2
+// AK-MOTION-1, AK-MOTION-2, AK-PRIVACY-1, AK-ISLAND-1, AK-ISLAND-2, AK-TOGGLE-1, AK-STALE-1
 #[test]
 fn every_fixture_gets_its_verdict_code_and_weight() {
     let (valid, invalid) = (cases("valid"), cases("invalid"));

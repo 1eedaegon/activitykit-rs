@@ -4,7 +4,7 @@ import XCTest
 /// app is in the background.
 final class Finished: @unchecked Sendable {
     static let shared = Finished()
-    static let name = "dev.activitykit.host.finished" as CFString
+    static let name = "io.github.1eedaegon.activitykit.host.finished" as CFString
     private let lock = NSLock()
     private var heard = false
     var value: Bool {
@@ -16,7 +16,7 @@ final class Finished: @unchecked Sendable {
 /// Drives the Rust scenarios of the host app on a simulator. The app shows the last line a scenario reported under
 /// the identifier `status`. Screenshots go to the folder in `AK_SHOTS` (run.sh sets it), else to the runner's Documents.
 class HostCase: XCTestCase {
-    let app = XCUIApplication(bundleIdentifier: "dev.activitykit.host")
+    let app = XCUIApplication(bundleIdentifier: "io.github.1eedaegon.activitykit.host")
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
     override func setUp() {
@@ -77,10 +77,15 @@ class HostCase: XCTestCase {
         XCTAssertTrue(waitUntil(10) { app.state != .runningForeground }, "the app leaves the foreground")
     }
 
-    /// Pulls the Lock Screen down over the Home Screen, and allows Live Activities if the system asks.
-    func showLockScreen(until text: String) {
+    /// Pulls the Lock Screen down over the Home Screen.
+    func pullLockScreenDown() {
         let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.01))
         top.press(forDuration: 0.1, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8)))
+    }
+
+    /// Pulls the Lock Screen down until `text` shows, and allows Live Activities if the system asks.
+    func showLockScreen(until text: String) {
+        pullLockScreenDown()
         // A new simulator can take half a minute to draw its first activity.
         let shown = springboard.staticTexts[text].waitForExistence(timeout: 45)
         if !shown {
@@ -202,6 +207,91 @@ final class HostTests: HostCase {
         app.activate()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
         waitFor("PASS background-start", timeout: 30)
+    }
+
+    // AK-START-14
+    /// A scheduled start is pending until its time, holds its key and takes no update, and is then active and on the
+    /// Lock Screen with the content of its start.
+    func testScheduledStart() throws {
+        launch("scheduled-start")
+        waitFor("PASS scheduled-start", timeout: 150)
+        goHome()
+        showLockScreen(until: "Soon")
+        try capture("scheduled-start")
+    }
+
+    // AK-STALE-1
+    /// A layout follows staleness: the Lock Screen shows the line for fresh content and then, its stale date passed,
+    /// the line for stale content, with no update and with the app ended. ActivityKit then lists the activity as stale,
+    /// and an update without a stale date brings the first line back.
+    func testStaleContentChangesTheLockScreen() throws {
+        launch("stale-start")
+        waitFor("PASS stale-start")
+        goHome()
+        showLockScreen(until: "Fresh")
+        XCTAssertFalse(springboard.staticTexts["Out of date"].exists, "fresh content draws no node for stale content")
+        try capture("stale-fresh")
+        // The change is the system's and the widget's: the app does not run while the date passes.
+        app.terminate()
+        let turned = springboard.staticTexts["Out of date"].waitForExistence(timeout: 180)
+        try capture("stale-out-of-date")
+        XCTAssertTrue(turned, "once the stale date has passed, the node for stale content shows")
+        XCTAssertTrue(waitUntil(5) { !springboard.staticTexts["Fresh"].exists }, "and the node for fresh content is gone")
+        XCUIDevice.shared.press(.home)
+        launch("stale-check")
+        waitFor("PASS stale-check")
+        try capture("stale-report")
+        goHome()
+        showLockScreen(until: "Fresh")
+        XCTAssertFalse(springboard.staticTexts["Out of date"].exists, "an update makes the content fresh again")
+    }
+
+    // AK-START-13, AK-ALERT-1
+    /// ActivityKit takes an alert with a named sound and a transient start. The scenario reports what the system did
+    /// with that activity after the app left the foreground.
+    func testStartOptions() throws {
+        launch("start-options")
+        waitFor("transient", timeout: 120)
+        listenForTheEnd()
+        goHome()
+        XCTAssertTrue(heardTheEnd(timeout: 60), "the scenario finishes in the background")
+        app.activate()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
+        waitFor("PASS start-options", timeout: 30)
+        try capture("start-options-report")
+    }
+
+    // AK-TOGGLE-1
+    /// A toggle on the Lock Screen shows its flag; a tap reaches Rust with the state asked for, and the app's update
+    /// moves the switch.
+    func testToggleAsksForTheOtherState() throws {
+        launch("toggle")
+        waitFor("shown")
+        goHome()
+        showLockScreen(until: "Toggles")
+        let toggle = springboard.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Mute")).firstMatch
+        let shown = toggle.waitForExistence(timeout: 30)
+        if !shown {
+            try? capture("toggle-missing")
+            print("the Lock Screen without the toggle:\n\(springboard.debugDescription)")
+        }
+        XCTAssertTrue(shown, "the toggle shows on the Lock Screen")
+        XCTAssertEqual(toggle.elementType, .switch, "as a switch")
+        XCTAssertEqual(toggle.value as? String, "0", "that is off, like its flag")
+        try capture("toggle-off")
+        toggle.tap()
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        waitFor("muted true", timeout: 60)
+        goHome()
+        showLockScreen(until: "Toggles")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 30), "the toggle is still there")
+        XCTAssertTrue(waitUntil(15) { toggle.value as? String == "1" }, "and on, once the app set the flag")
+        try capture("toggle-on")
+        toggle.tap()
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        waitFor("PASS toggle", timeout: 60)
     }
 
     // AK-KIT-3, AK-LIST-4

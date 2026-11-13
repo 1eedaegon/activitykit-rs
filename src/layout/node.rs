@@ -20,6 +20,9 @@ pub struct Node {
     /// Key of a value; the node is rendered only while it is not truthy.
     #[serde(skip_serializing_if = "none")]
     pub unless: Option<String>,
+    /// `true`: the node is rendered only while the content is stale; `false`: only while it is not.
+    #[serde(rename = "ifStale", skip_serializing_if = "none")]
+    pub if_stale: Option<bool>,
     /// What assistive technologies read of the node.
     #[serde(skip_serializing_if = "none")]
     pub accessibility: Option<Accessibility>,
@@ -38,6 +41,7 @@ impl From<Element> for Node {
             style: None,
             r#if: None,
             unless: None,
+            if_stale: None,
             accessibility: None,
             transition: None,
             privacy: None,
@@ -56,6 +60,7 @@ impl<'de> Deserialize<'de> for Node {
             Some(_) => Err(D::Error::custom("expected a string")),
         };
         let (style, r#if, unless) = (key("style")?, key("if")?, key("unless")?);
+        let if_stale = member(&mut members, "ifStale")?;
         let accessibility = member(&mut members, "accessibility")?;
         let transition = member(&mut members, "transition")?;
         let privacy = member(&mut members, "privacy")?;
@@ -66,6 +71,7 @@ impl<'de> Deserialize<'de> for Node {
             style,
             r#if,
             unless,
+            if_stale,
             accessibility,
             transition,
             privacy,
@@ -260,6 +266,13 @@ pub enum Element {
     /// A tap on `child` opens the app with `url`: a URL, or [`Bound`](super::Bound) to a text value that is one.
     Link {
         url: Bindable<String>,
+        child: Box<Node>,
+    },
+    /// A switch that shows the flag `bind` beside `child`, and whose tap arrives as an action under `action_id`.
+    #[serde(rename_all = "camelCase")]
+    Toggle {
+        action_id: String,
+        bind: String,
         child: Box<Node>,
     },
     /// A SwiftUI view that the app registers under `name` in its widget extension. Each prop is a
@@ -533,6 +546,22 @@ pub fn link(url: impl Into<Bindable<String>>, label: impl Into<Node>) -> Node {
     .into()
 }
 
+/// A toggle (iOS 17 and later) that shows the flag `key` beside `label`. A tap arrives as
+/// [`Event::Action`](crate::Event::Action) with `action_id` and the state the person asked for, the opposite of the
+/// flag; it does not change the activity, so update the value to move the switch. It stands where a [`button`] may.
+pub fn toggle(
+    action_id: impl Into<String>,
+    key: impl Into<String>,
+    label: impl Into<Node>,
+) -> Node {
+    Element::Toggle {
+        action_id: action_id.into(),
+        bind: key.into(),
+        child: Box::new(label.into()),
+    }
+    .into()
+}
+
 /// A SwiftUI view that the widget extension registers under `name`; give it props with [`Node::prop`].
 pub fn custom(name: impl Into<String>) -> Node {
     Element::Custom {
@@ -591,6 +620,21 @@ impl Node {
     /// Draws the node only while the value `key` is not truthy.
     pub fn unless(mut self, key: impl Into<String>) -> Self {
         self.unless = Some(key.into());
+        self
+    }
+
+    /// Draws the node only while the content is stale: its stale date ([`Start::stale_at`](crate::Start::stale_at),
+    /// [`Update::stale_at`](crate::Update::stale_at)) has passed and no update has come since. The system says so
+    /// when it draws the activity, so the node appears without the app running. The wire member is `ifStale`; beside
+    /// [`when`](Self::when) or [`unless`](Self::unless) the node is drawn while both hold.
+    pub fn when_stale(mut self) -> Self {
+        self.if_stale = Some(true);
+        self
+    }
+
+    /// Draws the node only while the content is not stale: see [`when_stale`](Self::when_stale).
+    pub fn unless_stale(mut self) -> Self {
+        self.if_stale = Some(false);
         self
     }
 

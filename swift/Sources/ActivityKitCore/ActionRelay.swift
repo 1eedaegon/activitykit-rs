@@ -1,12 +1,14 @@
 import Foundation
 
-/// A tap on a layout button, as the app receives it. `activityKey` is absent once ActivityKit no longer knows the activity.
+/// A tap on a layout button or toggle, as the app receives it. `activityKey` is absent once ActivityKit no longer
+/// knows the activity; `isOn` is the state the person asked a toggle for, absent for a button.
 public struct LiveActivityAction: Encodable, Equatable, Sendable {
     public let activityId: String
     public let actionId: String
     public let activityKey: String?
-    public init(activityId: String, actionId: String, activityKey: String?) {
-        self.activityId = activityId; self.actionId = actionId; self.activityKey = activityKey
+    public let isOn: Bool?
+    public init(activityId: String, actionId: String, activityKey: String?, isOn: Bool? = nil) {
+        self.activityId = activityId; self.actionId = actionId; self.activityKey = activityKey; self.isOn = isOn
     }
 }
 
@@ -16,10 +18,11 @@ public struct LiveActivityAction: Encodable, Equatable, Sendable {
 /// intent posts it again every 100 ms and keeps an app that the system launched for the tap running. A post of a tap
 /// that waits here or is acknowledged is ignored.
 public final class ActionRelay {
-    public static let notification = Notification.Name("activitykit.action")
+    /// Named after the project (github.com/1eedaegon/activitykit-rs), so that no other library posts it.
+    public static let notification = Notification.Name("io.github.1eedaegon.activitykit.action")
     public static let pendingLimit = 16
     private typealias Tap = (action: LiveActivityAction, acknowledgement: Progress)
-    private let queue = DispatchQueue(label: "activitykit.actions")
+    private let queue = DispatchQueue(label: "io.github.1eedaegon.activitykit.actions")
     private let center: NotificationCenter
     private let activityKey: (String) -> String?
     private var observer: NSObjectProtocol?
@@ -51,7 +54,8 @@ public final class ActionRelay {
               let actionId = info["actionId"] as? String, let acknowledgement = info["acknowledgement"] as? Progress else { return }
         queue.async {
             guard !acknowledgement.isFinished, !self.pending.contains(where: { $0.acknowledgement === acknowledgement }) else { return }
-            let tap = (LiveActivityAction(activityId: activityId, actionId: actionId, activityKey: self.activityKey(activityId)), acknowledgement)
+            let action = LiveActivityAction(activityId: activityId, actionId: actionId, activityKey: self.activityKey(activityId), isOn: info["isOn"] as? Bool)
+            let tap = (action, acknowledgement)
             if self.sink != nil { return self.deliver(tap) }
             self.pending.append(tap)
             // A dropped tap is acknowledged too, so that its intent stops posting it.

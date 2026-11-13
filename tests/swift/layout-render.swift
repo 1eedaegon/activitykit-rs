@@ -24,6 +24,8 @@ extension LifecycleTests {
         try testRenderAccessibility()
         try testRenderLinks()
         try testRenderPresentation()
+        try testRenderToggles()
+        try testRenderStaleness()
     }
 
     // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
@@ -414,5 +416,56 @@ extension LifecycleTests {
         expect(bare.render(.compactLeading, values: [:])?.isSensitive == false, "the default symbol of a layout that marks nothing is public")
         expect(bare.priority(of: .expandedLeading) == 0 && !bare.isBelowIfTooWide(.expandedLeading) && bare.margins(for: .expanded) == nil,
                "a layout without an island has no options")
+    }
+
+    // AK-TOGGLE-1
+    @MainActor private static func testRenderToggles() throws {
+        let document = try layoutDocument(#"{"type":"vstack","children":[{"type":"toggle","actionId":"mute","bind":"muted","child":{"type":"text","value":"Mute"},"style":"t","#
+            + #""accessibility":{"label":"Mute the microphone"}},{"type":"toggle","actionId":"gone","bind":"muted","child":{"type":"text","value":"x","if":"off"}}]}"#,
+            styles: #"{"t":{"tint":"red"}}"#)
+        func label(_ text: String) -> LayoutRenderNode { LayoutRenderNode(content: .text(text), style: .plain) }
+        let on = children(document.render(.lockScreen, values: ["muted": .bool(true)]))
+        expect(on.count == 1 && on[0].content == .toggle(actionId: "mute", isOn: true, label: label("Mute")) && on[0].style.tint == .semantic(.red),
+               "a toggle carries its action, the flag it shows and its label; one without a label draws nothing")
+        expect(on[0].accessibility == LayoutRenderAccessibility(label: "Mute the microphone"), "a toggle is a control: its label is its own")
+        let off = children(document.render(.lockScreen, values: ["muted": .bool(false)]))
+        expect(off.first?.content == .toggle(actionId: "mute", isOn: false, label: label("Mute")), "the flag follows the value")
+        for values: [String: LayoutValue] in [[:], ["muted": .string("yes")], ["muted": .number(1)]] {
+            expect(children(document.render(.lockScreen, values: values)).isEmpty, "a toggle without a flag to show draws nothing: \(values)")
+        }
+        let held = try layoutDocument(#"{"type":"toggle","actionId":"mute","bind":"muted","child":{"type":"hstack","children":[{"type":"symbol","name":"mic.slash"},{"type":"custom","name":"ring"}]}}"#)
+        expect(held.render(.compactLeading, values: [:])?.content == .symbol(name: "mic.slash", rendering: nil, variableValue: nil),
+               "the default of an absent island part looks through a toggle")
+        expect(held.customViewNames == ["ring"], "the custom views inside a toggle are known")
+    }
+
+    // AK-STALE-1
+    @MainActor private static func testRenderStaleness() throws {
+        let document = try layoutDocument(#"{"type":"vstack","children":[{"type":"text","value":"Live","ifStale":false},{"type":"text","value":"Waiting","ifStale":true,"transition":"opacity"},"#
+            + #"{"type":"text","value":"Recording","if":"live","ifStale":false},{"type":"text","value":"Paused","unless":"live","ifStale":true},{"type":"text","value":"Always"},"#
+            + #"{"type":"button","actionId":"retry","ifStale":true,"child":{"type":"text","value":"Retry"}},{"type":"link","url":"app://a","child":{"type":"text","value":"Open","ifStale":false}}]}"#,
+            layout: #","island":{"minimal":{"type":"symbol","name":"clock","ifStale":true}}"#)
+        let live: [String: LayoutValue] = ["live": .bool(true)], idle: [String: LayoutValue] = ["live": .bool(false)]
+        expect(texts(document.render(.lockScreen, values: live)) == ["Live", "Recording", "Always"], "content is fresh unless the render is told otherwise")
+        expect(texts(document.render(.lockScreen, values: live, isStale: false)) == ["Live", "Recording", "Always"], "fresh content draws the nodes for it")
+        expect(texts(document.render(.lockScreen, values: live, isStale: true)) == ["Waiting", "Always"], "stale content draws the nodes for it")
+        expect(texts(document.render(.lockScreen, values: idle, isStale: true)) == ["Waiting", "Paused", "Always"], "a node with both conditions is drawn while both hold")
+        expect(texts(document.render(.lockScreen, values: idle, isStale: false)) == ["Live", "Always"], "and not while one of them does not")
+
+        func label(_ text: String) -> LayoutRenderNode { LayoutRenderNode(content: .text(text), style: .plain) }
+        let fresh = children(document.render(.lockScreen, values: live, isStale: false)), stale = children(document.render(.lockScreen, values: live, isStale: true))
+        expect(fresh.last?.content == .link(url: URL(string: "app://a"), label: label("Open")) && fresh.count == 4, "fresh: the link, and no button")
+        expect(stale.last?.content == .button(actionId: "retry", label: label("Retry")) && stale.count == 3, "stale: the button, and a link whose label is gone draws nothing")
+        expect(stale[0].transition == .opacity, "the node comes with its transition")
+        expect(fresh.map(\.slot) == [0, 2, 4, 6] && stale.map(\.slot) == [1, 4, 5], "a node keeps its place among its siblings, whichever are drawn")
+        expect(document.render(.minimal, values: live, isStale: false) == nil && document.render(.minimal, values: live, isStale: true)?.content
+               == .symbol(name: "clock", rendering: nil, variableValue: nil), "a region follows the condition of its node")
+        let warning = try layoutDocument(#"{"type":"vstack","ifStale":false,"children":[{"type":"symbol","name":"exclamationmark.triangle","ifStale":true}]}"#)
+        for stale in [false, true] {
+            expect(warning.render(.minimal, values: [:], isStale: stale)?.content == .symbol(name: "exclamationmark.triangle", rendering: nil, variableValue: nil),
+                   "the default of an absent island part ignores a stale condition, as it ignores the others: \(stale)")
+        }
+        let node = try layoutDocument(#"{"type":"divider","ifStale":true}"#).layout.lockScreen
+        expect(document.render(node, values: [:]) == nil && document.render(node, values: [:], isStale: true)?.content == .divider, "one node renders the same way")
     }
 }

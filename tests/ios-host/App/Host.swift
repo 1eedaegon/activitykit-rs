@@ -1,3 +1,4 @@
+import ActivityKitIntent
 import SwiftUI
 import UIKit
 
@@ -21,7 +22,7 @@ enum TapWatch {
     private static var observer: NSObjectProtocol?
 
     static func start() {
-        observer = NotificationCenter.default.addObserver(forName: Notification.Name("activitykit.action"), object: nil, queue: nil) { note in
+        observer = NotificationCenter.default.addObserver(forName: ActionPost.notification, object: nil, queue: nil) { note in
             guard let acknowledgement = note.userInfo?["acknowledgement"] as? Progress else { return }
             lock.lock()
             let new = watched.insert(ObjectIdentifier(acknowledgement)).inserted
@@ -49,7 +50,7 @@ private let reportLine: @convention(c) (UnsafePointer<UInt8>?, Int) -> Void = { 
         // Darwin notification, and the app may be suspended.
         if line.hasPrefix("PASS") || line.hasPrefix("FAIL") {
             CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
-                                                 CFNotificationName("dev.activitykit.host.finished" as CFString), nil, nil, true)
+                                                 CFNotificationName("io.github.1eedaegon.activitykit.host.finished" as CFString), nil, nil, true)
             MainActor.assumeIsolated { Background.end() }
         }
     }

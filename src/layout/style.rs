@@ -136,7 +136,7 @@ pub struct Style {
     pub corner_radius: Option<Bindable<f64>>,
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub opacity: Option<Bindable<f64>>,
-    /// Tint of buttons, progress views and gauges.
+    /// Tint of buttons, toggles, progress views and gauges.
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub tint: Option<Bindable<Color>>,
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]

@@ -11,7 +11,7 @@ public enum LayoutRegion: String, CaseIterable, Sendable {
         case .compactLeading, .compactTrailing, .minimal: return 3
         }
     }
-    /// Whether the region takes buttons and links.
+    /// Whether the region takes buttons, links and toggles.
     var allowsButtons: Bool {
         switch self {
         case .compactLeading, .compactTrailing, .minimal: return false
@@ -265,6 +265,8 @@ public indirect enum LayoutRenderContent: Equatable, Sendable {
     case button(actionId: String, label: LayoutRenderNode)
     /// Without a URL, one the values do not hold or the system cannot read, the label is drawn without a link.
     case link(url: URL?, label: LayoutRenderNode)
+    /// `isOn` is the flag the switch shows; a tap asks for the opposite.
+    case toggle(actionId: String, isOn: Bool, label: LayoutRenderNode)
     /// The props with bound ones read from the values.
     case custom(name: String, props: [String: LayoutValue])
 }
@@ -283,6 +285,9 @@ extension LayoutValue {
     }
     public var string: String? {
         if case .string(let value) = self { return value } else { return nil }
+    }
+    public var flag: Bool? {
+        if case .bool(let value) = self { return value } else { return nil }
     }
     /// The value as a text node shows it. Numbers print as JavaScript's `String(number)` does.
     public var text: String {
@@ -347,7 +352,7 @@ extension LayoutNode {
         case .symbol: return LayoutNode(style: style, accessibility: accessibility, privacy: sensitive ? .sensitive : nil, content: content)
         case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _):
             return children.lazy.compactMap { $0.firstSymbol(sensitive: sensitive) }.first
-        case let .button(_, child), let .link(_, child): return child.firstSymbol(sensitive: sensitive)
+        case let .button(_, child), let .link(_, child), let .toggle(_, _, child): return child.firstSymbol(sensitive: sensitive)
         default: return nil
         }
     }
@@ -385,9 +390,10 @@ extension LayoutDocument {
         LayoutRenderStyle(token.flatMap { styles?[$0] }, values: values)
     }
 
-    /// What a region draws for these values, or nil when it draws nothing.
-    public func render(_ region: LayoutRegion, values: [String: LayoutValue]) -> LayoutRenderNode? {
-        node(for: region).flatMap { render($0, values: values) }
+    /// What a region draws for these values, or nil when it draws nothing. `isStale` is what the system says of the
+    /// content when it draws the activity (`ActivityViewContext.isStale`): it chooses the nodes with `ifStale`.
+    public func render(_ region: LayoutRegion, values: [String: LayoutValue], isStale: Bool = false) -> LayoutRenderNode? {
+        node(for: region).flatMap { render($0, values: values, isStale: isStale) }
     }
 
     /// The priority of an expanded region, 0 unless the layout states one.
@@ -410,17 +416,20 @@ extension LayoutDocument {
     }
 
     /// A node resolved against the values, or nil when its condition hides it or a value it needs is missing.
-    public func render(_ node: LayoutNode, values: [String: LayoutValue]) -> LayoutRenderNode? { render(node, values: values, slot: 0, held: false) }
+    public func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool = false) -> LayoutRenderNode? {
+        render(node, values: values, isStale: isStale, slot: 0, held: false)
+    }
 
     /// `held` says that a node holding this one is marked sensitive.
-    private func render(_ node: LayoutNode, values: [String: LayoutValue], slot: Int, held: Bool) -> LayoutRenderNode? {
+    private func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool, slot: Int, held: Bool) -> LayoutRenderNode? {
         switch node.condition {
         case .when(let key)?: guard values[key]?.isTruthy == true else { return nil }
         case .unless(let key)?: guard values[key]?.isTruthy != true else { return nil }
         case nil: break
         }
+        if let wanted = node.ifStale, wanted != isStale { return nil }
         let sensitive = held || node.privacy == .sensitive
-        guard let content = content(of: node.content, values, held: sensitive) else { return nil }
+        guard let content = content(of: node.content, values, isStale: isStale, held: sensitive) else { return nil }
         let combining: Bool
         switch content {
         case .vstack, .hstack, .zstack, .custom, .link(url: nil, label: _): combining = true
@@ -431,11 +440,11 @@ extension LayoutDocument {
                                 transition: node.transition, isSensitive: node.privacy == .sensitive, slot: slot)
     }
 
-    private func content(of content: LayoutContent, _ values: [String: LayoutValue], held: Bool) -> LayoutRenderContent? {
+    private func content(of content: LayoutContent, _ values: [String: LayoutValue], isStale: Bool, held: Bool) -> LayoutRenderContent? {
         func visible(_ children: [LayoutNode]) -> [LayoutRenderNode] {
-            children.enumerated().compactMap { slot, child in render(child, values: values, slot: slot, held: held) }
+            children.enumerated().compactMap { slot, child in render(child, values: values, isStale: isStale, slot: slot, held: held) }
         }
-        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, slot: 0, held: held) }
+        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, isStale: isStale, slot: 0, held: held) }
         func unit(_ value: Double) -> Double { min(max(value, 0), 1) }
         switch content {
         case let .vstack(children, spacing, alignment): return .vstack(children: visible(children), spacing: spacing, alignment: alignment ?? .center)
@@ -461,6 +470,9 @@ extension LayoutDocument {
             return .timer(interval: Date(timeIntervalSince1970: from / 1000)...Date(timeIntervalSince1970: to / 1000), countsDown: countsDown ?? true)
         case let .button(actionId, child): return label(child).map { .button(actionId: actionId, label: $0) }
         case let .link(url, child): return label(child).map { .link(url: url.url(values), label: $0) }
+        case let .toggle(actionId, key, child):
+            guard let isOn = values[key]?.flag else { return nil }
+            return label(child).map { .toggle(actionId: actionId, isOn: isOn, label: $0) }
         case let .custom(name, props):
             let resolved = (props ?? [:]).compactMapValues { prop -> LayoutValue? in
                 switch prop {
@@ -478,7 +490,7 @@ extension LayoutDocument {
         func visit(_ node: LayoutNode) {
             switch node.content {
             case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _): children.forEach(visit)
-            case let .button(_, child), let .link(_, child): visit(child)
+            case let .button(_, child), let .link(_, child), let .toggle(_, _, child): visit(child)
             case let .custom(name, _): if !names.contains(name) { names.append(name) }
             default: break
             }

@@ -221,7 +221,7 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["vstack", "hstack", "zstack", "spacer", "divider", "text", "symbol", "image", "path", "progress", "gauge", "timerText", "button", "link", "custom"] }
+        "type": { "enum": ["vstack", "hstack", "zstack", "spacer", "divider", "text", "symbol", "image", "path", "progress", "gauge", "timerText", "button", "link", "toggle", "custom"] }
       },
       "not": { "required": ["if", "unless"], "properties": { "if": true, "unless": true } },
       "allOf": [
@@ -239,6 +239,7 @@
         { "if": { "required": ["type"], "properties": { "type": { "const": "timerText" } } }, "then": { "$ref": "#/$defs/timerText" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "button" } } }, "then": { "$ref": "#/$defs/button" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "link" } } }, "then": { "$ref": "#/$defs/link" } },
+        { "if": { "required": ["type"], "properties": { "type": { "const": "toggle" } } }, "then": { "$ref": "#/$defs/toggle" } },
         { "if": { "required": ["type"], "properties": { "type": { "const": "custom" } } }, "then": { "$ref": "#/$defs/custom" } }
       ]
     },
@@ -248,7 +249,7 @@
       "additionalProperties": false,
       "required": ["type", "children"],
       "properties": {
-        "type": { "const": "vstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "vstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "children": { "$ref": "#/$defs/children" },
         "spacing": { "type": "number", "minimum": 0, "maximum": 64 },
         "alignment": { "enum": ["leading", "center", "trailing"] }
@@ -259,7 +260,7 @@
       "additionalProperties": false,
       "required": ["type", "children"],
       "properties": {
-        "type": { "const": "hstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "hstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "children": { "$ref": "#/$defs/children" },
         "spacing": { "type": "number", "minimum": 0, "maximum": 64 },
         "alignment": { "enum": ["top", "center", "bottom", "firstTextBaseline"] }
@@ -270,7 +271,7 @@
       "additionalProperties": false,
       "required": ["type", "children"],
       "properties": {
-        "type": { "const": "zstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "zstack" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "children": { "$ref": "#/$defs/children" },
         "alignment": { "$ref": "#/$defs/anchor" }
       }
@@ -280,7 +281,7 @@
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "const": "spacer" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "spacer" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "minLength": { "type": "number", "minimum": 0, "maximum": 256 }
       }
     },
@@ -289,7 +290,7 @@
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "const": "divider" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" }
+        "type": { "const": "divider" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" }
       }
     },
     "text": {
@@ -297,7 +298,7 @@
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "const": "text" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "text" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "value": { "type": "string", "maxLength": 200 },
         "bind": { "$ref": "#/$defs/name" }
       },
@@ -311,7 +312,7 @@
       "additionalProperties": false,
       "required": ["type", "name"],
       "properties": {
-        "type": { "const": "symbol" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "symbol" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "name": { "type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$" },
         "rendering": { "enum": ["monochrome", "hierarchical", "palette", "multicolor"] },
         "variableBind": { "$ref": "#/$defs/name" }
@@ -322,7 +323,7 @@
       "additionalProperties": false,
       "required": ["type", "source"],
       "properties": {
-        "type": { "const": "image" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "image" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "source": {
           "oneOf": [
             {
@@ -346,7 +347,7 @@
       "additionalProperties": false,
       "required": ["type", "d", "box"],
       "properties": {
-        "type": { "const": "path" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "path" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "d": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[MLHVCSQTZmlhvcsqtz0-9eE+., \\t\\r\\n-]+$" },
         "box": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 1, "maximum": 1024 } },
         "stroke": { "type": "number", "minimum": 0.5, "maximum": 16 }
@@ -357,7 +358,7 @@
       "additionalProperties": false,
       "required": ["type", "bind"],
       "properties": {
-        "type": { "const": "progress" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "progress" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "bind": { "$ref": "#/$defs/name" },
         "kind": { "enum": ["linear", "circular"] }
       }
@@ -367,7 +368,7 @@
       "additionalProperties": false,
       "required": ["type", "bind"],
       "properties": {
-        "type": { "const": "gauge" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "gauge" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "bind": { "$ref": "#/$defs/name" },
         "min": { "type": "number" },
         "max": { "type": "number" },
@@ -379,7 +380,7 @@
       "additionalProperties": false,
       "required": ["type", "start", "end"],
       "properties": {
-        "type": { "const": "timerText" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "timerText" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "start": { "$ref": "#/$defs/name" },
         "end": { "$ref": "#/$defs/name" },
         "countsDown": { "type": "boolean" }
@@ -390,7 +391,7 @@
       "additionalProperties": false,
       "required": ["type", "actionId", "child"],
       "properties": {
-        "type": { "const": "button" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "button" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "actionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$" },
         "child": { "$ref": "#/$defs/node" }
       }
@@ -401,8 +402,20 @@
       "additionalProperties": false,
       "required": ["type", "url", "child"],
       "properties": {
-        "type": { "const": "link" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "link" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "url": { "$ref": "#/$defs/bindableUrl" },
+        "child": { "$ref": "#/$defs/node" }
+      }
+    },
+    "toggle": {
+      "description": "A switch that shows a boolean value; a tap is an action with the state asked for. It stands where a button may.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "actionId", "bind", "child"],
+      "properties": {
+        "type": { "const": "toggle" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "actionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$" },
+        "bind": { "$ref": "#/$defs/name" },
         "child": { "$ref": "#/$defs/node" }
       }
     },
@@ -412,7 +425,7 @@
       "additionalProperties": false,
       "required": ["type", "name"],
       "properties": {
-        "type": { "const": "custom" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
+        "type": { "const": "custom" }, "style": { "$ref": "#/$defs/name" }, "if": { "$ref": "#/$defs/name" }, "unless": { "$ref": "#/$defs/name" }, "ifStale": { "type": "boolean" }, "accessibility": { "$ref": "#/$defs/accessibility" }, "transition": { "$ref": "#/$defs/transition" }, "privacy": { "const": "sensitive" },
         "name": { "$ref": "#/$defs/fileName" },
         "props": {
           "type": "object", "minProperties": 1, "maxProperties": 16,

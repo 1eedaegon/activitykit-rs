@@ -38,7 +38,12 @@ bash tests/release/run.sh       # the release tool, in repositories of its own
     drops, Stop tapped on the Lock Screen and the event in Rust, a handler of 1 s that the tap's intent waits for, an
     end with final values; every node type drawn with its button; a path and a progress view found by label and bound
     value, a labelled stack as one element whose button a touch still reaches, and a link, the layout's URL and an
-    `https` link each opening the host with its URL; a start from the background, which ActivityKit
+    `https` link each opening the host with its URL; a start scheduled 15 s ahead that is pending, holds its key,
+    refuses an update and is active at its time with the content of its start, one ended while pending, an alert with
+    a named sound, and a transient start; a toggle flipped on and off, each tap
+    with the state asked for, and the switch following the app's update; a layout with a line for fresh and a line
+    for stale content, whose Lock Screen changed from one to the other when its stale date, 90 s ahead, had passed,
+    with no update and with the app ended, the list then saying `Stale`, and back after an update; a start from the background, which ActivityKit
     refuses (`NotForeground`); `activities()` after a relaunch, whose handle continues the revision, and the same
     keyed start returning the running activity before and after it; redacted receipts that keep no values, and the
     values ActivityKit shows after a relaunch; a start that asks for a push token, which ActivityKit refuses without
@@ -123,5 +128,5 @@ showed its symbol, text, timer, bar, circular gauge, path, divider and button, a
 the background came back as `NotForeground` from ActivityKit's `visibility` error. After the process ended,
 `activities()` found the other activity at revision 1, and its handle sent revision 2.
 
-Not tested: a phone, iOS 16.2 to 17.1, a locked device with a passcode, ActivityKit's `stale` state (the simulator
-did not report it), and what the specification lists as not proven by a test.
+Not tested: a phone, iOS 16.2 to 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
+reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.

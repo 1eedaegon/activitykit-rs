@@ -7,7 +7,7 @@ enum LayoutRules {
     static let maxNumber = 8_640_000_000_000_000.0
     static let maxWeight = 3584
     static let maxDepth = 8
-    /// Buttons and links of one region, together.
+    /// Buttons, links and toggles of one region, together.
     static let maxControls = 4
     static let maxProps = 16
     static let maxURL = 1024
@@ -94,6 +94,14 @@ enum LayoutRules {
             }
         }
     }
+}
+
+/// The contract's rules for what travels beside a request, for the bridge, which is a module of its own.
+public enum LayoutChecks {
+    /// A file name of the contract, as an image's is: a letter or digit, then letters, digits, `.`, `_` and `-`, 64 at most.
+    public static func isFileName(_ text: String) -> Bool { LayoutRules.isAssetName(text) }
+    /// A time of the contract, in epoch milliseconds.
+    public static func isTime(_ millis: Int64) -> Bool { (0...LayoutRules.maxTimestamp).contains(millis) }
 }
 
 extension LayoutValue {
@@ -258,7 +266,7 @@ extension LayoutBindable {
 }
 
 extension LayoutDocument {
-    /// `controls` are the buttons and the links.
+    /// `controls` are the buttons, the links and the toggles.
     private struct Tally { var nodes = 0, controls = 0 }
 
     /// The rules of the layout and the style table that need no values.
@@ -305,12 +313,16 @@ extension LayoutDocument {
             tally.controls += 1
             guard tally.controls <= LayoutRules.maxControls, region.allowsButtons, !inButton else { throw LayoutRules.limit }
             (children, valid) = ([child], url.literal.map(LayoutRules.isURL) ?? true)
+        case let .toggle(actionId, _, child):
+            tally.controls += 1
+            guard tally.controls <= LayoutRules.maxControls, region.allowsButtons, !inButton else { throw LayoutRules.limit }
+            (children, valid) = ([child], LayoutRules.isActionID(actionId))
         case .divider, .boundText, .progress, .timerText: break
         }
         guard valid, node.accessibility?.isValid ?? true else { throw LayoutRules.layout }
         let insideButton: Bool
         switch node.content {
-        case .button, .link: insideButton = true
+        case .button, .link, .toggle: insideButton = true
         default: insideButton = inButton
         }
         for child in children { try check(child, in: region, depth: depth + 1, inButton: insideButton, tally: &tally) }
@@ -355,6 +367,9 @@ extension LayoutDocument {
         case let .button(_, child): try checkReferences(child, values)
         case let .link(url, child):
             valid = valid && url.fits { $0.urlText(values) }
+            try checkReferences(child, values)
+        case let .toggle(_, key, child):
+            valid = valid && values[key]?.flag != nil
             try checkReferences(child, values)
         case let .custom(_, props?): valid = valid && props.values.allSatisfy { $0.key.map { values[$0] != nil } ?? true }
         case .spacer, .divider, .text, .symbol, .image, .path, .custom: break

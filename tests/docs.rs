@@ -71,6 +71,17 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     ] {
         says(&usage, phrase, "docs/usage.md");
     }
+    // What a start and an alert may ask for beside the content.
+    for phrase in [
+        "Start::transient()",
+        "Start::scheduled(at, alert)",
+        "Alert::sound",
+        "State::Pending",
+        "toggle(\"mute\", \"muted\", text(\"Mute\"))",
+        "on: Some(muted)",
+    ] {
+        says(&usage, phrase, "docs/usage.md");
+    }
     // What a node tells VoiceOver, and where a tap leads.
     for phrase in [
         "Accessibility::new()",
@@ -81,15 +92,16 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     ] {
         says(&usage, phrase, "docs/usage.md");
     }
+    // A layout that follows the staleness the system reports.
+    for phrase in ["when_stale()", "unless_stale()", "without the app running"] {
+        says(&usage, phrase, "docs/usage.md");
+    }
+    let contract = read("docs/request-contract.md");
+    for phrase in ["`ifStale`", "while both hold"] {
+        says(&contract, phrase, "docs/request-contract.md");
+    }
     let later = read("docs/not-yet-supported.md");
-    for phrase in [
-        "Transient",
-        "Scheduled start",
-        "Alert sounds",
-        "Toggles",
-        "Apple Watch and CarPlay",
-        "Left out",
-    ] {
+    for phrase in ["Apple Watch and CarPlay", "Left out"] {
         says(&later, phrase, "docs/not-yet-supported.md");
     }
 }

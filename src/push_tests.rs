@@ -295,3 +295,20 @@ fn a_start_payload_carries_links_and_accessibility_with_the_layout() {
     // A server learns here, not from a link that does nothing, that its value is no URL.
     assert_eq!(start("details").unwrap_err().code(), "INVALID_INPUT");
 }
+
+// AK-ALERT-1, AK-PUSH-9
+#[test]
+fn a_pushed_alert_names_its_sound() {
+    let alert = Alert::new("Louder", "The level rose").sound("alarm.caf");
+    let update = Payload::update(values! { "tone" => "red", "level" => 0.8 })
+        .revision(3)
+        .alert(alert);
+    assert_eq!(
+        update.to_value().unwrap()["aps"]["alert"],
+        json!({"title": "Louder", "body": "The level rose", "sound": "alarm.caf"})
+    );
+    let unsound = Payload::update(values! { "tone" => "red", "level" => 0.8 })
+        .revision(3)
+        .alert(Alert::new("Louder", "x").sound("../alarm.caf"));
+    assert_eq!(unsound.to_value().unwrap_err().code(), "INVALID_INPUT");
+}

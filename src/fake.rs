@@ -174,7 +174,12 @@ impl FakeBridge {
                     key: input.activity_key,
                     revision: input.snapshot.revision,
                     values: input.snapshot.values,
-                    state: State::Active,
+                    // A scheduled start is pending until the system begins it.
+                    state: if request["scheduled"].is_null() {
+                        State::Active
+                    } else {
+                        State::Pending
+                    },
                     degraded: Vec::new(),
                     timestamp: input.snapshot.timestamp,
                     stale_at: input.snapshot.stale_at,
@@ -184,6 +189,15 @@ impl FakeBridge {
                 ok(record(&activity))
             }
             Call::Update => {
+                // An activity that waits for its scheduled start takes no update, as in the Swift lifecycle.
+                let waits =
+                    |activity: &FakeActivity| activity.id == id && activity.state == State::Pending;
+                if state.activities.iter().any(waits) {
+                    return error(
+                        "CONFLICT",
+                        "The activity has not started yet; update it once it is active.",
+                    );
+                }
                 let live = |activity: &&mut FakeActivity| {
                     activity.id == id && matches!(activity.state, State::Active | State::Stale)
                 };

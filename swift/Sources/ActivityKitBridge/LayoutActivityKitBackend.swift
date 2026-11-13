@@ -32,7 +32,8 @@ final class LayoutActivityKitBackend: LayoutActivityBackend {
 
     func start(_ attributes: LiveActivityLayoutAttributes, snapshot: LayoutSnapshot) async throws -> LayoutActivity {
         let presentation = presentations.start(key: attributes.activityKey)
-        let (activity, score) = try system.start(attributes, state: snapshot, relevance: presentation?.relevance, push: presentation?.push)
+        let (activity, score) = try system.start(attributes, state: snapshot, relevance: presentation?.relevance, push: presentation?.push,
+                                                 transient: presentation?.transient ?? false, scheduled: presentation?.scheduled)
         observer.watch(activity, announce: true)
         return describe(activity, relevance: score)
     }

@@ -79,7 +79,8 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 | --- | --- | --- | --- |
 | Is it allowed? | `kit.authorization()` → `supported`, `enabled`, `buttons`, `frequent_pushes` | 16.2 | [usage](docs/usage.md) |
 | Start | `kit.start(layout, values)`, `kit.start_with(Start::new(..).key(..).relevance(..).stale_at(..))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
-| Update | `activity.update(values)`, `activity.update_with(Update::new(..).alert(..))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
+| Start later, or only while the app is in use | `Start::scheduled(at, alert)`, `Start::transient()` | 26; 18 | [start, update, end](docs/usage.md#start-update-end) |
+| Update | `activity.update(values)`, `activity.update_with(Update::new(..).alert(Alert::new(..).sound(..)))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
 | End | `activity.end(End::immediately())`, `End::default()`, `End::after(time)`, `.values(..)` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
 | Find again | `kit.activities()`, `kit.activity(id)` | 16.2 | [after a relaunch](docs/usage.md#after-a-relaunch) |
 | Layout | `Layout::new(node)`, `vstack`, `hstack`, `zstack`, `text`, `symbol`, `image`, `path`, `progress`, `gauge`, `timer`, `spacer`, `divider` | 16.2 | [layouts](docs/usage.md#layouts) |
@@ -88,7 +89,9 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 | Island priorities, placement, margins | `IslandExpanded::priority(..)`, `.below_if_too_wide(..)`, `Island::margins(..)` | 16.2 | [the island's options](docs/usage.md#the-dynamic-islands-options) |
 | Motion | `Style::content_transition(..)`, `node.transition(..)` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Private content | `node.sensitive()` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
+| Stale content | `node.when_stale()`, `node.unless_stale()`, with `Start::stale_at(..)` | 16.2 | [stale content](docs/usage.md#stale-content) |
 | Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17 | [events](docs/usage.md#events) |
+| Toggles | `toggle(action_id, key, label)`, `Event::Action { on, .. }` | 17 | [toggles](docs/usage.md#toggles) |
 | Links | `link(url, label)`, `Layout::url(..)` | 16.2 | [links](docs/usage.md#links) |
 | Accessibility | `node.accessibility(Accessibility::new().label(..))` | 16.2 | [accessibility](docs/usage.md#accessibility) |
 | Images the app draws | `kit.write_image(name, &png)`, `image(ImageSource::file(name))` | 16.2 | [drawn images](docs/usage.md#drawn-images) |
@@ -199,6 +202,19 @@ let island = Island::new()
     .margins(IslandMargins::new().expanded(8.0));
 ```
 
+### Stale content
+
+```rust
+use std::time::{Duration, SystemTime};
+
+let layout = Layout::new(vstack([
+    text(Bound::key("score")),
+    text("Live").unless_stale(),                    // while the content is fresh
+    text("Waiting for an update").when_stale(),     // once its stale date has passed, without the app running
+]));
+let start = Start::new(layout, values).stale_at(SystemTime::now() + Duration::from_secs(600));
+```
+
 ### Images and your own views
 
 ```rust
@@ -251,7 +267,7 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 ## Limits
 
 - iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons need iOS 17.
-- A layout holds at most 40 nodes on the Lock Screen, 8 levels, 4 buttons and links per region, 24 styles and 32
+- A layout holds at most 40 nodes on the Lock Screen, 8 levels, 4 buttons, links and toggles per region, 24 styles and 32
   values, and layout, styles and values together weigh at most 3584 ([the contract](docs/request-contract.md)).
 - An activity starts only while the app is in the foreground, or a short while after it left it. The system ends it
   after 8 hours and removes it from the Lock Screen after 12.

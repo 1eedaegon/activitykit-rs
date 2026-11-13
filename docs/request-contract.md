@@ -168,7 +168,7 @@ An island part that the layout leaves out is drawn with a default:
 
 - `expanded`: the lock screen tree, in the bottom region;
 - `compactLeading` and `minimal`: the first `symbol` node of the lock screen tree in document
-  order, conditions ignored, or the SF Symbol `circle.fill` when the tree has no symbol;
+  order, its conditions (`if`, `unless`, `ifStale`) and those of the nodes that hold it ignored, or the SF Symbol `circle.fill` when the tree has no symbol;
 - `compactTrailing`: nothing.
 
 ## Nodes
@@ -178,6 +178,11 @@ Every node is an object with a `type`. Any node may also carry:
 - `style`: a style token;
 - `if` or `unless`, not both: a value key. With `if` the node and its subtree are drawn only when
   the value is truthy, with `unless` only when it is not;
+- `ifStale`: `true` or `false`. With `true` the node and its subtree are drawn only while the content is stale (its
+  `staleAt` has passed and no newer content has come), with `false` only while it is not. The system says which when
+  it draws the activity, so the change needs no update and no running app; content whose own stale date has not
+  passed is fresh again. Beside `if` or `unless` the node is drawn while both hold. Below iOS 16.2 content is never
+  stale;
 - `accessibility`: what assistive technologies read of the node, see [Accessibility](#accessibility);
 - `transition`: how the node comes and goes when its `if` or `unless` shows or hides it: `opacity`, `slide`,
   `moveTop`, `moveBottom`, `moveLeading`, `moveTrailing`, `pushTop`, `pushBottom`, `pushLeading` or `pushTrailing`.
@@ -208,6 +213,7 @@ In the table, `?` marks an optional member and a value key is a key of `snapshot
 | `timerText` | `start`, `end`: value keys (times as in v1: integers from 0 to 8640000000000000, in epoch milliseconds; the `end` value after the `start` value); `countsDown`?: boolean, true when left out |
 | `button` | `actionId`: `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`; `child`: Node |
 | `link` | `url`: a URL or a binding, see [Links and URLs](#links-and-urls); `child`: Node |
+| `toggle` | `actionId`: as a button's; `bind`: value key (a boolean, the flag the switch shows); `child`: Node |
 | `custom` | `name`: `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, a view the app registers; `props`?: 1 to 16 entries, see [Custom nodes](#custom-nodes) |
 
 `d` is SVG path data within these limits:
@@ -234,11 +240,11 @@ feed as whitespace, and both accept path data without a command.
 ## Structural limits
 
 - Depth: at most 8. The root node of a region has depth 1, and a node in `children` or the
-  `child` of a button or a link is one level deeper than its parent.
+  `child` of a button, a link or a toggle is one level deeper than its parent.
 - Nodes per region, containers included: `lockScreen` 40, each expanded region 12,
   `compactLeading` 3, `compactTrailing` 3, `minimal` 3.
-- Buttons and links: only in `lockScreen` and the expanded regions, never inside a button or a
-  link at any depth, and at most 4 per region, buttons and links together.
+- Buttons, links and toggles: only in `lockScreen` and the expanded regions, never inside one
+  another at any depth, and at most 4 per region, the three kinds together.
 
 ## Reference rules
 
@@ -257,7 +263,8 @@ These rules need the layout, the styles and the values together, so they are che
 - every binding among the `props` of a `custom` node names a key of `snapshot.values`, of any type;
 - every bound `label`, `value` and `hint` of a node's `accessibility` names a key of
   `snapshot.values`, of any type;
-- a bound `url`, of the layout or of a link, names a string that is a URL.
+- a bound `url`, of the layout or of a link, names a string that is a URL;
+- the `bind` of a `toggle` names a boolean.
 
 A style that no node uses and a value that no node reads are allowed. The number that a
 `progress` or a `gauge` reads is not range-checked; a progress bar shows it clamped to 0..1.
@@ -266,6 +273,17 @@ On update, and for the final content of an end, the Swift layer checks the rules
 and bound members included, against the layout and styles it stored at start. Rust checks an update or an end alone,
 since it keeps no layout; `LayoutStartInput::validate_update` and `validate_end` apply the Swift layer's check to a
 start and the request after it, and run the `updates` and `ends` fixtures.
+
+## Toggles
+
+```jsonc
+{ "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "Mute" } }
+```
+
+A `toggle` draws a switch beside its `child` (iOS 17; below it, the child alone, like a button's label). The switch
+shows the boolean value that `bind` names. A tap changes nothing by itself: it reaches the app as an action with
+`actionId` and the state the person asked for, the opposite of the value shown, and the app sends an update with the
+new value to move the switch. The bridge's `action` event carries that state as `on`; a button's has none.
 
 ## Options of the Dynamic Island
 
@@ -533,7 +551,8 @@ validators in Rust and Swift, which check those as well and give the results the
   members and the two tints can be bound to values, so an update changes them.
 - Not part of 2.0: `layoutRef`, gradients and borders. Added to contract v2 after it, as optional members:
   `accessibility` on a node, the `link` node and `layout.url`; then `transition` and `privacy` on a node,
-  `contentTransition` in a style, and the island's `priority`, `belowIfTooWide` and `margins`. The draft's
+  `contentTransition` in a style, and the island's `priority`, `belowIfTooWide` and `margins`; then the `toggle`
+  node; then `ifStale` on a node. The draft's
   `image.source.appGroup` became `{ "file": name }`, with the App Group configured once in the widget
   extension instead of named in every request. Custom fonts came as the style member `fontFamily`, and
   custom views as the `custom` node.
