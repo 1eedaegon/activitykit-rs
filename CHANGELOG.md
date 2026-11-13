@@ -5,6 +5,15 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.4.0 - 2026-11-13
+
+- docs: the plan for the iOS surface a cross-platform layer needs (`3725d26`)
+- feat: accessibility members, links and a layout URL (`ee541d8`)
+- docs: the README lists every feature with its call (`a487de0`)
+- ci: releases follow the commit subjects (`1f76c27`)
+- feat: transitions, sensitive nodes and the Dynamic Island's options (`19418c7`)
+- test: labels and links on the Lock Screen, in the simulator suite (`d72a989`)
+
 Phase 1 of [the iOS surface plan](docs/prd-ios-surface.md). Breaking for Rust callers: a new minor version, as
 before 1.0.
 
