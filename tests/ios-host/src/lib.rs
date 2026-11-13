@@ -8,8 +8,9 @@ use activitykit::{
     Activity, ActivityKit, Bound, End, Error, Event, Layout, Push, Receipts, Start, State, Style,
     Update, Value,
     layout::{
-        ButtonStyle, Font, Frame, ImageSource, IndicatorKind, button, custom, divider, gauge,
-        hstack, image, path, progress, spacer, symbol, text, timer, vstack, zstack,
+        Accessibility, ButtonStyle, Font, Frame, ImageSource, IndicatorKind, button, custom,
+        divider, gauge, hstack, image, link, path, progress, spacer, symbol, text, timer, vstack,
+        zstack,
     },
     values,
 };
@@ -98,6 +99,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "relaunch-check" => relaunch_check(&reporter),
             "background-start" => background_start(&reporter),
             "every-node" => every_node(&reporter),
+            "surface" => surface(&reporter),
             "policies" => policies(&reporter),
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
@@ -627,6 +629,58 @@ fn background_start(reporter: &Reporter) -> Outcome {
 
 // AK-RENDER-16
 /// Every node type of the contract in one layout: the widget draws it on the Lock Screen, and its button works.
+// AK-ACCESS-3, AK-LINK-5
+/// What a layout tells assistive technologies and where its taps lead. The UI test reads the labels on the Lock
+/// Screen, touches the button inside the labelled row, and follows the links: the host app reports each URL it is
+/// opened with. The activity stays when the scenario is over, for the links.
+fn surface(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let events = kit.events();
+    let layout = Layout::new(
+        vstack([
+            text("Surface"),
+            hstack([
+                path("M0 8 L8 0 L16 8", [16.0, 8.0])
+                    .stroke(2.0)
+                    .accessibility(Accessibility::new().label("Trend line")),
+                progress("level").accessibility(
+                    Accessibility::new()
+                        .label("Input level")
+                        .value(Bound::key("percent")),
+                ),
+                text("Decoration").accessibility(Accessibility::new().hidden()),
+            ])
+            .spacing(6.0),
+            hstack([text("Level"), spacer(), button("ack", text("Ack"))])
+                .accessibility(Accessibility::new().label("Level row")),
+            hstack([
+                link("activitykit-host://opened?from=link", text("Open details")),
+                spacer(),
+                link("https://example.com/activitykit", text("Open web")),
+            ]),
+        ])
+        .spacing(6.0),
+    )
+    .url("activitykit-host://opened?from=activity");
+    let values = values! { "level" => 0.4, "percent" => "40 percent" };
+    let activity =
+        block_on(kit.start(layout, values)).map_err(|error| format!("start: {error}"))?;
+    reporter.say("shown: read the labels, touch Ack, follow the links");
+    let tapped = next_event(&events, Duration::from_secs(180), |event| match event {
+        Event::Action {
+            activity, action, ..
+        } => Some((activity, action)),
+        _ => None,
+    });
+    let (tapped, action) = tapped.ok_or("no tap within 3 minutes")?;
+    check(
+        action == "ack" && tapped == activity,
+        "the touch reaches the button inside the labelled row",
+    )?;
+    reporter.say(format!("tapped {action}"));
+    Ok(())
+}
+
 fn every_node(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let events = kit.events();

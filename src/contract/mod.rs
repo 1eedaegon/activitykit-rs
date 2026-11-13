@@ -12,6 +12,8 @@ mod limit_tests;
 #[cfg(test)]
 mod model_tests;
 #[cfg(test)]
+mod presentation_tests;
+#[cfg(test)]
 mod rule_tests;
 #[cfg(test)]
 mod surface_tests;

@@ -1,7 +1,8 @@
 # PRD: the iOS surface a cross-platform layer needs
 
-Status: phase 1 is built and is in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5), except its
-simulator scenario; phases 2 and 3 are planned. Each requirement moves into the specification with its tests when it
+Status: phases 1 and 2 are built and are in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5,
+AK-MOTION-1 and 2, AK-PRIVACY-1, AK-ISLAND-1 and 2), except their simulator scenarios and the small region of
+phase 2; phase 3 is planned. Each requirement moves into the specification with its tests when it
 is built, and leaves [Not yet supported](not-yet-supported.md).
 
 ## Why
@@ -79,26 +80,40 @@ Decisions:
 - **One URL per layout**, not one per region: `DynamicIsland` takes one, and a region that needs another uses a link.
 - **No scheme list.** Apple's documentation says that the system activates the containing app and passes it the URL
   (`onOpenURL`, `application(_:open:options:)`), for `widgetURL` and for `Link`, so the crate checks the form and the
-  app decides what it follows. The documentation says nothing of schemes that are not the app's; the simulator
-  scenario below is to show what the system does with one.
+  app decides what it follows. The documentation says nothing of schemes that are not the app's; on the simulator
+  (iOS 26.3) a link with an `https` URL opened the test host with that URL, not a browser.
 - **The label of a stack replaces its children's**, with the children combined, so that a button inside stays an
-  action of the element. SwiftUI does not document what a combined element does with a button inside it, so the
-  simulator scenario checks that too.
+  action of the element. On the simulator the stack shows as one element with the button's trait, and a touch
+  still reaches the button; what VoiceOver does when it activates that element is not tested.
 - **The URL is opened as sent, or not at all.** From iOS 17 `URL(string:)` rewrites what it cannot read; the renderer
   asks for the strict reading, so the app never gets another URL than the layout's.
 
 ### Phase 2: presentation
 
-Render and contract only. Shapes are proposals until the phase starts.
+Render and contract only. Built, except the small region.
 
-| ID | Requirement | Proposed contract | iOS |
+| ID | Requirement | Contract | iOS |
 | --- | --- | --- | --- |
-| AK-MOTION-1 | Text and symbols change with the system's content transitions. | style member `contentTransition`: `numericText`, `numericTextDown`, `opacity`, `interpolate`, `identity` | 16.2; numeric text by value 17 |
-| AK-MOTION-2 | A node that appears or leaves with `if` or `unless` uses one of the transitions the system allows. | node member `transition`: `opacity`, `slide`, `{ "move": edge }`, `{ "push": edge }` | 16.2; push 16.2 |
-| AK-ISLAND-1 | An expanded region states its priority and whether it may wrap below the camera when too wide. | `island.expanded.priority: { <region>: number }`, `island.expanded.belowIfTooWide: [<region>]` | 16.2 |
-| AK-ISLAND-2 | The island's presentations set their content margins. | `island.margins: { <presentation>: number or four edges }` | 17 |
-| AK-PRIVACY-1 | A node is marked sensitive, and the system redacts it on a locked device and in the always-on display. | node member `privacy: "sensitive"` | 16.2 |
-| AK-SMALL-1 | A layout has a region of its own for Apple Watch and CarPlay; without it the system shows the compact views. | `layout.small: Node`, no buttons | 18 (Watch), 26 (CarPlay) |
+| AK-MOTION-1 | Text and symbols change with the system's content transitions. | style member `contentTransition`: `numericText`, `numericTextDown`, `opacity`, `interpolate`, `identity` | 16.2 |
+| AK-MOTION-2 | A node that appears or leaves with `if` or `unless` uses one of the transitions the system allows. | node member `transition`: `opacity`, `slide`, `moveTop` … `moveTrailing`, `pushTop` … `pushTrailing` | 16.2 |
+| AK-ISLAND-1 | An expanded region states its priority and whether it may go below the camera when too wide. | `island.expanded.priority: { <region>: 0 to 100 }`, `island.expanded.belowIfTooWide: [leading, trailing]` | 16.2 |
+| AK-ISLAND-2 | The island's presentations set their content margins. | `island.margins: { <presentation>: number or four edges }` | 16.2 |
+| AK-PRIVACY-1 | A node is marked sensitive, and the system hides it on a locked device and in the always-on display. | node member `privacy: "sensitive"` | 16.2 |
+| AK-SMALL-1 | A layout has a region of its own for Apple Watch and CarPlay; without it the system shows the compact views. Not built. | `layout.small: Node`, no buttons (proposed) | 18 (Watch), 26 (CarPlay) |
+
+Decisions:
+
+- **Flat words for a transition** (`moveTop`, not `{ "move": "top" }`): one enumeration in every layer, nothing to
+  nest, and a name that says the same on Android.
+- **A child is known by its place in the layout.** The widget used to number the children it drew, so a child that
+  came or went renumbered those after it and the wrong one animated. The place among all siblings, hidden ones
+  counted, is stable.
+- **A node is marked sensitive, never marked public.** The modifier is applied only where the layout asks, so that a
+  child cannot undo what its stack says.
+- **The small region waits.** A widget declares the families it draws once, for every activity, so a layout without a
+  small region would lose the compact views the system shows on a watch today and get whatever the widget draws
+  instead. That needs a default that looks right on a watch, and no test here can show a watch. It comes with a
+  device to look at, not before.
 
 General animation is not a goal: ActivityKit runs its own animation of at most two seconds and ignores the rest.
 
@@ -152,9 +167,10 @@ contract v3 comes, not before: removing the two members now would break every 0.
 | simulator | `tests/ios-host/run.sh` | what SwiftUI and ActivityKit do with it: a label VoiceOver would read, a link that opens the app |
 | build | `tests/build/run.sh` | the bridge for each iOS target |
 
-Phase 1 is proven by the unit and Swift host levels, and its SwiftUI is compiled for the simulator. Still to write:
-a simulator scenario that finds a node by its label on the Lock Screen, reaches a button inside a labelled stack,
-follows a link into the test host, and taps one whose scheme is not the app's.
+Phase 1 is proven at the unit, Swift host and simulator levels: a scenario finds nodes by label and value on the
+Lock Screen, touches a button inside a labelled stack, and follows a link, the layout's URL and an `https` link into
+the test host. Phase 2 is proven at the unit and Swift host levels, and its SwiftUI is compiled and drawn by the
+simulator's existing scenarios; what the system animates, hides and places has no scenario.
 
 Known limits: a watch or CarPlay shows the small region only on real hardware or a paired simulator, a sound is not
 heard by a test, and versions below the simulator's are read, not run.
@@ -164,11 +180,15 @@ heard by a test, and versions below the simulator's are read, not run.
 | Release | Content | Docs |
 | --- | --- | --- |
 | 0.4.0 | Phase 1 | spec (AK-ACCESS, AK-LINK), request-contract, usage, ios-setup (receiving a URL), changelog |
-| 0.5.0 | Phase 2 | spec, request-contract, usage |
-| 0.6.0 | Phase 3 | spec, bridge, usage; the "Planned" list of the spec empties |
+| the next minor | Phase 2 without the small region | spec (AK-MOTION, AK-PRIVACY, AK-ISLAND), request-contract, usage |
+| later | Phase 3, and the small region | spec, bridge, usage; the "Planned" list of the spec empties |
+
+The version of a release follows its commits ([testing](testing.md#releases)); phases 1 and 2 are one release when
+they reach `main` together.
 
 ## Open questions
 
 1. Should `Event::Action` of a toggle carry the state asked for, or should the app read the value it last sent?
-2. Does the small region need its own node limit, or the compact parts' 3?
+2. Does the small region need its own node limit, or the compact parts' 3? And what does a layout without one show
+   on a watch once the widget declares the family?
 3. Is a per-node `transition` enough, or does a layout need one default for all of its nodes?

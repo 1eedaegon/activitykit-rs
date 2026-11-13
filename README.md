@@ -85,6 +85,9 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 | Layout | `Layout::new(node)`, `vstack`, `hstack`, `zstack`, `text`, `symbol`, `image`, `path`, `progress`, `gauge`, `timer`, `spacer`, `divider` | 16.2 | [layouts](docs/usage.md#layouts) |
 | Styles and bindings | `Style::new().color(..)`, `Bound::key("value")`, `node.when(key)`, `node.unless(key)` | 16.2 | [layouts](docs/usage.md#layouts) |
 | Dynamic Island | `Layout::island(Island::new()..)`, `Layout::keyline(..)`, `Layout::background(..)` | 16.2 | [layouts](docs/usage.md#layouts) |
+| Island priorities, placement, margins | `IslandExpanded::priority(..)`, `.below_if_too_wide(..)`, `Island::margins(..)` | 16.2 | [the island's options](docs/usage.md#the-dynamic-islands-options) |
+| Motion | `Style::content_transition(..)`, `node.transition(..)` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
+| Private content | `node.sensitive()` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17 | [events](docs/usage.md#events) |
 | Links | `link(url, label)`, `Layout::url(..)` | 16.2 | [links](docs/usage.md#links) |
 | Accessibility | `node.accessibility(Accessibility::new().label(..))` | 16.2 | [accessibility](docs/usage.md#accessibility) |
@@ -181,6 +184,20 @@ let glitter = symbol("sparkles").accessibility(Accessibility::new().hidden());
 
 VoiceOver reads the label, the value and the hint; a stack with one is read as a single element. Text, buttons and SF
 Symbols have a name of their own; a path, an image and a custom view need one.
+
+### Motion, privacy and the island's options
+
+```rust
+use activitykit::layout::{ContentTransition, ExpandedRegion, IslandMargins, Transition};
+
+let total = text(Bound::key("total")).style("digits").sensitive();          // hidden on a locked device
+let paid = text("Paid").when("paid").transition(Transition::PushBottom);    // how it comes and goes
+let digits = Style::new().monospaced_digit().content_transition(ContentTransition::NumericText);   // digits roll
+let island = Island::new()
+    .expanded(IslandExpanded::new().leading(symbol("mic.fill")).trailing(timer("from", "to"))
+        .priority(ExpandedRegion::Trailing, 1.0).below_if_too_wide(ExpandedRegion::Leading))
+    .margins(IslandMargins::new().expanded(8.0));
+```
 
 ### Images and your own views
 

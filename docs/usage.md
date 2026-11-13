@@ -67,8 +67,8 @@ let layout = Layout::new(vstack([
 | `link(url, label)` | a link that opens the app with a URL | |
 | `custom(name)` | a SwiftUI view the app registers | `prop(key, value)` |
 
-Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)` and
-`accessibility(..)`. A modifier that does not belong to a node leaves it as it is. Each builder returns a `Node`; the enum `Element` behind it is public
+Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)`,
+`accessibility(..)`, `transition(..)` and `sensitive()`. A modifier that does not belong to a node leaves it as it is. Each builder returns a `Node`; the enum `Element` behind it is public
 for anything the builders leave out.
 
 Without an `Island`, the expanded island shows the Lock Screen tree, the compact leading and minimal parts the tree's
@@ -77,13 +77,54 @@ presentation and the island's keyline.
 
 `Style::new()` has a builder for each member: `font`, `size`, `weight`, `design`, `font_family`, `monospaced_digit`,
 `color`, `line_limit`, `minimum_scale_factor`, `alignment`, `padding`, `frame`, `background`, `corner_radius`,
-`opacity`, `tint`, `button_style`. Seven of them, and the layout's `background` and `keyline`, take
+`opacity`, `tint`, `button_style`, `content_transition`. Seven of them, and the layout's `background` and `keyline`, take
 `Bound::key("value")` instead of a literal, so an update changes them: `color`, `background`, `tint` (a color name
 or `#RRGGBB`/`#RRGGBBAA`), `size` (6 to 96), `opacity` (0 to 1), `corner_radius` (0 to 64) and `weight` (a weight
 name). `font_family` names a font that the widget extension bundles and lists under `UIAppFonts`.
 
 The [request contract](request-contract.md) has every rule and limit: at most 40 nodes on the Lock Screen, 8 levels,
 4 buttons and links per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
+
+### Motion and privacy
+
+```rust
+use activitykit::{Bound, Layout, Style};
+use activitykit::layout::{text, vstack, ContentTransition, Transition};
+
+let layout = Layout::new(vstack([
+    // The digits roll when an update changes the value, and the system hides them on a locked device.
+    text(Bound::key("total")).style("digits").sensitive(),
+    // Comes in from below, pushing what was there away, when `paid` turns truthy.
+    text("Paid").when("paid").transition(Transition::PushBottom),
+]))
+.style("digits", Style::new().monospaced_digit().content_transition(ContentTransition::NumericText));
+```
+
+`Style::content_transition` says how text and symbols change from one update to the next: `NumericText` (digits
+roll upward), `NumericTextDown`, `Opacity`, `Interpolate` or `Identity` (at once). `Node::transition` says how a node
+with `when` or `unless` comes and goes: `Opacity`, `Slide`, or `Move…` and `Push…` with an edge. These are the
+animations the system runs in a Live Activity, for at most two seconds; it ignores any other. `Node::sensitive()`
+marks what a node and its subtree show as private: the system hides it on a locked device and in the always-on
+display when the person has asked for that.
+
+### The Dynamic Island's options
+
+```rust
+use activitykit::layout::{symbol, text, timer, ExpandedRegion, Island, IslandExpanded, IslandMargins};
+
+let island = Island::new()
+    .expanded(IslandExpanded::new()
+        .leading(symbol("mic.fill"))
+        .trailing(timer("from", "to"))
+        .priority(ExpandedRegion::Trailing, 1.0)            // the timer gets the width first
+        .below_if_too_wide(ExpandedRegion::Leading))        // a wide leading region goes below the camera
+    .compact_trailing(text(Bound::key("status")))
+    .margins(IslandMargins::new().expanded(8.0).compact_trailing([0.0, 6.0, 0.0, 6.0]));
+```
+
+A priority is 0 to 100, for a region the layout has; only the leading and the trailing region go below the camera.
+Margins are a number for every edge or `[top, leading, bottom, trailing]`, 0 to 64; a presentation without them keeps
+the system's.
 
 ### Accessibility
 

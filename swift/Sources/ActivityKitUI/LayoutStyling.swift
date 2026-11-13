@@ -1,7 +1,7 @@
 import SwiftUI
 import ActivityKitShared
 
-/// Applies a style in the contract's order: font and text members, color, tint and button style,
+/// Applies a style in the contract's order: font and text members with the content transition, color, tint and button style,
 /// padding, frame, background, corner radius, opacity. Absent members leave the inherited values alone.
 /// Each member is its own modifier, so the view type grows by one level per member.
 @available(iOS 16.1, *)
@@ -19,6 +19,7 @@ struct LayoutStyleModifier: ViewModifier {
             .modifier(LineLimitMember(value: style.lineLimit))
             .modifier(ScaleMember(value: style.minimumScaleFactor))
             .modifier(AlignmentMember(value: style.alignment?.text))
+            .modifier(ContentTransitionMember(value: style.contentTransition?.transition))
             .modifier(ForegroundMember(value: color(style.color)))
             .modifier(TintMember(value: color(style.tint)))
             .modifier(ButtonStyleMember(value: style.buttonStyle))
@@ -90,6 +91,11 @@ private struct ScaleMember: LayoutStyleMember {
 private struct AlignmentMember: LayoutStyleMember {
     let value: TextAlignment?
     func apply(_ content: Content, _ alignment: TextAlignment) -> some View { content.multilineTextAlignment(alignment) }
+}
+@available(iOS 16.1, *)
+private struct ContentTransitionMember: LayoutStyleMember {
+    let value: ContentTransition?
+    func apply(_ content: Content, _ transition: ContentTransition) -> some View { content.contentTransition(transition) }
 }
 @available(iOS 16.1, *)
 private struct ForegroundMember: LayoutStyleMember {

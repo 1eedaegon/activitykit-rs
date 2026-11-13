@@ -11,6 +11,10 @@ enum LayoutRules {
     static let maxControls = 4
     static let maxProps = 16
     static let maxURL = 1024
+    /// The priorities of the expanded regions of the Dynamic Island.
+    static let priorities: ClosedRange<Double> = 0...100
+    /// A padding and a margin, in points.
+    static let paddings: ClosedRange<Double> = 0...64
     /// A literal label, value or hint of a node's accessibility, in code points.
     static let spoken = 1...200
     /// The ranges of the numbers that a style member takes, as a literal or bound to a value.
@@ -184,17 +188,11 @@ extension LayoutStyle {
             (frame?.width, length), (frame?.height, length), (frame?.minWidth, length), (frame?.minHeight, length),
             (frame?.maxWidth?.points, length), (frame?.maxHeight?.points, length)
         ]
-        let sides: [Double]
-        switch padding {
-        case .all(let value)?: sides = [value]
-        case .edges(let values)?: sides = values.count == 4 ? values : [.nan]
-        case nil: sides = []
-        }
         guard members.contains(where: { $0.value != nil }), font == nil || size == nil,
               fontFamily.map(LayoutRules.isFontFamily) ?? true, fontFamily == nil || design == nil,
               frame?.members.contains(where: { $0.value != nil }) ?? true,
               numbers.allSatisfy({ value, range in value.map(range.contains) ?? true }),
-              sides.allSatisfy((0...64).contains), lineLimit.map((1...10).contains) ?? true else { return false }
+              padding?.isValid ?? true, lineLimit.map((1...10).contains) ?? true else { return false }
         return [color, background, tint].allSatisfy { $0?.literal?.isValid ?? true }
     }
 
@@ -204,6 +202,42 @@ extension LayoutStyle {
         return numbers.allSatisfy { member, range in member?.fits { $0.resolve(values, within: range) } ?? true }
             && weight?.fits { $0.resolve(values) } ?? true
             && [color, background, tint].allSatisfy { member in member?.fits { $0.resolve(values) } ?? true }
+    }
+}
+
+extension LayoutPadding {
+    /// One number for every edge or four of them, each 0 to 64 points.
+    fileprivate var isValid: Bool {
+        switch self {
+        case .all(let value): return LayoutRules.paddings.contains(value)
+        case .edges(let values): return values.count == 4 && values.allSatisfy(LayoutRules.paddings.contains)
+        }
+    }
+}
+
+extension LayoutExpandedIsland {
+    fileprivate var regions: [LayoutNode?] { [leading, trailing, center, bottom] }
+    /// At least one region. A priority is from 0 to 100, for a region the layout has, and there is at least one; the
+    /// regions that go below the camera are `leading`, `trailing` or both, each once and each a region the layout has.
+    fileprivate var isValid: Bool {
+        guard regions.contains(where: { $0 != nil }) else { return false }
+        if let priority {
+            let stated = [LayoutExpandedRegionName.leading, .trailing, .center, .bottom].compactMap { region in priority[region].map { (region, $0) } }
+            guard !stated.isEmpty, stated.allSatisfy({ self[$0.0] != nil && LayoutRules.priorities.contains($0.1) }) else { return false }
+        }
+        if let below = belowIfTooWide {
+            guard (1...2).contains(below.count), Set(below).count == below.count,
+                  below.allSatisfy({ ($0 == .leading || $0 == .trailing) && self[$0] != nil }) else { return false }
+        }
+        return true
+    }
+}
+
+extension LayoutIslandMargins {
+    /// At least one presentation, each as a style's padding.
+    fileprivate var isValid: Bool {
+        let stated = [expanded, compactLeading, compactTrailing, minimal].compactMap { $0 }
+        return !stated.isEmpty && stated.allSatisfy(\.isValid)
     }
 }
 
@@ -233,8 +267,8 @@ extension LayoutDocument {
             guard (1...24).contains(styles.count), styles.allSatisfy({ LayoutRules.isName($0.key) && $0.value.isValid }) else { throw LayoutRules.layout }
         }
         if let island = layout.island {
-            guard island.members.contains(where: { $0.value != nil }),
-                  island.expanded?.members.contains(where: { $0.value != nil }) ?? true else { throw LayoutRules.layout }
+            guard island.expanded != nil || island.compactLeading != nil || island.compactTrailing != nil || island.minimal != nil,
+                  island.expanded?.isValid ?? true, island.margins?.isValid ?? true else { throw LayoutRules.layout }
         }
         guard layout.background?.literal?.isValid ?? true, layout.keyline?.literal?.isValid ?? true,
               layout.url?.literal.map(LayoutRules.isURL) ?? true else { throw LayoutRules.layout }

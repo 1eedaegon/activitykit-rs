@@ -4,7 +4,10 @@
 use super::{PushWire, path, *};
 use crate::{
     Error, Result, Value,
-    layout::{Accessibility, ColorName, Dimension, Element, FontWeight, Frame, Padding},
+    layout::{
+        Accessibility, ColorName, Dimension, Element, ExpandedRegion, FontWeight, Frame,
+        IslandExpanded, IslandMargins, Padding, RegionPriorities,
+    },
 };
 use serde::de::DeserializeOwned;
 use std::ops::RangeInclusive;
@@ -60,6 +63,8 @@ const MAX_DEPTH: usize = 8;
 const MAX_CONTROLS: usize = 4;
 const MAX_PROPS: usize = 16;
 const MAX_URL: usize = 1024;
+/// The highest priority of an expanded region of the Dynamic Island.
+const PRIORITIES: f64 = 100.0;
 /// A literal label, value or hint of a node's accessibility, in code points.
 const SPOKEN: RangeInclusive<usize> = 1..=200;
 // The ranges of the numbers that a style member takes, as a literal or bound to a value.
@@ -221,6 +226,57 @@ fn literal<T: Copy>(member: &Option<Bindable<T>>) -> Option<T> {
     member.as_ref().and_then(Bindable::literal).copied()
 }
 
+/// One number for every edge or four of them, each 0 to 64 points.
+fn padding(padding: &Padding) -> bool {
+    match padding {
+        Padding::All(points) => (0.0..=64.0).contains(points),
+        Padding::Edges(edges) => edges.iter().all(|points| (0.0..=64.0).contains(points)),
+    }
+}
+
+/// The options of the expanded island: a priority from 0 to 100 for regions the layout has, at least one; and the
+/// regions that go below the camera when too wide, which are `leading`, `trailing` or both, each once and each a
+/// region the layout has.
+fn expanded_options(expanded: &IslandExpanded) -> Result<()> {
+    let has = |region: &ExpandedRegion| match region {
+        ExpandedRegion::Leading => expanded.leading.is_some(),
+        ExpandedRegion::Trailing => expanded.trailing.is_some(),
+        ExpandedRegion::Center => expanded.center.is_some(),
+        ExpandedRegion::Bottom => expanded.bottom.is_some(),
+    };
+    if let Some(priority) = &expanded.priority {
+        let stated = [
+            (ExpandedRegion::Leading, priority.leading),
+            (ExpandedRegion::Trailing, priority.trailing),
+            (ExpandedRegion::Center, priority.center),
+            (ExpandedRegion::Bottom, priority.bottom),
+        ];
+        require(*priority != RegionPriorities::default())?;
+        require(stated.iter().all(|(region, priority)| {
+            priority.is_none_or(|priority| has(region) && (0.0..=PRIORITIES).contains(&priority))
+        }))?;
+    }
+    if let Some(regions) = &expanded.below_if_too_wide {
+        let beside = |region: &ExpandedRegion| {
+            matches!(region, ExpandedRegion::Leading | ExpandedRegion::Trailing) && has(region)
+        };
+        let twice = regions.len() == 2 && regions[0] == regions[1];
+        require((1..=2).contains(&regions.len()) && !twice && regions.iter().all(beside))?;
+    }
+    Ok(())
+}
+
+/// The margins of the island's presentations: at least one, each as a style's padding.
+fn island_margins(margins: &IslandMargins) -> Result<()> {
+    let stated = [
+        &margins.expanded,
+        &margins.compact_leading,
+        &margins.compact_trailing,
+        &margins.minimal,
+    ];
+    require(*margins != IslandMargins::default() && stated.into_iter().flatten().all(padding))
+}
+
 /// The literal rules of a style. Bound members are checked with the values.
 fn style(style: &Style) -> Result<()> {
     require(*style != Style::default() && !(style.font.is_some() && style.size.is_some()))?;
@@ -234,11 +290,7 @@ fn style(style: &Style) -> Result<()> {
             .line_limit
             .is_none_or(|lines| (1..=10).contains(&lines)),
     )?;
-    require(match &style.padding {
-        Some(Padding::All(points)) => (0.0..=64.0).contains(points),
-        Some(Padding::Edges(edges)) => edges.iter().all(|points| (0.0..=64.0).contains(points)),
-        None => true,
-    })?;
+    require(style.padding.as_ref().is_none_or(padding))?;
     if let Some(frame) = &style.frame {
         let length = |member| within(member, 0.0..=1024.0);
         let extent = |member| match member {
@@ -432,6 +484,8 @@ impl Scope<'_> {
         ];
         require(expanded.is_none_or(|regions| regions.iter().any(|region| region.is_some())))?;
         require(expanded.is_some() || compact.iter().any(|(region, _)| region.is_some()))?;
+        island.expanded.as_ref().map_or(Ok(()), expanded_options)?;
+        island.margins.as_ref().map_or(Ok(()), island_margins)?;
         for root in expanded.into_iter().flatten().flatten() {
             self.region(root, 12, true)?;
         }
