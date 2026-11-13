@@ -80,11 +80,11 @@ Decisions:
 - **One URL per layout**, not one per region: `DynamicIsland` takes one, and a region that needs another uses a link.
 - **No scheme list.** Apple's documentation says that the system activates the containing app and passes it the URL
   (`onOpenURL`, `application(_:open:options:)`), for `widgetURL` and for `Link`, so the crate checks the form and the
-  app decides what it follows. The documentation says nothing of schemes that are not the app's; the simulator
-  scenario below is to show what the system does with one.
+  app decides what it follows. The documentation says nothing of schemes that are not the app's; on the simulator
+  (iOS 26.3) a link with an `https` URL opened the test host with that URL, not a browser.
 - **The label of a stack replaces its children's**, with the children combined, so that a button inside stays an
-  action of the element. SwiftUI does not document what a combined element does with a button inside it, so the
-  simulator scenario checks that too.
+  action of the element. On the simulator the stack shows as one element with the button's trait, and a touch
+  still reaches the button; what VoiceOver does when it activates that element is not tested.
 - **The URL is opened as sent, or not at all.** From iOS 17 `URL(string:)` rewrites what it cannot read; the renderer
   asks for the strict reading, so the app never gets another URL than the layout's.
 
@@ -167,9 +167,10 @@ contract v3 comes, not before: removing the two members now would break every 0.
 | simulator | `tests/ios-host/run.sh` | what SwiftUI and ActivityKit do with it: a label VoiceOver would read, a link that opens the app |
 | build | `tests/build/run.sh` | the bridge for each iOS target |
 
-Phase 1 is proven by the unit and Swift host levels, and its SwiftUI is compiled for the simulator. Still to write:
-a simulator scenario that finds a node by its label on the Lock Screen, reaches a button inside a labelled stack,
-follows a link into the test host, and taps one whose scheme is not the app's.
+Phase 1 is proven at the unit, Swift host and simulator levels: a scenario finds nodes by label and value on the
+Lock Screen, touches a button inside a labelled stack, and follows a link, the layout's URL and an `https` link into
+the test host. Phase 2 is proven at the unit and Swift host levels, and its SwiftUI is compiled and drawn by the
+simulator's existing scenarios; what the system animates, hides and places has no scenario.
 
 Known limits: a watch or CarPlay shows the small region only on real hardware or a paired simulator, a sound is not
 heard by a test, and versions below the simulator's are read, not run.

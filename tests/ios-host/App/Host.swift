@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 // The smallest app around the Rust scenarios (src/lib.rs): it calls `ak_host_run` once it is in the foreground and
-// shows the lines the scenario reports. The last line, with the identifier `status`, is what the UI test reads.
+// shows the lines the scenario reports, and a line for each URL it is opened with. The last line, with the identifier `status`, is what the UI test reads.
 
 @_silgen_name("ak_host_run")
 func hostRun(_ report: @convention(c) (UnsafePointer<UInt8>?, Int) -> Void)
@@ -81,6 +81,8 @@ struct HostApp: App {
             }
             .padding()
             .task { await runWhenActive() }
+            // A link of a Live Activity, or its layout's URL, opens the app with the URL: the UI test reads the line.
+            .onOpenURL { url in report.lines.append("URL \(url.absoluteString)") }
             // Keep running for a while in the background, so a scenario can act there.
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
                 Background.begin()
