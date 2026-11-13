@@ -1,7 +1,10 @@
 //! The options of a start, an update and an end, and how a request goes to the bridge.
 
 use crate::push::Push;
-use crate::{Error, Layout, Result, Values, contract::EndPolicy};
+use crate::{
+    Error, Layout, Result, Values,
+    contract::{EndPolicy, require, valid_file_name, valid_time},
+};
 use serde::Serialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -16,6 +19,8 @@ pub struct Start {
     pub(super) revision: u64,
     pub(super) timestamp: Option<SystemTime>,
     pub(super) push: Option<Push>,
+    pub(super) transient: bool,
+    pub(super) scheduled: Option<(SystemTime, Alert)>,
 }
 
 /// An update with options: [`Activity::update_with`](crate::Activity::update_with).
@@ -35,6 +40,7 @@ pub struct Update {
 pub struct Alert {
     pub(crate) title: String,
     pub(crate) body: String,
+    pub(crate) sound: Option<String>,
 }
 
 /// How an activity ends: [`End::immediately`], [`End::after`] or the system's default, [`End::default`]; with final
@@ -61,7 +67,25 @@ impl Start {
             revision: 0,
             timestamp: None,
             push: None,
+            transient: false,
+            scheduled: None,
         }
+    }
+
+    /// A transient activity (iOS 18 and later; [`Error::UnsupportedFeature`] before): the system ends it when the
+    /// person locks the device or leaves the app, so it suits what only matters while the app is in use.
+    pub fn transient(mut self) -> Self {
+        self.transient = true;
+        self
+    }
+
+    /// Starts the activity at `at` instead of now (iOS 26 and later; [`Error::UnsupportedFeature`] before). The system
+    /// shows `alert` when it starts it, which is why a scheduled start needs one. Until then the handle is
+    /// [`Pending`](crate::State::Pending), the activity counts toward the system's limit, and its key is taken: the
+    /// same keyed start returns it. [`Event::State`](crate::Event::State) reports the start.
+    pub fn scheduled(mut self, at: SystemTime, alert: Alert) -> Self {
+        self.scheduled = Some((at, alert));
+        self
     }
 
     /// What the activity asks ActivityKit for so that a server can reach it: a push token of its own, reported as
@@ -162,7 +186,27 @@ impl Alert {
         Self {
             title: title.into(),
             body: body.into(),
+            sound: None,
         }
+    }
+
+    /// The sound of the alert: the file name of a sound in the app's bundle or in its `Library/Sounds`, such as
+    /// `chime.aiff`, 1 to 64 of `A-Za-z0-9._-` starting with a letter or digit. Without it the system plays its
+    /// default sound for the app's own alerts, and none for a pushed one.
+    pub fn sound(mut self, name: impl Into<String>) -> Self {
+        self.sound = Some(name.into());
+        self
+    }
+
+    /// The alert as the bridge and a push payload read it, or `InvalidInput` for a sound that is no file name.
+    pub(crate) fn wire(&self) -> Result<serde_json::Value> {
+        require(self.sound.as_deref().is_none_or(valid_file_name))?;
+        let wire = AlertWire {
+            title: &self.title,
+            body: &self.body,
+            sound: self.sound.as_deref(),
+        };
+        serde_json::to_value(wire).map_err(|_| Error::invalid())
     }
 }
 
@@ -232,6 +276,29 @@ impl Default for End {
 struct AlertWire<'a> {
     title: &'a str,
     body: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sound: Option<&'a str>,
+}
+
+/// The contract request under `request` and the relevance beside it: what every call of the bridge starts from.
+fn members(
+    request: &impl Serialize,
+    relevance: Option<f64>,
+) -> Result<serde_json::Map<String, serde_json::Value>> {
+    let mut envelope = serde_json::Map::new();
+    envelope.insert(
+        "request".into(),
+        serde_json::to_value(request).map_err(|_| Error::invalid())?,
+    );
+    if let Some(score) = relevance {
+        require(score.is_finite())?;
+        envelope.insert("relevance".into(), score.into());
+    }
+    Ok(envelope)
+}
+
+fn bytes(envelope: serde_json::Map<String, serde_json::Value>) -> Vec<u8> {
+    serde_json::Value::Object(envelope).to_string().into_bytes()
 }
 
 /// The bridge's request: the contract request under `request`, and what ActivityKit takes beside it.
@@ -240,28 +307,34 @@ pub(super) fn envelope(
     relevance: Option<f64>,
     alert: Option<&Alert>,
 ) -> Result<Vec<u8>> {
-    let mut envelope = serde_json::Map::new();
-    envelope.insert(
-        "request".into(),
-        serde_json::to_value(request).map_err(|_| Error::invalid())?,
-    );
-    if let Some(score) = relevance {
-        if !score.is_finite() {
-            return Err(Error::invalid());
-        }
-        envelope.insert("relevance".into(), score.into());
-    }
+    let mut envelope = members(request, relevance)?;
     if let Some(alert) = alert {
-        let wire = AlertWire {
-            title: &alert.title,
-            body: &alert.body,
-        };
+        envelope.insert("alert".into(), alert.wire()?);
+    }
+    Ok(bytes(envelope))
+}
+
+/// The bridge's start: the contract request, the relevance, and what the start asks of ActivityKit beside them: a
+/// transient activity (`"style": "transient"`) and the time and alert of a scheduled start (`"scheduled"`).
+pub(super) fn start_envelope(
+    request: &impl Serialize,
+    relevance: Option<f64>,
+    transient: bool,
+    scheduled: Option<&(SystemTime, Alert)>,
+) -> Result<Vec<u8>> {
+    let mut envelope = members(request, relevance)?;
+    if transient {
+        envelope.insert("style".into(), "transient".into());
+    }
+    if let Some((at, alert)) = scheduled {
+        let at = millis(*at)?;
+        require(valid_time(at))?;
         envelope.insert(
-            "alert".into(),
-            serde_json::to_value(wire).map_err(|_| Error::invalid())?,
+            "scheduled".into(),
+            serde_json::json!({"at": at, "alert": alert.wire()?}),
         );
     }
-    Ok(serde_json::Value::Object(envelope).to_string().into_bytes())
+    Ok(bytes(envelope))
 }
 
 /// Epoch milliseconds, as the contract writes times.

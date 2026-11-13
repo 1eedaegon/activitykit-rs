@@ -19,8 +19,8 @@ mod rule_tests;
 mod surface_tests;
 
 pub use crate::layout::{Island, IslandExpanded};
-pub(crate) use validation::valid_handle;
 pub use validation::{Validate, validate_request};
+pub(crate) use validation::{valid_file_name, valid_handle, valid_time};
 pub use weight::weight;
 
 pub(crate) use validation::require;

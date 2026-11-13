@@ -15,12 +15,14 @@ final class FakeLayoutBackend: LayoutActivityBackend {
     /// While set, an update hangs in ActivityKit until `held` is resumed.
     var holdUpdates = false
     var held: CheckedContinuation<Void, Never>?
+    /// While set, a start answers a pending activity, as ActivityKit does for a scheduled one.
+    var startsPending = false
     func preflightStart() throws { preflights.append("start"); if let error = startError { throw error } }
     func preflightLayoutWidget() throws { preflights.append("widget"); if let error = widgetError { throw error } }
     func list() async -> [LayoutActivity] { activities }
     func start(_ attributes: LiveActivityLayoutAttributes, snapshot: LayoutSnapshot) async throws -> LayoutActivity {
         starts += 1
-        let activity = LayoutActivity(id: attributes.instanceID, attributes: attributes, snapshot: snapshot, state: "active")
+        let activity = LayoutActivity(id: attributes.instanceID, attributes: attributes, snapshot: snapshot, state: startsPending ? "pending" : "active")
         activities.append(activity)
         return activity
     }
@@ -29,7 +31,7 @@ final class FakeLayoutBackend: LayoutActivityBackend {
         if holdUpdates { await withCheckedContinuation { held = $0 } }
         await Task.yield()
         if failUpdate { throw ActivityFailure("NATIVE_ERROR", "update failed") }
-        let next = LayoutActivity(id: activity.id, attributes: activity.attributes, snapshot: snapshot, state: "active")
+        let next = LayoutActivity(id: activity.id, attributes: activity.attributes, snapshot: snapshot, state: activity.state)
         if !delayObservation { activities = activities.map { $0.id == activity.id ? next : $0 } }
         return next
     }

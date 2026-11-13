@@ -38,7 +38,8 @@ bash tests/release/run.sh       # the release tool, in repositories of its own
     drops, Stop tapped on the Lock Screen and the event in Rust, a handler of 1 s that the tap's intent waits for, an
     end with final values; every node type drawn with its button; a path and a progress view found by label and bound
     value, a labelled stack as one element whose button a touch still reaches, and a link, the layout's URL and an
-    `https` link each opening the host with its URL; a start from the background, which ActivityKit
+    `https` link each opening the host with its URL; a start scheduled 12 s ahead that is pending, holds its key and
+    is active at its time, an alert with a named sound, and a transient start; a start from the background, which ActivityKit
     refuses (`NotForeground`); `activities()` after a relaunch, whose handle continues the revision, and the same
     keyed start returning the running activity before and after it; redacted receipts that keep no values, and the
     values ActivityKit shows after a relaunch; a start that asks for a push token, which ActivityKit refuses without

@@ -31,16 +31,22 @@ void ak_set_event_handler(ak_event_handler handler);
 
 | Function | Request | Reply data |
 | --- | --- | --- |
-| `ak_start` | `{"request": <start_layout>, "relevance"?: number}` | the activity's record |
-| `ak_update` | `{"request": <update_layout>, "relevance"?: number, "alert"?: {"title", "body"}}` | the record |
+| `ak_start` | `{"request": <start_layout>, "relevance"?: number, "style"?: "transient", "scheduled"?: {"at": <time>, "alert": {"title", "body", "sound"?}}}` | the activity's record |
+| `ak_update` | `{"request": <update_layout>, "relevance"?: number, "alert"?: {"title", "body", "sound"?}}` | the record |
 | `ak_end` | `{"request": <end_layout>, "relevance"?: number}` | the record |
 | `ak_list` | none | a list of records |
 | `ak_authorization` | none | `{"supported", "enabled", "buttons", "frequentPushes"}` |
 | `ak_image_folder` | none | `{"path"}` |
 | `ak_configure` | `{"receipts": "full" \| "redacted", "pushToStart": true}`, `pushToStart` optional, no other member | the settings in force, `pushToStart` only when on |
 
-`request` is exactly a request of the [contract](request-contract.md); `relevance` and `alert` are what ActivityKit
-takes beside the content and are not part of it. Without a relevance an update or end keeps the activity's score. A
+`request` is exactly a request of the [contract](request-contract.md); `relevance`, `alert`, `style` and `scheduled`
+are what ActivityKit takes beside the content and are not part of it, nor of a keyed start's fingerprint. `style` is
+`"transient"` or absent (iOS 18; `UNSUPPORTED_FEATURE` with `transient` and `18.0` before). `scheduled` starts the
+activity at `at`, a time of the contract, with the alert the system requires (iOS 26; `UNSUPPORTED_FEATURE` with
+`scheduledStart` and `26.0` before); the record's state is then `pending`, and a pending activity holds its key and
+takes updates and an end like an active one. The `sound` of an alert is a file name of the contract, as an image's
+is; another style, a time outside the contract's or a sound that is no file name is `INVALID_INPUT`. Without a
+relevance an update or end keeps the activity's score. A
 reply is `{"ok":true,"data":…}` or `{"ok":false,"error":{"code","message"}}` with a code of the contract, plus
 `feature` and `minimumIos` for `UNSUPPORTED_FEATURE` and `scope` for `SYSTEM_LIMIT`. Before each of the four asynchronous calls the
 bridge checks that the device has Live Activities and answers `UNSUPPORTED_PLATFORM` otherwise.

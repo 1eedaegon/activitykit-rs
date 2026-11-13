@@ -204,6 +204,21 @@ final class HostTests: HostCase {
         waitFor("PASS background-start", timeout: 30)
     }
 
+    // AK-START-13, AK-START-14, AK-ALERT-1
+    /// A scheduled start is pending until its time and then active; an alert names a sound; and ActivityKit takes a
+    /// transient start. The scenario reports what the system did with that activity after the app left the foreground.
+    func testStartOptions() throws {
+        launch("start-options")
+        waitFor("transient", timeout: 120)
+        listenForTheEnd()
+        goHome()
+        XCTAssertTrue(heardTheEnd(timeout: 60), "the scenario finishes in the background")
+        app.activate()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
+        waitFor("PASS start-options", timeout: 30)
+        try capture("start-options-report")
+    }
+
     // AK-KIT-3, AK-LIST-4
     /// With redacted receipts the file keeps no values; after a relaunch the list gives the values ActivityKit shows.
     func testRedactedReceiptsAfterRelaunch() throws {

@@ -243,6 +243,14 @@ activity.end(End::immediately().values(values! { "status" => "Stopped", "tone" =
   that end its values.
 - Relevance and stale date belong to each content, as in ActivityKit: an update or end without a relevance keeps its
   score, and one without a stale date clears the stale date. The highest score shows in the Dynamic Island.
+- `Start::transient()` asks for a transient activity (iOS 18; `Error::UnsupportedFeature` before): by Apple's
+  description it appears in the expanded Dynamic Island and the system ends it when the person locks the device,
+  collapses that presentation or leaves the app.
+- `Start::scheduled(at, alert)` starts the activity at a later time (iOS 26; `Error::UnsupportedFeature` before),
+  with the alert the system shows then. Until `at` the handle is `State::Pending`, the activity counts toward the
+  system's limit, and its key is taken; it takes updates and an end, and `Event::State` reports the start.
+- `Alert::sound("chime.aiff")` names the alert's sound: a file in the app's bundle or in its `Library/Sounds`, by a
+  file name of 1 to 64 of `A-Za-z0-9._-`. Without it the app's alerts play the system's default sound.
 - An alert lights up the screen and expands the Dynamic Island (without one, the Lock Screen presentation shows as a
   banner). Its title and body show only on an Apple Watch.
 - An end carries final content: the values of `End::values`, else the last accepted ones (those of the updates called
@@ -374,7 +382,7 @@ let start = Payload::start("la-ios-layout-s1", "job:1", layout, values! { "statu
 `to_json` checks a payload as the kit checks the call it stands for, and what APNs would refuse (more than 4096
 bytes is `PayloadTooLarge`), so a bad one fails before APNs sees it. The `timestamp` of `aps` is the time of sending,
 in seconds, by which the system orders pushes; the content's own `timestamp` and `staleAt` are in milliseconds, as in
-every snapshot. A pushed alert plays no sound. A start payload carries the attributes the widget reads (`attributes-type`
+every snapshot. A pushed alert plays the sound `Alert::sound` names, and none without one. A start payload carries the attributes the widget reads (`attributes-type`
 `LiveActivityLayoutAttributes`): the id the handle will show, the key, the layout and the styles, and a fingerprint
 of the server's own.
 

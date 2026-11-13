@@ -65,7 +65,8 @@ struct Receipt<Activity: LifecycleActivity> {
     var snapshot: Activity.Snapshot? { activity?.snapshot ?? Activity.snapshot(in: entry.content) }
 }
 
-private func isLive(_ state: String) -> Bool { ["active", "stale"].contains(state) }
+/// An activity that takes updates and holds its key: also one that waits for its scheduled start.
+private func isLive(_ state: String) -> Bool { ["active", "stale", "pending"].contains(state) }
 private func isTerminal(_ state: String) -> Bool { ["ended", "dismissed"].contains(state) }
 
 /// The rules of the lifecycle: idempotent start by fingerprint, revisions, tombstones and receipts.

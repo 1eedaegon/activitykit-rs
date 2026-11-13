@@ -46,12 +46,14 @@ struct ActivityKitAdapter<Attributes: BridgeActivityAttributes> {
         SystemActivity.activities.filter { $0.attributes.schemaVersion == schemaVersion }
     }
 
-    /// Starts the activity; the relevance score is the given one, else 0. `push` is what the start asks for.
-    func start(_ attributes: Attributes, state: Attributes.ContentState, relevance: Double?, push: LayoutPush? = nil) throws -> (SystemActivity, Double) {
+    /// Starts the activity; the relevance score is the given one, else 0. `push` is what the start asks for. A
+    /// transient activity needs iOS 18 and a scheduled start iOS 26: before that the start fails here.
+    func start(_ attributes: Attributes, state: Attributes.ContentState, relevance: Double?, push: LayoutPush? = nil,
+               transient: Bool = false, scheduled: ScheduledStart? = nil) throws -> (SystemActivity, Double) {
         let score = relevance ?? 0
         let pushType = try Self.pushType(push)
         do {
-            return (try SystemActivity.request(attributes: attributes, content: content(state, relevance: score), pushType: pushType), score)
+            return (try request(attributes, content: content(state, relevance: score), pushType: pushType, transient: transient, scheduled: scheduled), score)
         } catch let failure as ActivityFailure { throw failure }
         catch let failure as ActivityAuthorizationError { throw ActivityKitErrors.failure(for: Self.name(failure)) }
         catch {
@@ -66,14 +68,38 @@ struct ActivityKitAdapter<Attributes: BridgeActivityAttributes> {
         }
     }
 
+    /// The request ActivityKit has for what the start asks: at a later time with its alert, transient, or the plain one.
+    private func request(_ attributes: Attributes, content: ActivityContent<Attributes.ContentState>, pushType: PushType?, transient: Bool,
+                         scheduled: ScheduledStart?) throws -> SystemActivity {
+        if let scheduled {
+            #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                return try SystemActivity.request(attributes: attributes, content: content, pushType: pushType, style: transient ? .transient : .standard,
+                                                  alertConfiguration: Self.configuration(scheduled.alert), start: date(scheduled.at))
+            }
+            #endif
+            throw ActivityFailure.unsupportedFeature("scheduledStart", minimumIos: "26.0")
+        }
+        if transient {
+            if #available(iOS 18.0, *) {
+                return try SystemActivity.request(attributes: attributes, content: content, pushType: pushType, style: .transient)
+            }
+            throw ActivityFailure.unsupportedFeature("transient", minimumIos: "18.0")
+        }
+        return try SystemActivity.request(attributes: attributes, content: content, pushType: pushType)
+    }
+
+    /// ActivityKit's alert: the title and the body as given, and the sound by its file name or the system's default.
+    private static func configuration(_ alert: AlertText) -> AlertConfiguration {
+        AlertConfiguration(title: LocalizedStringResource(stringLiteral: alert.title), body: LocalizedStringResource(stringLiteral: alert.body),
+                           sound: alert.sound.map { .named($0) } ?? .default)
+    }
+
     /// Updates the content; without a relevance the activity keeps its score. The timestamp goes along on iOS 17.2.
     func update(_ id: String, state: Attributes.ContentState, relevance: Double?, alert: AlertText?) async throws -> (SystemActivity, Double) {
         let activity = try find(id)
         let score = relevance ?? activity.content.relevanceScore
-        let configuration = alert.map {
-            AlertConfiguration(title: LocalizedStringResource(stringLiteral: $0.title), body: LocalizedStringResource(stringLiteral: $0.body),
-                               sound: .default)
-        }
+        let configuration = alert.map(Self.configuration)
         if #available(iOS 17.2, *), let at = state.timestamp {
             await activity.update(content(state, relevance: score), alertConfiguration: configuration, timestamp: date(at))
         } else {

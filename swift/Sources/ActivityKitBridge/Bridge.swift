@@ -251,16 +251,43 @@ enum BridgeEvent: Encodable {
     }
 }
 
-/// The alert of an update, beside the contract request.
+/// The alert of an update or of a scheduled start, beside the contract request. `sound` is the file name of a sound
+/// in the app's bundle or in its `Library/Sounds`; without it the system plays its default.
 struct AlertText: Codable, Equatable, Sendable {
     let title: String
     let body: String
+    let sound: String?
+    init(title: String, body: String, sound: String? = nil) { self.title = title; self.body = body; self.sound = sound }
+
+    /// A sound is a file name of the contract, so that it names nothing outside the folders the system reads sounds from.
+    func validate() throws {
+        guard sound.map(LayoutChecks.isFileName) ?? true else { throw ActivityFailure("INVALID_INPUT", "Invalid alert sound.") }
+    }
 }
 
-/// `ak_start`: the contract's `start_layout` request and the relevance ActivityKit takes beside it.
+/// When a scheduled start begins, in epoch milliseconds, and the alert the system shows then (iOS 26).
+struct ScheduledStart: Decodable, Equatable, Sendable {
+    let at: Int64
+    let alert: AlertText
+
+    func validate() throws {
+        guard LayoutChecks.isTime(at) else { throw ActivityFailure("INVALID_INPUT", "Invalid start time.") }
+        try alert.validate()
+    }
+}
+
+/// `ak_start`: the contract's `start_layout` request and what ActivityKit takes beside it: the relevance, the style
+/// (`"transient"`, iOS 18) and a scheduled start.
 private struct StartCall: Decodable {
     let request: LayoutRequest
     let relevance: Double?
+    let style: String?
+    let scheduled: ScheduledStart?
+
+    func validate() throws {
+        guard style == nil || style == "transient" else { throw ActivityFailure("INVALID_INPUT", "Invalid activity style.") }
+        try scheduled?.validate()
+    }
 }
 
 /// `ak_update`: the contract's `update_layout` request, a relevance and an alert.
@@ -295,8 +322,10 @@ final class Bridge {
     func start(_ data: Data) async -> Data {
         await reply {
             let call = try JSONDecoder().decode(StartCall.self, from: data)
+            try call.validate()
             let key = call.request.activityKey
-            self.presentations.expectStart(key: key, relevance: call.relevance, push: call.request.push)
+            self.presentations.expectStart(key: key, relevance: call.relevance, push: call.request.push, transient: call.style == "transient",
+                                           scheduled: call.scheduled)
             defer { self.presentations.forgetStart(key: key) }
             return try await self.lifecycle().start(call.request)
         }
@@ -305,6 +334,7 @@ final class Bridge {
     func update(_ data: Data) async -> Data {
         await reply {
             let call = try JSONDecoder().decode(UpdateCall.self, from: data)
+            try call.alert?.validate()
             let (id, revision) = (call.request.id, call.request.snapshot.revision)
             self.presentations.expectUpdate(id: id, revision: revision, relevance: call.relevance, alert: call.alert)
             defer { self.presentations.forgetUpdate(id: id, revision: revision) }

@@ -46,6 +46,16 @@ pub(crate) fn valid_handle(id: &str) -> bool {
     text(id, 256)
 }
 
+/// Whether `name` is a file name of the contract, as an image's is: a sound of an alert.
+pub(crate) fn valid_file_name(name: &str) -> bool {
+    file_name(name)
+}
+
+/// Whether `at`, in epoch milliseconds, is a time of the contract.
+pub(crate) fn valid_time(at: u64) -> bool {
+    at <= MAX_TIMESTAMP
+}
+
 impl Validate for EndInput {
     fn validate(&self) -> Result<()> {
         require(text(&self.id, 256))?;

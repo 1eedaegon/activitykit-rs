@@ -71,6 +71,15 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     ] {
         says(&usage, phrase, "docs/usage.md");
     }
+    // What a start and an alert may ask for beside the content.
+    for phrase in [
+        "Start::transient()",
+        "Start::scheduled(at, alert)",
+        "Alert::sound",
+        "State::Pending",
+    ] {
+        says(&usage, phrase, "docs/usage.md");
+    }
     // What a node tells VoiceOver, and where a tap leads.
     for phrase in [
         "Accessibility::new()",
@@ -82,14 +91,7 @@ fn the_docs_state_the_system_limits_and_behaviors() {
         says(&usage, phrase, "docs/usage.md");
     }
     let later = read("docs/not-yet-supported.md");
-    for phrase in [
-        "Transient",
-        "Scheduled start",
-        "Alert sounds",
-        "Toggles",
-        "Apple Watch and CarPlay",
-        "Left out",
-    ] {
+    for phrase in ["Toggles", "Apple Watch and CarPlay", "Left out"] {
         says(&later, phrase, "docs/not-yet-supported.md");
     }
 }

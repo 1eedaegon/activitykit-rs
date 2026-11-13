@@ -71,6 +71,8 @@ final class PresentingBackend: LayoutActivityBackend {
     var relevances: [Double?] = []
     var pushes: [LayoutPush?] = []
     var alerts: [AlertText?] = []
+    /// What each start asked of ActivityKit beside its content.
+    var starts: [Presentations.Start?] = []
     /// The relevance each end saw, and its final snapshot.
     var ends: [(relevance: Double?, snapshot: LayoutSnapshot)] = []
     init(presentations: Presentations) { self.presentations = presentations }
@@ -81,6 +83,9 @@ final class PresentingBackend: LayoutActivityBackend {
         let presentation = presentations.start(key: attributes.activityKey)
         relevances.append(presentation?.relevance)
         pushes.append(presentation?.push)
+        starts.append(presentation)
+        // ActivityKit keeps a scheduled start pending until its time.
+        base.startsPending = presentation?.scheduled != nil
         return try await base.start(attributes, snapshot: snapshot)
     }
     func update(_ activity: LayoutActivity, snapshot: LayoutSnapshot) async throws -> LayoutActivity {
@@ -189,6 +194,7 @@ extension LifecycleTests {
     @MainActor static func testBridge() async throws {
         try await testBridgeLifecycle()
         try await testBridgeKeyedStart()
+        try await testBridgeStartOptions()
         try await testBridgeEndContent()
         try await testBridgeFromManyThreads()
         try testBridgeAuthorizationAndImages()
@@ -198,6 +204,49 @@ extension LifecycleTests {
         try await testBridgeFixtures()
         Systems.install(UnsupportedSystem())
         Bridge.shared.reset()
+    }
+
+    // AK-START-13, AK-START-14, AK-ALERT-1
+    /// What a start asks of ActivityKit beside its content travels beside the request, like the relevance: a transient
+    /// activity, the time and alert of a scheduled start, and the sound of an alert. A scheduled activity is pending:
+    /// its key is taken, and it takes updates and an end.
+    @MainActor static func testBridgeStartOptions() async throws {
+        let system = install()
+        func request(_ key: String) -> String { layoutJSON(key: key, lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0) }
+        let transient = await call(C.start, #"{"request":\#(request("opt:1")),"style":"transient"}"#)
+        expect(transient["ok"] as? Bool == true && system.backend?.starts.last??.transient == true && system.backend?.starts.last??.scheduled == nil,
+               "a transient start reaches the backend as one")
+        let plain = await call(C.start, #"{"request":\#(request("opt:2"))}"#)
+        expect(plain["ok"] as? Bool == true && system.backend?.starts.last??.transient == false, "a start without a style is a standard one")
+        for style in [#""lasting""#, "true", #"["transient"]"#] {
+            let refused = await call(C.start, #"{"request":\#(request("opt:3")),"style":\#(style)}"#)
+            expect(code(refused) == "INVALID_INPUT", "a style other than transient is refused: \(style)")
+        }
+
+        let schedule = #"{"at":1790000000000,"alert":{"title":"Soon","body":"It starts","sound":"chime.aiff"}}"#
+        let scheduled = await call(C.start, #"{"request":\#(request("opt:4")),"scheduled":\#(schedule),"relevance":20}"#)
+        let id = data(scheduled)["id"] as? String ?? ""
+        expect(data(scheduled)["state"] as? String == "pending", "a scheduled start answers a pending activity")
+        expect(system.backend?.starts.last??.scheduled == ScheduledStart(at: 1_790_000_000_000, alert: AlertText(title: "Soon", body: "It starts", sound: "chime.aiff"))
+            && system.backend?.starts.last??.relevance == 20, "its time and its alert, with the sound, reach the backend")
+        let again = await call(C.start, #"{"request":\#(request("opt:4")),"scheduled":\#(schedule)}"#)
+        expect(data(again)["id"] as? String == id && system.backend?.starts.count == 3, "the key of a pending activity is taken: the same start returns it")
+        let update = #"{"id":"\#(id)","snapshot":{"revision":1,"values":{"title":"Later","progress":0.3}}}"#
+        let updated = await call(C.update, #"{"request":\#(update),"alert":{"title":"Loud","body":"High level","sound":"alarm.caf"}}"#)
+        expect(updated["ok"] as? Bool == true, "a pending activity takes an update")
+        expect(system.backend?.alerts.last == AlertText(title: "Loud", body: "High level", sound: "alarm.caf"), "an alert's sound reaches the backend")
+        let listed = (await list())["data"] as? [[String: Any]] ?? []
+        expect(listed.contains { $0["id"] as? String == id && $0["state"] as? String == "pending" }, "the list shows it pending")
+        let ended = await call(C.end, #"{"request":{"id":"\#(id)","policy":{"kind":"immediate"}}}"#)
+        expect(data(ended)["state"] as? String == "ended", "a pending activity can be ended")
+        for broken in [#"{"alert":{"title":"a","body":"b"}}"#, #"{"at":1790000000000}"#, #"{"at":"soon","alert":{"title":"a","body":"b"}}"#,
+                       #"{"at":-1,"alert":{"title":"a","body":"b"}}"#, #"{"at":8640000000000001,"alert":{"title":"a","body":"b"}}"#,
+                       #"{"at":1790000000000,"alert":{"title":"a","body":"b","sound":"../a.caf"}}"#] {
+            let refused = await call(C.start, #"{"request":\#(request("opt:5")),"scheduled":\#(broken)}"#)
+            expect(code(refused) == "INVALID_INPUT", "a scheduled start needs a time and an alert: \(broken)")
+        }
+        let unsound = await call(C.update, #"{"request":{"id":"\#(data(plain)["id"] as? String ?? "")","snapshot":{"revision":1,"values":{"title":"x","progress":0.3}}},"alert":{"title":"a","body":"b","sound":"a/b.caf"}}"#)
+        expect(code(unsound) == "INVALID_INPUT", "a sound that is no file name is refused")
     }
 
     // AK-AUTH-2, AK-BRIDGE-1, AK-BRIDGE-2, AK-BRIDGE-3, AK-BRIDGE-7, AK-END-1, AK-END-4, AK-START-1, AK-START-4, AK-START-8, AK-UPDATE-1, AK-UPDATE-2, AK-UPDATE-6, AK-UPDATE-7, AK-CONTRACT-13

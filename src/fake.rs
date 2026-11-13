@@ -174,7 +174,12 @@ impl FakeBridge {
                     key: input.activity_key,
                     revision: input.snapshot.revision,
                     values: input.snapshot.values,
-                    state: State::Active,
+                    // A scheduled start is pending until the system begins it.
+                    state: if request["scheduled"].is_null() {
+                        State::Active
+                    } else {
+                        State::Pending
+                    },
                     degraded: Vec::new(),
                     timestamp: input.snapshot.timestamp,
                     stale_at: input.snapshot.stale_at,

@@ -353,7 +353,7 @@ impl Payload {
                     }),
                 );
                 aps.insert("content-state".into(), wire["snapshot"].clone());
-                aps.insert("alert".into(), alert_json(alert));
+                aps.insert("alert".into(), alert.wire()?);
                 if self.input_push_token {
                     aps.insert("input-push-token".into(), 1.into());
                 }
@@ -378,7 +378,7 @@ impl Payload {
                     );
                 }
                 if let Some(alert) = &self.alert {
-                    aps.insert("alert".into(), alert_json(alert));
+                    aps.insert("alert".into(), alert.wire()?);
                 }
             }
         }
@@ -420,10 +420,6 @@ fn seconds(at: SystemTime) -> Result<u64> {
         .duration_since(UNIX_EPOCH)
         .map_err(|_| Error::invalid())?
         .as_secs())
-}
-
-fn alert_json(alert: &Alert) -> Json {
-    json!({ "title": alert.title, "body": alert.body })
 }
 
 /// The server's fingerprint of what it started, in the shape of the app's (`initialFingerprint`) and never equal to

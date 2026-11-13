@@ -5,6 +5,15 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+The start options and the alert sound of phase 3 of [the iOS surface plan](docs/prd-ios-surface.md).
+
+- `Start::scheduled(at, alert)` starts an activity at a later time (iOS 26), with the alert the system shows then.
+  Until `at` the handle is `State::Pending`; a pending activity holds its key and takes updates and an end.
+- `Start::transient()` asks for a transient activity (iOS 18), which the system ends by itself.
+- `Alert::sound(name)` names the sound of an alert, of an update, of a scheduled start and of a push payload.
+- Below the iOS a start option needs, the start answers `Error::UnsupportedFeature` before ActivityKit is asked.
+- The bridge's `ak_start` takes `style` and `scheduled` beside the request, and an alert a `sound`.
+
 ## 0.4.0 - 2026-11-13
 
 - docs: the plan for the iOS surface a cross-platform layer needs (`3725d26`)

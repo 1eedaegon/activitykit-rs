@@ -5,8 +5,8 @@
 //! `FAIL <scenario>: <reason>`.
 
 use activitykit::{
-    Activity, ActivityKit, Bound, End, Error, Event, Layout, Push, Receipts, Start, State, Style,
-    Update, Value,
+    Activity, ActivityKit, Alert, Bound, End, Error, Event, Layout, Push, Receipts, Start, State,
+    Style, Update, Value,
     layout::{
         Accessibility, ButtonStyle, Font, Frame, ImageSource, IndicatorKind, button, custom,
         divider, gauge, hstack, image, link, path, progress, spacer, symbol, text, timer, vstack,
@@ -100,6 +100,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "background-start" => background_start(&reporter),
             "every-node" => every_node(&reporter),
             "surface" => surface(&reporter),
+            "start-options" => start_options(&reporter),
             "policies" => policies(&reporter),
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
@@ -678,6 +679,104 @@ fn surface(reporter: &Reporter) -> Outcome {
         "the touch reaches the button inside the labelled row",
     )?;
     reporter.say(format!("tapped {action}"));
+    Ok(())
+}
+
+// AK-START-13, AK-START-14, AK-ALERT-1
+/// A start at a later time, which is pending until then and holds its key; an alert with a named sound; and a
+/// transient activity, which ActivityKit takes. What the system then does with it once the person leaves the app
+/// (the UI test sends it to the background) the scenario reports and does not judge.
+fn start_options(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let events = kit.events();
+    let values = || values! { "status" => "Soon", "tone" => "green", "level" => 0.1 };
+    let state_of = |wanted: Activity, limit: Duration, accept: fn(State) -> bool| {
+        next_event(&events, limit, |event| match event {
+            Event::State {
+                activity, state, ..
+            } if activity == wanted && accept(state) => Some(state),
+            _ => None,
+        })
+    };
+
+    let begins = SystemTime::now() + Duration::from_secs(12);
+    let scheduled = || {
+        Start::new(layout(), values())
+            .key("scheduled")
+            .scheduled(begins, Alert::new("Starting", "The recording begins"))
+    };
+    let later =
+        block_on(kit.start_with(scheduled())).map_err(|error| format!("schedule: {error}"))?;
+    check(
+        later.state() == State::Pending,
+        format!("a scheduled start is pending, not {:?}", later.state()),
+    )?;
+    let listed = block_on(kit.activities()).map_err(|error| error.to_string())?;
+    let found = listed.iter().find(|activity| **activity == later);
+    check(
+        found.is_some_and(|activity| activity.state() == State::Pending),
+        "the list shows the pending activity",
+    )?;
+    let again = block_on(kit.start_with(scheduled())).map_err(|error| format!("again: {error}"))?;
+    check(again == later, "the key of a pending activity is taken")?;
+    reporter.say(format!("pending {}", later.id()));
+    let began = state_of(later.clone(), Duration::from_secs(45), |state| {
+        state == State::Active
+    });
+    check(
+        began.is_some(),
+        "the scheduled activity became active at its time",
+    )?;
+    check(
+        SystemTime::now() + Duration::from_secs(2) >= begins,
+        "and not before its time",
+    )?;
+    let loud = Update::new(values! { "status" => "Loud", "tone" => "red", "level" => 0.9 })
+        .alert(Alert::new("Loud", "The level is high").sound("chime.aiff"));
+    block_on(later.update_with(loud)).map_err(|error| format!("an alert with a sound: {error}"))?;
+    block_on(later.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
+    reporter.say("scheduled, started at its time, alerted with a sound, ended");
+
+    let brief =
+        block_on(kit.start_with(Start::new(layout(), values()).key("transient").transient()))
+            .map_err(|error| format!("transient: {error}"))?;
+    check(
+        brief.state() == State::Active,
+        "a transient activity starts active",
+    )?;
+    reporter.say("transient: send the app to the background");
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while !IN_BACKGROUND.load(std::sync::atomic::Ordering::SeqCst) {
+        check(
+            Instant::now() < deadline,
+            "the app never went to the background",
+        )?;
+        thread::sleep(Duration::from_millis(100));
+    }
+    let left = Instant::now();
+    let over = state_of(brief.clone(), Duration::from_secs(25), |state| {
+        matches!(state, State::Ended | State::Dismissed)
+    });
+    // What the system does with a transient activity is the system's: the scenario says what it saw.
+    match over {
+        Some(state) => reporter.say(format!(
+            "the system ended the transient activity ({state:?}) {:.1?} after the app left the foreground",
+            left.elapsed()
+        )),
+        None => {
+            let listed = block_on(kit.activities()).map_err(|error| error.to_string())?;
+            let state = listed
+                .iter()
+                .find(|activity| **activity == brief)
+                .map(Activity::state);
+            reporter.say(format!(
+                "no end of the transient activity was reported within 25 s of leaving the app; the list says {state:?}"
+            ));
+            if state.is_some_and(|state| matches!(state, State::Active | State::Stale)) {
+                block_on(brief.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
+            }
+        }
+    }
     Ok(())
 }
 

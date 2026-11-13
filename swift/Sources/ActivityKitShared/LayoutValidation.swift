@@ -96,6 +96,14 @@ enum LayoutRules {
     }
 }
 
+/// The contract's rules for what travels beside a request, for the bridge, which is a module of its own.
+public enum LayoutChecks {
+    /// A file name of the contract, as an image's is: a letter or digit, then letters, digits, `.`, `_` and `-`, 64 at most.
+    public static func isFileName(_ text: String) -> Bool { LayoutRules.isAssetName(text) }
+    /// A time of the contract, in epoch milliseconds.
+    public static func isTime(_ millis: Int64) -> Bool { (0...LayoutRules.maxTimestamp).contains(millis) }
+}
+
 extension LayoutValue {
     private var type: Int {
         switch self {

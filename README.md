@@ -79,7 +79,8 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 | --- | --- | --- | --- |
 | Is it allowed? | `kit.authorization()` → `supported`, `enabled`, `buttons`, `frequent_pushes` | 16.2 | [usage](docs/usage.md) |
 | Start | `kit.start(layout, values)`, `kit.start_with(Start::new(..).key(..).relevance(..).stale_at(..))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
-| Update | `activity.update(values)`, `activity.update_with(Update::new(..).alert(..))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
+| Start later, or only while the app is in use | `Start::scheduled(at, alert)`, `Start::transient()` | 26; 18 | [start, update, end](docs/usage.md#start-update-end) |
+| Update | `activity.update(values)`, `activity.update_with(Update::new(..).alert(Alert::new(..).sound(..)))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
 | End | `activity.end(End::immediately())`, `End::default()`, `End::after(time)`, `.values(..)` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
 | Find again | `kit.activities()`, `kit.activity(id)` | 16.2 | [after a relaunch](docs/usage.md#after-a-relaunch) |
 | Layout | `Layout::new(node)`, `vstack`, `hstack`, `zstack`, `text`, `symbol`, `image`, `path`, `progress`, `gauge`, `timer`, `spacer`, `divider` | 16.2 | [layouts](docs/usage.md#layouts) |

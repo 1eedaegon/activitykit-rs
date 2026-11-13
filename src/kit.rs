@@ -30,9 +30,9 @@ mod wire;
 use crate::push::Push;
 pub use activity::Activity;
 use activity::Shared;
-use options::envelope;
 pub(crate) use options::millis;
 pub use options::{Alert, End, Start, Update};
+use options::{envelope, start_envelope};
 
 /// How long a call waits for the Swift layer's reply before it fails as [`Error::Native`]: a Swift layer that lost its
 /// callback must not hang the app. ActivityKit answers in well under a second.
@@ -256,7 +256,12 @@ impl ActivityKit {
             }),
         };
         input.validate()?;
-        let request = envelope(&input, start.relevance, None)?;
+        let request = start_envelope(
+            &input,
+            start.relevance,
+            start.transient,
+            start.scheduled.as_ref(),
+        )?;
         let record: LayoutActivityRecord =
             Inner::answer(self.inner.send(Call::Start, request)).await?;
         Ok(self.inner.adopt(&record))
@@ -310,6 +315,8 @@ fn new_key() -> String {
 
 #[cfg(test)]
 mod event_tests;
+#[cfg(test)]
+mod option_tests;
 #[cfg(test)]
 mod push_tests;
 #[cfg(test)]

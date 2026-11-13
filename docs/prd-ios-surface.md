@@ -2,7 +2,8 @@
 
 Status: phases 1 and 2 are built and are in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5,
 AK-MOTION-1 and 2, AK-PRIVACY-1, AK-ISLAND-1 and 2), except their simulator scenarios and the small region of
-phase 2; phase 3 is planned. Each requirement moves into the specification with its tests when it
+phase 2. Of phase 3 the start options and the alert sound are built (AK-START-13 and 14, AK-ALERT-1); the toggle is
+planned. Each requirement moves into the specification with its tests when it
 is built, and leaves [Not yet supported](not-yet-supported.md).
 
 ## Why
@@ -119,16 +120,31 @@ General animation is not a goal: ActivityKit runs its own animation of at most t
 
 ### Phase 3: interaction and start options
 
-These reach the bridge, the lifecycle or the intents, so each needs the simulator suite.
+These reach the bridge, the lifecycle or the intents, so each has a scenario on the simulator. The start options and
+the alert sound are built; the toggle is not.
 
-| ID | Requirement | Proposed shape | iOS |
+| ID | Requirement | Shape | iOS |
 | --- | --- | --- | --- |
-| AK-TOGGLE-1 | A toggle shows a flag and reports a tap as an action with the state asked for. | node `{ "type": "toggle", "actionId", "bind", "child" }`; `Event::Action` gains the new state | 17 |
-| AK-START-13 | A start may be transient: the activity ends when the person locks the device or leaves the app. | `Start::transient()`, beside the request like the relevance | 18 |
-| AK-START-14 | A start may be scheduled, with the alert the system requires; the activity is `Pending` until then and its key is taken. | `Start::scheduled(at, alert)` | 26 |
-| AK-ALERT-1 | An alert names its sound, in an update and in a push payload. | `Alert::sound(name)` | 16.2 |
+| AK-TOGGLE-1 | A toggle shows a flag and reports a tap as an action with the state asked for. Not built. | node `{ "type": "toggle", "actionId", "bind", "child" }`; `Event::Action` gains the new state (proposed) | 17 |
+| AK-START-13 | A start may be transient: the system ends the activity by itself. | `Start::transient()`, `"style": "transient"` beside the request | 18 |
+| AK-START-14 | A start may be scheduled, with the alert the system requires; the activity is `Pending` until then and its key is taken. | `Start::scheduled(at, alert)`, `"scheduled"` beside the request | 26 |
+| AK-ALERT-1 | An alert names its sound, in an update, a scheduled start and a push payload. | `Alert::sound(name)` | 16.2 |
 
 `UnsupportedFeature { feature, minimum_ios }` answers each of these below its version, before ActivityKit is asked.
+
+Decisions and findings:
+
+- **Beside the request, not in it.** The style and the schedule are what ActivityKit takes for one call, like the
+  relevance; the contract request and a keyed start's fingerprint stay as they are.
+- **A pending activity is live.** It holds its key and takes updates and an end, so the lifecycle counts `pending`
+  with `active` and `stale`. On the simulator (iOS 26.3) a start scheduled 12 s ahead was pending, was listed
+  pending, and became active at its time.
+- **What a transient activity does is the system's.** Apple describes it as shown in the expanded Dynamic Island and
+  ended when the person locks the device, collapses that presentation or leaves the app. The simulator took the
+  start, and still listed the activity active 25 s after the test host left the foreground; the crate promises the
+  request, not the ending.
+- **A sound is a file name.** The same rule as an image's name, checked in Rust and in the bridge, so that it names
+  nothing outside the folders the system reads sounds from.
 
 ## Left to the layers above
 
