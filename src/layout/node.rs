@@ -20,6 +20,15 @@ pub struct Node {
     /// Key of a value; the node is rendered only while it is not truthy.
     #[serde(skip_serializing_if = "none")]
     pub unless: Option<String>,
+    /// What assistive technologies read of the node.
+    #[serde(skip_serializing_if = "none")]
+    pub accessibility: Option<Accessibility>,
+    /// How the node comes and goes when `if` or `unless` shows or hides it.
+    #[serde(skip_serializing_if = "none")]
+    pub transition: Option<Transition>,
+    /// Whether the system hides what the node shows on a locked device.
+    #[serde(skip_serializing_if = "none")]
+    pub privacy: Option<Privacy>,
 }
 
 impl From<Element> for Node {
@@ -29,6 +38,9 @@ impl From<Element> for Node {
             style: None,
             r#if: None,
             unless: None,
+            accessibility: None,
+            transition: None,
+            privacy: None,
         }
     }
 }
@@ -44,6 +56,9 @@ impl<'de> Deserialize<'de> for Node {
             Some(_) => Err(D::Error::custom("expected a string")),
         };
         let (style, r#if, unless) = (key("style")?, key("if")?, key("unless")?);
+        let accessibility = member(&mut members, "accessibility")?;
+        let transition = member(&mut members, "transition")?;
+        let privacy = member(&mut members, "privacy")?;
         let element =
             Element::deserialize(serde_json::Value::Object(members)).map_err(D::Error::custom)?;
         Ok(Self {
@@ -51,7 +66,107 @@ impl<'de> Deserialize<'de> for Node {
             style,
             r#if,
             unless,
+            accessibility,
+            transition,
+            privacy,
         })
+    }
+}
+
+/// A common member of a node that is no plain key: read strictly from the node's members, absent when not there.
+fn member<T: serde::de::DeserializeOwned, E: serde::de::Error>(
+    members: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) -> Result<Option<T>, E> {
+    members
+        .remove(name)
+        .map(T::deserialize)
+        .transpose()
+        .map_err(E::custom)
+}
+
+/// How a node with [`when`](Node::when) or [`unless`](Node::unless) comes and goes, the wire member `transition`:
+/// the transitions the system runs in a Live Activity. Without one the node fades.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Transition {
+    Opacity,
+    /// In from the leading edge, out to the trailing one.
+    Slide,
+    MoveTop,
+    MoveBottom,
+    MoveLeading,
+    MoveTrailing,
+    /// In from this edge while what was there leaves by the opposite one.
+    PushTop,
+    PushBottom,
+    PushLeading,
+    PushTrailing,
+}
+
+/// Whether a node shows something private, the wire member `privacy`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Privacy {
+    /// The system hides the node's content on a locked device and in the always-on display, when the person has
+    /// asked for that.
+    Sensitive,
+}
+
+/// What a node tells assistive technologies such as VoiceOver, the wire member `accessibility`: at least one member.
+/// `label`, `value` and `hint` are text of 1 to 200 code points or [`Bound`] to a value of any type, which is read as
+/// a [`text`] node shows it; a value that is missing or empty leaves its member out. On a stack, any of the three
+/// makes the stack one element that stands for its children.
+///
+/// ```
+/// use activitykit::Bound;
+/// use activitykit::layout::{Accessibility, progress, symbol};
+///
+/// let mic = symbol("mic.fill").accessibility(Accessibility::new().label("Recording"));
+/// let level = progress("level").accessibility(Accessibility::new().label("Input level").value(Bound::key("percent")));
+/// # let _ = (mic, level);
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Accessibility {
+    /// What the node is, in a few words.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub label: Option<Bindable<String>>,
+    /// What the node shows now, such as "40 percent".
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub value: Option<Bindable<String>>,
+    /// What happens when the person acts on the node.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub hint: Option<Bindable<String>>,
+    /// `true` hides the node and its subtree from assistive technologies; it then takes no other member.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub hidden: Option<bool>,
+}
+
+impl Accessibility {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn label(mut self, label: impl Into<Bindable<String>>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub fn value(mut self, value: impl Into<Bindable<String>>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    pub fn hint(mut self, hint: impl Into<Bindable<String>>) -> Self {
+        self.hint = Some(hint.into());
+        self
+    }
+
+    /// Hides the node and its subtree, for what is decoration.
+    pub fn hidden(mut self) -> Self {
+        self.hidden = Some(true);
+        self
     }
 }
 
@@ -140,6 +255,11 @@ pub enum Element {
     #[serde(rename_all = "camelCase")]
     Button {
         action_id: String,
+        child: Box<Node>,
+    },
+    /// A tap on `child` opens the app with `url`: a URL, or [`Bound`](super::Bound) to a text value that is one.
+    Link {
+        url: Bindable<String>,
         child: Box<Node>,
     },
     /// A SwiftUI view that the app registers under `name` in its widget extension. Each prop is a
@@ -402,6 +522,17 @@ pub fn button(action_id: impl Into<String>, label: impl Into<Node>) -> Node {
     .into()
 }
 
+/// A link: a tap on `label` opens the app with `url`, which the app receives as any URL it is opened with. The URL
+/// is 1 to 1024 ASCII characters with a scheme, such as `myapp://recording/1`, or [`Bound`] to a text value that is
+/// one. A link stands where a [`button`] may, and neither holds the other.
+pub fn link(url: impl Into<Bindable<String>>, label: impl Into<Node>) -> Node {
+    Element::Link {
+        url: url.into(),
+        child: Box::new(label.into()),
+    }
+    .into()
+}
+
 /// A SwiftUI view that the widget extension registers under `name`; give it props with [`Node::prop`].
 pub fn custom(name: impl Into<String>) -> Node {
     Element::Custom {
@@ -460,6 +591,24 @@ impl Node {
     /// Draws the node only while the value `key` is not truthy.
     pub fn unless(mut self, key: impl Into<String>) -> Self {
         self.unless = Some(key.into());
+        self
+    }
+
+    /// What assistive technologies read of the node: see [`Accessibility`].
+    pub fn accessibility(mut self, accessibility: Accessibility) -> Self {
+        self.accessibility = Some(accessibility);
+        self
+    }
+
+    /// How the node comes and goes while [`when`](Self::when) or [`unless`](Self::unless) shows or hides it.
+    pub fn transition(mut self, transition: Transition) -> Self {
+        self.transition = Some(transition);
+        self
+    }
+
+    /// Marks what the node shows as private: see [`Privacy::Sensitive`].
+    pub fn sensitive(mut self) -> Self {
+        self.privacy = Some(Privacy::Sensitive);
         self
     }
 
@@ -558,6 +707,18 @@ impl Node {
                 .insert(key.into(), value.into());
         }
         self
+    }
+}
+
+impl From<&str> for Bindable<String> {
+    fn from(text: &str) -> Self {
+        Self::Literal(text.to_owned())
+    }
+}
+
+impl From<String> for Bindable<String> {
+    fn from(text: String) -> Self {
+        Self::Literal(text)
     }
 }
 

@@ -38,7 +38,15 @@ struct LayoutNodeView: View {
     let views: Builders
 
     var body: some View {
-        content.layoutStyle(node.style)
+        content.layoutStyle(node.style).modifier(LayoutAccessibilityModifier(accessibility: node.accessibility, isLabelOnly: isLabelOnly))
+            .modifier(LayoutPresentationModifier(transition: node.transition, isSensitive: node.isSensitive))
+    }
+
+    /// A button the host does not build, or below iOS 17, is drawn as its label alone: several views, no control.
+    private var isLabelOnly: Bool {
+        guard case .button = node.content else { return false }
+        if #available(iOS 17.0, *), views.button != nil { return false }
+        return true
     }
 
     @ViewBuilder private var content: some View {
@@ -71,18 +79,25 @@ struct LayoutNodeView: View {
             Text(timerInterval: interval, countsDown: countsDown)
         case let .button(actionId, label):
             wrap(label, as: actionId)
+        case let .link(url, label):
+            if let url { Link(destination: url) { plain(label) } } else { plain(label) }
         case let .custom(name, props):
             if let view = views.custom?(name, props) { view }
         }
     }
 
+    /// A child is known by its place in the layout, so one that comes or goes is seen as that child, with its transition.
     private func stack(_ children: [LayoutRenderNode]) -> some View {
-        ForEach(children.indices, id: \.self) { LayoutNodeView(node: children[$0], views: views) }
+        ForEach(children, id: \.slot) { LayoutNodeView(node: $0, views: views) }
     }
 
-    /// A button's label keeps the custom views and has no button of its own.
+    /// The label of a button or a link keeps the custom views and has no button of its own.
+    private func plain(_ label: LayoutRenderNode) -> LayoutNodeView {
+        LayoutNodeView(node: label, views: Builders(button: nil, custom: views.custom))
+    }
+
     private func wrap(_ label: LayoutRenderNode, as actionId: String) -> AnyView {
-        let view = AnyView(LayoutNodeView(node: label, views: Builders(button: nil, custom: views.custom)))
+        let view = AnyView(plain(label))
         if #available(iOS 17.0, *), let button = views.button { return button(actionId, view) }
         return view
     }

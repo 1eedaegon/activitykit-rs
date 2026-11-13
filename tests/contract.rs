@@ -24,7 +24,8 @@ fn layout_weight(input: &Value) -> usize {
         + part("/layout").map_or(0, |layout| layout + part("/styles").unwrap_or(2))
 }
 
-// AK-CONTRACT-1, AK-CONTRACT-12, AK-END-7, AK-START-5
+// AK-CONTRACT-1, AK-CONTRACT-12, AK-END-7, AK-START-5, AK-ACCESS-2, AK-LINK-2, AK-LINK-3,
+// AK-MOTION-1, AK-MOTION-2, AK-PRIVACY-1, AK-ISLAND-1, AK-ISLAND-2
 #[test]
 fn every_fixture_gets_its_verdict_code_and_weight() {
     let (valid, invalid) = (cases("valid"), cases("invalid"));
@@ -60,7 +61,7 @@ fn every_fixture_gets_its_verdict_code_and_weight() {
     }
 }
 
-// AK-CONTRACT-4, AK-UPDATE-6
+// AK-CONTRACT-4, AK-UPDATE-6, AK-LINK-4
 /// Each pair is a start and the update after it, which the Swift layer checks against the stored layout and styles.
 #[test]
 fn every_update_fixture_is_checked_against_its_start() {
@@ -209,7 +210,7 @@ fn numbers_keep_their_value_when_read_from_json_text() {
     }
 }
 
-// AK-CONTRACT-12, AK-END-6
+// AK-CONTRACT-12, AK-END-6, AK-LINK-4
 /// Each pair is a start and an end with final content, which the Swift layer checks as it checks an update.
 #[test]
 fn every_end_fixture_is_checked_against_its_start() {

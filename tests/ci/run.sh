@@ -29,9 +29,11 @@ starts apple src/kit.rs src/contract/validation.rs src/layout/node.rs src/events
   contracts/request.schema.json
 starts rust src/kit.rs Cargo.toml Cargo.lock rust-toolchain.toml .cargo/config.toml build.rs tests/contract.rs tests/docs.rs \
   tests/ios-host/src/lib.rs tests/ios-host/Cargo.toml tests/build/run.sh
-starts spec src/kit.rs docs/spec.md docs/usage.md tools/spec-coverage.sh README.md tests/ci/run.sh .github/workflows/ci.yml
+starts spec src/kit.rs docs/spec.md docs/usage.md tools/spec-coverage.sh README.md tests/ci/run.sh .github/workflows/ci.yml \
+  tools/release.sh tests/release/run.sh .github/workflows/auto-release.yml .github/workflows/publish.yml
 skips apple docs/usage.md README.md CHANGELOG.md tools/spec-coverage.sh
 skips rust docs/usage.md README.md swift/Package.swift tests/ci/cache.sh
-skips apple tests/ci/run.sh
+skips apple tests/ci/run.sh tools/release.sh tests/release/run.sh
+skips rust tools/release.sh tests/release/run.sh
 [ "$failures" = 0 ] || { echo "$failures CI area check(s) failed"; exit 1; }
 echo "ci areas: every path starts the jobs it must"

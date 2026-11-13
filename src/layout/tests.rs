@@ -251,3 +251,114 @@ fn layout_and_island_builders_fill_every_region() {
             "minimal":{"type":"symbol","name":"mic"}},"background":"black","keyline":{"bind":"tone"}})
     );
 }
+
+// AK-ACCESS-1
+#[test]
+fn accessibility_builders_write_their_members() {
+    let cases = [
+        (
+            symbol("mic.fill").accessibility(Accessibility::new().label("Recording")),
+            json!({"type":"symbol","name":"mic.fill","accessibility":{"label":"Recording"}}),
+        ),
+        (
+            progress("level").accessibility(
+                Accessibility::new()
+                    .label(Bound::key("title"))
+                    .value(Bound::key("level"))
+                    .hint(String::from("Input level")),
+            ),
+            json!({"type":"progress","bind":"level","accessibility":{"label":{"bind":"title"},
+                "value":{"bind":"level"},"hint":"Input level"}}),
+        ),
+        (
+            divider().accessibility(Accessibility::new().hidden()),
+            json!({"type":"divider","accessibility":{"hidden":true}}),
+        ),
+    ];
+    for (node, expected) in cases {
+        assert_eq!(wire(node), expected);
+    }
+    // A node without the member writes none.
+    assert_eq!(wire(divider()), json!({"type":"divider"}));
+}
+
+// AK-LINK-1
+#[test]
+fn link_and_layout_url_builders_write_the_contract() {
+    assert_eq!(
+        wire(link("app://rec/1", text("Open")).style("s")),
+        json!({"type":"link","url":"app://rec/1","child":{"type":"text","value":"Open"},"style":"s"})
+    );
+    assert_eq!(
+        wire(link(Bound::key("target"), symbol("mic"))),
+        json!({"type":"link","url":{"bind":"target"},"child":{"type":"symbol","name":"mic"}})
+    );
+    let regions = |layout: Layout| serde_json::to_value(layout.into_wire().0).unwrap();
+    assert_eq!(
+        regions(Layout::new(text("a")).url("app://rec/1")),
+        json!({"lockScreen":{"type":"text","value":"a"},"url":"app://rec/1"})
+    );
+    assert_eq!(
+        regions(Layout::new(text("a")).url(Bound::key("target"))),
+        json!({"lockScreen":{"type":"text","value":"a"},"url":{"bind":"target"}})
+    );
+    assert_eq!(
+        regions(Layout::new(text("a"))),
+        json!({"lockScreen":{"type":"text","value":"a"}})
+    );
+}
+
+// AK-MOTION-1, AK-MOTION-2, AK-PRIVACY-1
+#[test]
+fn transitions_and_privacy_have_builders() {
+    assert_eq!(
+        wire(
+            text(Bound::key("total"))
+                .transition(Transition::PushBottom)
+                .sensitive()
+        ),
+        json!({"type":"text","bind":"total","transition":"pushBottom","privacy":"sensitive"})
+    );
+    assert_eq!(
+        serde_json::to_value(
+            Style::new()
+                .monospaced_digit()
+                .content_transition(ContentTransition::NumericText)
+        )
+        .unwrap(),
+        json!({"monospacedDigit":true,"contentTransition":"numericText"})
+    );
+}
+
+// AK-ISLAND-1, AK-ISLAND-2
+#[test]
+fn island_options_have_builders() {
+    let island = Island::new()
+        .expanded(
+            IslandExpanded::new()
+                .leading(text("l"))
+                .trailing(text("t"))
+                .priority(ExpandedRegion::Leading, 1.0)
+                .priority(ExpandedRegion::Trailing, 0.5)
+                .below_if_too_wide(ExpandedRegion::Leading)
+                .below_if_too_wide(ExpandedRegion::Leading),
+        )
+        .margins(
+            IslandMargins::new()
+                .expanded(8.0)
+                .compact_leading([0.0, 4.0, 0.0, 4.0])
+                .compact_trailing(2.0)
+                .minimal(0.0),
+        );
+    assert_eq!(
+        serde_json::to_value(&island).unwrap(),
+        json!({"expanded":{"leading":{"type":"text","value":"l"},"trailing":{"type":"text","value":"t"},
+            "priority":{"leading":1.0,"trailing":0.5},"belowIfTooWide":["leading"]},
+            "margins":{"expanded":8.0,"compactLeading":[0.0,4.0,0.0,4.0],"compactTrailing":2.0,"minimal":0.0}})
+    );
+    // Without options the island writes none.
+    assert_eq!(
+        serde_json::to_value(Island::new().minimal(symbol("mic"))).unwrap(),
+        json!({"minimal":{"type":"symbol","name":"mic"}})
+    );
+}

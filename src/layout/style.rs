@@ -7,8 +7,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 
 /// A value key in place of a literal: `{ "bind": "<key>" }` on the wire. The member reads the value
 /// on every render, so an update can change it. The value must be what the member takes as a literal:
-/// a color name or a hex color (never a light and dark pair), a weight name, or a number in the
-/// member's range.
+/// a color name or a hex color (never a light and dark pair), a weight name, a number in the
+/// member's range, or a URL. An accessibility member reads a value of any type.
 ///
 /// ```
 /// use activitykit::{Bound, Style};
@@ -30,8 +30,9 @@ impl Bound {
 }
 
 /// A member that is a literal or [`Bound`] to a value. Only `color`, `background`, `tint`,
-/// `opacity`, `size`, `weight` and `corner_radius` of a [`Style`], and the `background` and
-/// `keyline` of a layout, can be bound.
+/// `opacity`, `size`, `weight` and `corner_radius` of a [`Style`], the `background`, `keyline`
+/// and `url` of a layout, the `url` of a link and the `label`, `value` and `hint` of a node's
+/// accessibility can be bound.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Bindable<T> {
@@ -140,6 +141,9 @@ pub struct Style {
     pub tint: Option<Bindable<Color>>,
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub button_style: Option<ButtonStyle>,
+    /// How text and symbols change when their value does.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub content_transition: Option<ContentTransition>,
 }
 
 /// Sizes in points. At least one member.
@@ -278,6 +282,20 @@ pub enum FontDesign {
     Rounded,
     Serif,
     Monospaced,
+}
+
+/// How the content of a node changes from one update to the next.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContentTransition {
+    /// Digits roll, upward as a number grows.
+    NumericText,
+    /// Digits roll the other way, for a number that counts down.
+    NumericTextDown,
+    Opacity,
+    Interpolate,
+    /// The new content replaces the old at once.
+    Identity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -423,6 +441,12 @@ impl Style {
     /// The tint of buttons, progress bars and gauges.
     pub fn tint(mut self, color: impl Into<Bindable<Color>>) -> Self {
         self.tint = Some(color.into());
+        self
+    }
+
+    /// How text and symbols with this style change when an update gives them another value.
+    pub fn content_transition(mut self, transition: ContentTransition) -> Self {
+        self.content_transition = Some(transition);
         self
     }
 

@@ -21,6 +21,9 @@ extension LifecycleTests {
         try testRenderStyles()
         try testRenderBoundStyles()
         try testIslandDefaults()
+        try testRenderAccessibility()
+        try testRenderLinks()
+        try testRenderPresentation()
     }
 
     // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
@@ -97,7 +100,7 @@ extension LifecycleTests {
         guard case let .vstack(rows, spacing, alignment)? = root?.content else { fatalError("FAIL: vstack renders") }
         expect(spacing == 6 && alignment == .leading && rows.count == 4, "vstack spacing and alignment")
         expect(rows[0].content == .hstack(children: [LayoutRenderNode(content: .spacer(minLength: nil), style: .plain),
-                                                    LayoutRenderNode(content: .spacer(minLength: 4), style: .plain)], spacing: nil, alignment: .firstTextBaseline),
+                                                    LayoutRenderNode(content: .spacer(minLength: 4), style: .plain, slot: 1)], spacing: nil, alignment: .firstTextBaseline),
                "hstack alignment and spacers")
         expect(rows[1].content == .zstack(children: [LayoutRenderNode(content: .divider, style: .plain)], alignment: .bottomTrailing), "zstack alignment and divider")
         expect(rows[2].content == .hstack(children: [], spacing: nil, alignment: .center) && rows[3].content == .zstack(children: [LayoutRenderNode(content: .divider, style: .plain)], alignment: .center),
@@ -275,5 +278,141 @@ extension LifecycleTests {
         let sessionValues = try layoutRequest(sessionLayout).snapshot.values
         for region in LayoutRegion.allCases { expect(full.render(region, values: sessionValues) != nil, "session layout renders \(region)") }
         expect(children(full.render(.lockScreen, values: sessionValues)).count == 3, "the session note is hidden and the pause button shown")
+    }
+
+    // AK-ACCESS-3
+    @MainActor private static func testRenderAccessibility() throws {
+        let document = try layoutDocument(#"{"type":"vstack","accessibility":{"label":"Recorder"},"children":["#
+            + #"{"type":"symbol","name":"mic.fill","accessibility":{"label":"Recording"}},"#
+            + #"{"type":"progress","bind":"level","accessibility":{"label":{"bind":"title"},"value":{"bind":"level"},"hint":"Input level"}},"#
+            + #"{"type":"divider","accessibility":{"hidden":true}},{"type":"text","value":"plain"},"#
+            + #"{"type":"text","value":"shown","accessibility":{"hidden":false}},"#
+            + #"{"type":"hstack","children":[{"type":"divider"}],"accessibility":{"hidden":true}}]}"#)
+        let root = document.render(.lockScreen, values: ["title": .string("Rec"), "level": .number(0.5)])
+        expect(root?.accessibility == LayoutRenderAccessibility(label: "Recorder", combinesChildren: true),
+               "a stack with a label is one element that stands for its children")
+        let rows = children(root)
+        expect(rows.count == 6 && rows[0].accessibility == LayoutRenderAccessibility(label: "Recording"), "a literal label is read as given")
+        expect(rows[1].accessibility == LayoutRenderAccessibility(label: "Rec", value: "0.5", hint: "Input level"),
+               "bound members read their values as a text node shows them")
+        expect(rows[2].accessibility == LayoutRenderAccessibility(hidden: true), "a hidden node")
+        expect(rows[3].accessibility == nil && rows[4].accessibility == nil, "no members, or only a false hidden flag, change nothing")
+        expect(rows[5].accessibility == LayoutRenderAccessibility(hidden: true), "a hidden stack is hidden, not combined")
+
+        let flags = children(document.render(.lockScreen, values: ["title": .bool(true), "level": .number(3)]))
+        expect(flags[1].accessibility == LayoutRenderAccessibility(label: "true", value: "3", hint: "Input level"), "a flag and a whole number as text")
+        let empty = children(document.render(.lockScreen, values: ["title": .string(""), "level": .number(0.5)]))
+        expect(empty[1].accessibility == LayoutRenderAccessibility(value: "0.5", hint: "Input level"), "an empty value leaves its member out")
+        let missing = children(document.render(.lockScreen, values: ["level": .number(0.5)]))
+        expect(missing[1].accessibility == LayoutRenderAccessibility(value: "0.5", hint: "Input level"), "a missing value leaves its member out")
+
+        let only = try layoutDocument(#"{"type":"vstack","children":[{"type":"divider"}],"accessibility":{"label":{"bind":"title"}}}"#)
+        expect(only.render(.lockScreen, values: [:]).map { $0.accessibility == nil } == true, "a stack whose only member has no value stays as it is")
+        expect(only.render(.lockScreen, values: ["title": .string("Rec")])?.accessibility == LayoutRenderAccessibility(label: "Rec", combinesChildren: true),
+               "a bound label combines a stack once it has a value")
+        let custom = try layoutDocument(#"{"type":"custom","name":"ring","accessibility":{"label":"Level"}}"#)
+        expect(custom.render(.lockScreen, values: [:])?.accessibility == LayoutRenderAccessibility(label: "Level", combinesChildren: true),
+               "a custom view with a label is one element, whatever it draws")
+        let plain = LayoutRenderNode(content: .divider, style: .plain)
+        expect(plain.accessibility == nil && plain == LayoutRenderNode(content: .divider, style: .plain, accessibility: nil), "a node is made without the member")
+    }
+
+    // AK-LINK-2, AK-LINK-5
+    @MainActor private static func testRenderLinks() throws {
+        let document = try layoutDocument(#"{"type":"vstack","children":[{"type":"link","url":"app://rec/1","child":{"type":"text","value":"Open"},"style":"l"},"#
+            + #"{"type":"link","url":{"bind":"target"},"child":{"type":"text","value":"Bound"},"accessibility":{"label":"Open the recording"}},"#
+            + #"{"type":"link","url":"app://hidden","child":{"type":"text","value":"x","if":"off"}}]}"#,
+            layout: #","url":{"bind":"target"}"#, styles: #"{"l":{"tint":"red"}}"#)
+        func label(_ text: String) -> LayoutRenderNode { LayoutRenderNode(content: .text(text), style: .plain) }
+        let rows = children(document.render(.lockScreen, values: ["target": .string("app://rec/2")]))
+        expect(rows.count == 2, "a link whose child draws nothing draws nothing")
+        expect(rows[0].content == .link(url: URL(string: "app://rec/1"), label: label("Open")) && rows[0].style.tint == .semantic(.red),
+               "a link carries its URL, its child and its own style")
+        expect(rows[1].content == .link(url: URL(string: "app://rec/2"), label: label("Bound"))
+            && rows[1].accessibility == LayoutRenderAccessibility(label: "Open the recording"), "a bound URL reads its value")
+        expect(document.url(values: ["target": .string("app://rec/2")]) == URL(string: "app://rec/2"), "the layout's bound URL reads its value")
+
+        for values: [String: LayoutValue] in [[:], ["target": .string("rec 2")], ["target": .string("")], ["target": .number(1)], ["target": .bool(true)]] {
+            let loose = children(document.render(.lockScreen, values: values))
+            expect(loose.count == 2 && loose[1].content == .link(url: nil, label: label("Bound")), "a link without a URL draws its child without a link: \(values)")
+            expect(loose[1].accessibility == LayoutRenderAccessibility(label: "Open the recording", combinesChildren: true),
+                   "drawn without its link, a labelled child is one element: \(values)")
+            expect(document.url(values: values) == nil, "a layout URL that is none is left out: \(values)")
+        }
+        // A URL of the contract that the system cannot read as it is: it is not rewritten into another one.
+        let unread = try layoutDocument(#"{"type":"link","url":"app://a/[1]","child":{"type":"text","value":"Open"}}"#, layout: #","url":"app://a/[1]""#)
+        expect(unread.render(.lockScreen, values: [:])?.content == .link(url: nil, label: label("Open")) && unread.url(values: [:]) == nil,
+               "a URL the system cannot read is left out, never changed")
+        let literal = try layoutDocument(#"{"type":"divider"}"#, layout: #","url":"https://example.com/a?b=c&d=%20#frag""#)
+        expect(literal.url(values: [:])?.absoluteString == "https://example.com/a?b=c&d=%20#frag", "a literal layout URL")
+        let bare = try layoutDocument(#"{"type":"divider"}"#)
+        expect(bare.url(values: [:]) == nil, "a layout without a URL has none")
+
+        let linked = try layoutDocument(#"{"type":"link","url":"app://a","child":{"type":"hstack","children":[{"type":"symbol","name":"mic.fill"},{"type":"custom","name":"ring"}]}}"#)
+        expect(linked.render(.compactLeading, values: [:])?.content == .symbol(name: "mic.fill", rendering: nil, variableValue: nil),
+               "the default of an absent island part looks through a link")
+        expect(linked.customViewNames == ["ring"], "the custom views inside a link are known")
+
+        for (url, valid) in [("app://rec/1", true), ("a:b", true), ("x-my.app+v2:/", true), ("app://[::1]:80/p!$&'()*+,;=~_-.%41", true),
+                             ("", false), ("app", false), ("app:", false), (":app", false), ("1app://x", false), ("a_b:c", false), ("app://a b", false),
+                             ("app://a%2Fb%e9", true), ("app://a%", false), ("app://a%4", false), ("app://a%zz", false), ("app://a%%41", false),
+                             ("app://\u{d55c}", false), ("app://a\"b", false), ("app://a|b", false), ("app://a\n", false),
+                             ("app://" + String(repeating: "a", count: 1018), true), ("app://" + String(repeating: "a", count: 1019), false)] {
+            expect(LayoutRules.isURL(url) == valid, "the URL rule: \(url.prefix(40))")
+        }
+    }
+
+    // AK-MOTION-1, AK-MOTION-2, AK-PRIVACY-1, AK-ISLAND-1, AK-ISLAND-2
+    @MainActor private static func testRenderPresentation() throws {
+        let island = #","island":{"expanded":{"leading":{"type":"divider"},"trailing":{"type":"divider"},"center":{"type":"divider"},"#
+            + #""priority":{"leading":1,"center":0.5},"belowIfTooWide":["trailing"]},"minimal":{"type":"divider"},"#
+            + #""margins":{"expanded":8,"compactLeading":[1,2,3,4]}}"#
+        let document = try layoutDocument(#"{"type":"vstack","children":[{"type":"text","bind":"total","style":"digits","transition":"pushBottom","privacy":"sensitive"},"#
+            + #"{"type":"text","value":"hidden","if":"off","transition":"slide"},{"type":"text","value":"shown","unless":"off","transition":"moveTrailing"},"#
+            + #"{"type":"divider"}]}"#, layout: island, styles: #"{"digits":{"monospacedDigit":true,"contentTransition":"numericText"}}"#)
+        let rows = children(document.render(.lockScreen, values: ["total": .number(42)]))
+        expect(rows.count == 3 && rows[0].style.contentTransition == .numericText && rows[0].style.monospacedDigit, "a style carries its content transition")
+        expect(rows[0].transition == .pushBottom && rows[0].isSensitive, "a node carries its transition and that it is sensitive")
+        expect(rows[1].transition == .moveTrailing && !rows[1].isSensitive && rows[2].transition == nil && !rows[2].isSensitive, "other nodes have neither")
+        expect(rows.map(\.slot) == [0, 2, 3], "a child keeps its place among its siblings, so one that comes or goes moves no other")
+        let all = children(document.render(.lockScreen, values: ["total": .number(42), "off": .bool(true)]))
+        expect(all.map(\.slot) == [0, 1, 3] && all[1].transition == .slide, "the node that came has its own place and transition")
+        expect(LayoutRenderStyle.plain.contentTransition == nil && document.render(.lockScreen, values: [:])?.slot == 0, "a plain style has none, and a root is first")
+        for word in ["numericText", "numericTextDown", "opacity", "interpolate", "identity"] {
+            let styled = try layoutDocument(#"{"type":"divider","style":"s"}"#, styles: #"{"s":{"contentTransition":"\#(word)"}}"#)
+            expect(styled.render(.lockScreen, values: [:])?.style.contentTransition?.rawValue == word, "content transition \(word)")
+        }
+        for word in ["opacity", "slide", "moveTop", "moveBottom", "moveLeading", "moveTrailing", "pushTop", "pushBottom", "pushLeading", "pushTrailing"] {
+            let moved = try layoutDocument(#"{"type":"divider","transition":"\#(word)"}"#)
+            expect(moved.render(.lockScreen, values: [:])?.transition?.rawValue == word, "transition \(word)")
+        }
+
+        expect(document.priority(of: .expandedLeading) == 1 && document.priority(of: .expandedCenter) == 0.5, "an expanded region has its priority")
+        expect(document.priority(of: .expandedTrailing) == 0 && document.priority(of: .expandedBottom) == 0 && document.priority(of: .lockScreen) == 0,
+               "a region without one has 0")
+        expect(document.isBelowIfTooWide(.expandedTrailing) && !document.isBelowIfTooWide(.expandedLeading) && !document.isBelowIfTooWide(.expandedBottom)
+            && !document.isBelowIfTooWide(.minimal), "only the regions named go below the camera")
+        expect(document.margins(for: .expanded) == LayoutEdges(top: 8, leading: 8, bottom: 8, trailing: 8)
+            && document.margins(for: .compactLeading) == LayoutEdges(top: 1, leading: 2, bottom: 3, trailing: 4), "margins of one number and of four")
+        expect(document.margins(for: .compactTrailing) == nil && document.margins(for: .minimal) == nil, "a presentation without margins keeps the system's")
+        let secret = try layoutDocument(#"{"type":"vstack","privacy":"sensitive","accessibility":{"label":"Glucose"},"children":["#
+            + #"{"type":"symbol","name":"cross.case","accessibility":{"label":"Reading"}},"#
+            + #"{"type":"button","actionId":"log","child":{"type":"text","bind":"level","accessibility":{"value":{"bind":"level"}}}}]}"#)
+        let held = secret.render(.lockScreen, values: ["level": .number(5.4)])
+        expect(held?.isSensitive == true && held?.accessibility?.isSensitive == true, "a sensitive node, and what is read of it, is private")
+        expect(children(held).map(\.isSensitive) == [false, false] && children(held)[0].accessibility?.isSensitive == true,
+               "a node it holds is not marked again, and what is read of that node is private too")
+        if case let .button(_, label)? = children(held).last?.content {
+            expect(label.accessibility == LayoutRenderAccessibility(value: "5.4", isSensitive: true), "also through a button")
+        } else { expect(false, "the button renders") }
+        expect(secret.render(.compactLeading, values: [:])?.isSensitive == true && secret.render(.minimal, values: [:])?.isSensitive == true,
+               "the default of an absent island part stays as private as the symbol was")
+        let open = try layoutDocument(#"{"type":"vstack","children":[{"type":"symbol","name":"mic","privacy":"sensitive"}]}"#)
+        expect(open.render(.compactLeading, values: [:])?.isSensitive == true
+            && children(open.render(.lockScreen, values: [:]))[0].accessibility == nil, "a symbol's own privacy goes with it")
+        let bare = try layoutDocument(#"{"type":"divider"}"#)
+        expect(bare.render(.compactLeading, values: [:])?.isSensitive == false, "the default symbol of a layout that marks nothing is public")
+        expect(bare.priority(of: .expandedLeading) == 0 && !bare.isBelowIfTooWide(.expandedLeading) && bare.margins(for: .expanded) == nil,
+               "a layout without an island has no options")
     }
 }

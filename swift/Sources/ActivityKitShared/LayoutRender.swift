@@ -11,6 +11,7 @@ public enum LayoutRegion: String, CaseIterable, Sendable {
         case .compactLeading, .compactTrailing, .minimal: return 3
         }
     }
+    /// Whether the region takes buttons and links.
     var allowsButtons: Bool {
         switch self {
         case .compactLeading, .compactTrailing, .minimal: return false
@@ -99,6 +100,7 @@ public struct LayoutRenderStyle: Equatable, Sendable {
     public let opacity: Double?
     public let tint: LayoutColorSpec?
     public let buttonStyle: LayoutButtonStyle?
+    public let contentTransition: LayoutContentTransition?
 
     /// The style of a node without a style token.
     public static let plain = LayoutRenderStyle(nil, values: [:])
@@ -110,11 +112,7 @@ public struct LayoutRenderStyle: Equatable, Sendable {
         monospacedDigit = style?.monospacedDigit ?? false
         color = style?.color?.resolve(values); lineLimit = style?.lineLimit
         minimumScaleFactor = style?.minimumScaleFactor; alignment = style?.alignment
-        switch style?.padding {
-        case .all(let value)?: padding = LayoutEdges(top: value, leading: value, bottom: value, trailing: value)
-        case .edges(let values)? where values.count == 4: padding = LayoutEdges(top: values[0], leading: values[1], bottom: values[2], trailing: values[3])
-        default: padding = nil
-        }
+        padding = style?.padding?.edges
         frame = style?.frame.map {
             LayoutRenderFrame(width: $0.width, height: $0.height, minWidth: $0.minWidth, minHeight: $0.minHeight,
                               maxWidth: $0.maxWidth.map { $0.points ?? .infinity }, maxHeight: $0.maxHeight.map { $0.points ?? .infinity },
@@ -124,8 +122,23 @@ public struct LayoutRenderStyle: Equatable, Sendable {
         cornerRadius = style?.cornerRadius?.resolve(values, within: LayoutRules.corners)
         opacity = style?.opacity?.resolve(values, within: LayoutRules.opacities)
         tint = style?.tint?.resolve(values); buttonStyle = style?.buttonStyle
+        contentTransition = style?.contentTransition
     }
 }
+
+extension LayoutPadding {
+    /// The four edges, or nil for a list that is not four numbers.
+    var edges: LayoutEdges? {
+        switch self {
+        case .all(let value): return LayoutEdges(top: value, leading: value, bottom: value, trailing: value)
+        case .edges(let values) where values.count == 4: return LayoutEdges(top: values[0], leading: values[1], bottom: values[2], trailing: values[3])
+        default: return nil
+        }
+    }
+}
+
+/// A presentation of the Dynamic Island, as its margins name it.
+public enum LayoutIslandPresentation: Sendable, CaseIterable { case expanded, compactLeading, compactTrailing, minimal }
 
 extension LayoutBindable where Value == Double {
     /// The literal, or the bound value when it is a number within `range`.
@@ -157,10 +170,79 @@ extension LayoutBindable where Value == LayoutColor {
     }
 }
 
-/// A node resolved against the values: what to draw and with which style.
+extension LayoutBindable where Value == String {
+    /// The literal, or the bound value when it is text, as far as it is a URL of the contract.
+    func urlText(_ values: [String: LayoutValue]) -> String? {
+        let text: String?
+        switch self {
+        case .literal(let value): text = value
+        case .bound(let key): text = values[key]?.string
+        }
+        return text.flatMap { LayoutRules.isURL($0) ? $0 : nil }
+    }
+    /// The URL to open, or nil when there is none or the system cannot read it as it is. From iOS 17 the system would
+    /// otherwise rewrite what it cannot read, and the app would be opened with another URL than the one sent.
+    func url(_ values: [String: LayoutValue]) -> URL? {
+        guard let text = urlText(values) else { return nil }
+        if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) { return URL(string: text, encodingInvalidCharacters: false) }
+        return URL(string: text)
+    }
+}
+
+/// What a node tells assistive technologies, resolved against the values. `combinesChildren` is true for a node that
+/// is drawn as several views and has a label, a value or a hint (a stack, a custom view, a link drawn without its
+/// URL): it is then one element that stands for what is inside, instead of each view inside taking the label.
+public struct LayoutRenderAccessibility: Equatable, Sendable {
+    public let label: String?, value: String?, hint: String?
+    public let hidden: Bool
+    public let combinesChildren: Bool
+    /// The node, or one that holds it, is marked sensitive: while the system hides private content, what is drawn is
+    /// hidden, and the label, the value and the hint must not be read out either.
+    public let isSensitive: Bool
+    init(label: String? = nil, value: String? = nil, hint: String? = nil, hidden: Bool = false, combinesChildren: Bool = false,
+         isSensitive: Bool = false) {
+        self.label = label; self.value = value; self.hint = hint; self.hidden = hidden; self.combinesChildren = combinesChildren
+        self.isSensitive = isSensitive
+    }
+}
+
+extension LayoutAccessibility {
+    /// Literals as given and bound members as a text node shows the value; a value that is missing or empty leaves its
+    /// member out. Nil when nothing is left to say.
+    func resolve(_ values: [String: LayoutValue], combining: Bool, sensitive: Bool = false) -> LayoutRenderAccessibility? {
+        if hidden == true { return LayoutRenderAccessibility(hidden: true) }
+        func spoken(_ member: LayoutBindable<String>?) -> String? {
+            let text: String?
+            switch member {
+            case .literal(let value)?: text = value
+            case .bound(let key)?: text = values[key]?.text
+            case nil: text = nil
+            }
+            return text.flatMap { $0.isEmpty ? nil : $0 }
+        }
+        let label = spoken(self.label), value = spoken(self.value), hint = spoken(self.hint)
+        guard label != nil || value != nil || hint != nil else { return nil }
+        return LayoutRenderAccessibility(label: label, value: value, hint: hint, combinesChildren: combining, isSensitive: sensitive)
+    }
+}
+
+/// A node resolved against the values: what to draw, with which style, what assistive technologies read of it, and
+/// how it is presented.
 public struct LayoutRenderNode: Equatable, Sendable {
     public let content: LayoutRenderContent
     public let style: LayoutRenderStyle
+    public let accessibility: LayoutRenderAccessibility?
+    /// How the node comes and goes; nil leaves it to the system.
+    public let transition: LayoutTransition?
+    public let isSensitive: Bool
+    /// The node's place among its siblings in the layout, hidden ones counted: its identity, so that a sibling that
+    /// comes or goes is seen as that one coming or going. 0 for a root and for the child of a button or a link.
+    public let slot: Int
+    init(content: LayoutRenderContent, style: LayoutRenderStyle, accessibility: LayoutRenderAccessibility? = nil,
+         transition: LayoutTransition? = nil, isSensitive: Bool = false, slot: Int = 0) {
+        self.content = content; self.style = style; self.accessibility = accessibility
+        self.transition = transition; self.isSensitive = isSensitive; self.slot = slot
+    }
 }
 
 public indirect enum LayoutRenderContent: Equatable, Sendable {
@@ -181,6 +263,8 @@ public indirect enum LayoutRenderContent: Equatable, Sendable {
     case gauge(value: Double, range: ClosedRange<Double>, kind: LayoutMeterKind)
     case timer(interval: ClosedRange<Date>, countsDown: Bool)
     case button(actionId: String, label: LayoutRenderNode)
+    /// Without a URL, one the values do not hold or the system cannot read, the label is drawn without a link.
+    case link(url: URL?, label: LayoutRenderNode)
     /// The props with bound ones read from the values.
     case custom(name: String, props: [String: LayoutValue])
 }
@@ -225,6 +309,19 @@ extension LayoutValue {
     }
 }
 
+extension LayoutRegion {
+    /// The region as the options of the expanded island name it; nil for the others.
+    var expandedName: LayoutExpandedRegionName? {
+        switch self {
+        case .expandedLeading: return .leading
+        case .expandedTrailing: return .trailing
+        case .expandedCenter: return .center
+        case .expandedBottom: return .bottom
+        default: return nil
+        }
+    }
+}
+
 extension LayoutRegions {
     /// The tree the layout declares for a region.
     func node(in region: LayoutRegion) -> LayoutNode? {
@@ -242,12 +339,15 @@ extension LayoutRegions {
 }
 
 extension LayoutNode {
-    /// The first symbol node in document order, whatever its conditions.
-    fileprivate var firstSymbol: LayoutNode? {
+    /// The first symbol node in document order, whatever its conditions. It stays as private as it was: sensitive
+    /// when it, or a node that holds it, is marked so.
+    fileprivate func firstSymbol(sensitive: Bool = false) -> LayoutNode? {
+        let sensitive = sensitive || privacy == .sensitive
         switch content {
-        case .symbol: return LayoutNode(style: style, content: content)
-        case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _): return children.lazy.compactMap(\.firstSymbol).first
-        case let .button(_, child): return child.firstSymbol
+        case .symbol: return LayoutNode(style: style, accessibility: accessibility, privacy: sensitive ? .sensitive : nil, content: content)
+        case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _):
+            return children.lazy.compactMap { $0.firstSymbol(sensitive: sensitive) }.first
+        case let .button(_, child), let .link(_, child): return child.firstSymbol(sensitive: sensitive)
         default: return nil
         }
     }
@@ -263,6 +363,9 @@ extension LayoutDocument {
     /// The tint of the Dynamic Island keyline, a bound one read from `values`.
     public func keyline(values: [String: LayoutValue]) -> LayoutColorSpec? { layout.keyline?.resolve(values) }
 
+    /// The URL a tap on the activity opens the app with, a bound one read from `values`; nil without one.
+    public func url(values: [String: LayoutValue]) -> URL? { layout.url?.url(values) }
+
     /// The tree a region shows: its own, or the default of an absent island part. The expanded island
     /// defaults to the lock screen tree in its bottom region, the compact leading and minimal parts to
     /// the lock screen's first symbol or `circle.fill`, and the compact trailing part to nothing.
@@ -271,7 +374,7 @@ extension LayoutDocument {
         switch region {
         case .expandedBottom: return layout.island?.expanded == nil ? layout.lockScreen : nil
         case .compactLeading, .minimal:
-            return layout.lockScreen.firstSymbol ?? LayoutNode(content: .symbol(name: "circle.fill", rendering: nil, variableBind: nil))
+            return layout.lockScreen.firstSymbol() ?? LayoutNode(content: .symbol(name: "circle.fill", rendering: nil, variableBind: nil))
         default: return nil
         }
     }
@@ -287,19 +390,52 @@ extension LayoutDocument {
         node(for: region).flatMap { render($0, values: values) }
     }
 
+    /// The priority of an expanded region, 0 unless the layout states one.
+    public func priority(of region: LayoutRegion) -> Double {
+        region.expandedName.flatMap { layout.island?.expanded?.priority?[$0] } ?? 0
+    }
+    /// Whether an expanded region goes below the camera when it is too wide to stand beside it.
+    public func isBelowIfTooWide(_ region: LayoutRegion) -> Bool {
+        region.expandedName.map { layout.island?.expanded?.belowIfTooWide?.contains($0) ?? false } ?? false
+    }
+    /// The margins of a presentation of the Dynamic Island, or nil to keep the system's.
+    public func margins(for presentation: LayoutIslandPresentation) -> LayoutEdges? {
+        let margins = layout.island?.margins
+        switch presentation {
+        case .expanded: return margins?.expanded?.edges
+        case .compactLeading: return margins?.compactLeading?.edges
+        case .compactTrailing: return margins?.compactTrailing?.edges
+        case .minimal: return margins?.minimal?.edges
+        }
+    }
+
     /// A node resolved against the values, or nil when its condition hides it or a value it needs is missing.
-    public func render(_ node: LayoutNode, values: [String: LayoutValue]) -> LayoutRenderNode? {
+    public func render(_ node: LayoutNode, values: [String: LayoutValue]) -> LayoutRenderNode? { render(node, values: values, slot: 0, held: false) }
+
+    /// `held` says that a node holding this one is marked sensitive.
+    private func render(_ node: LayoutNode, values: [String: LayoutValue], slot: Int, held: Bool) -> LayoutRenderNode? {
         switch node.condition {
         case .when(let key)?: guard values[key]?.isTruthy == true else { return nil }
         case .unless(let key)?: guard values[key]?.isTruthy != true else { return nil }
         case nil: break
         }
-        guard let content = content(of: node.content, values) else { return nil }
-        return LayoutRenderNode(content: content, style: style(node.style, values: values))
+        let sensitive = held || node.privacy == .sensitive
+        guard let content = content(of: node.content, values, held: sensitive) else { return nil }
+        let combining: Bool
+        switch content {
+        case .vstack, .hstack, .zstack, .custom, .link(url: nil, label: _): combining = true
+        default: combining = false
+        }
+        return LayoutRenderNode(content: content, style: style(node.style, values: values),
+                                accessibility: node.accessibility?.resolve(values, combining: combining, sensitive: sensitive),
+                                transition: node.transition, isSensitive: node.privacy == .sensitive, slot: slot)
     }
 
-    private func content(of content: LayoutContent, _ values: [String: LayoutValue]) -> LayoutRenderContent? {
-        func visible(_ children: [LayoutNode]) -> [LayoutRenderNode] { children.compactMap { render($0, values: values) } }
+    private func content(of content: LayoutContent, _ values: [String: LayoutValue], held: Bool) -> LayoutRenderContent? {
+        func visible(_ children: [LayoutNode]) -> [LayoutRenderNode] {
+            children.enumerated().compactMap { slot, child in render(child, values: values, slot: slot, held: held) }
+        }
+        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, slot: 0, held: held) }
         func unit(_ value: Double) -> Double { min(max(value, 0), 1) }
         switch content {
         case let .vstack(children, spacing, alignment): return .vstack(children: visible(children), spacing: spacing, alignment: alignment ?? .center)
@@ -323,7 +459,8 @@ extension LayoutDocument {
         case let .timerText(start, end, countsDown):
             guard let from = values[start]?.number, let to = values[end]?.number, to > from else { return nil }
             return .timer(interval: Date(timeIntervalSince1970: from / 1000)...Date(timeIntervalSince1970: to / 1000), countsDown: countsDown ?? true)
-        case let .button(actionId, child): return render(child, values: values).map { .button(actionId: actionId, label: $0) }
+        case let .button(actionId, child): return label(child).map { .button(actionId: actionId, label: $0) }
+        case let .link(url, child): return label(child).map { .link(url: url.url(values), label: $0) }
         case let .custom(name, props):
             let resolved = (props ?? [:]).compactMapValues { prop -> LayoutValue? in
                 switch prop {
@@ -341,7 +478,7 @@ extension LayoutDocument {
         func visit(_ node: LayoutNode) {
             switch node.content {
             case let .vstack(children, _, _), let .hstack(children, _, _), let .zstack(children, _): children.forEach(visit)
-            case let .button(_, child): visit(child)
+            case let .button(_, child), let .link(_, child): visit(child)
             case let .custom(name, _): if !names.contains(name) { names.append(name) }
             default: break
             }

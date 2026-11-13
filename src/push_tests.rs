@@ -266,3 +266,32 @@ fn a_payload_that_apns_would_refuse_fails_here() {
     }
     assert_eq!(MAX_PAYLOAD_BYTES, 4096);
 }
+
+// AK-PUSH-10, AK-ACCESS-1, AK-LINK-1
+#[test]
+fn a_start_payload_carries_links_and_accessibility_with_the_layout() {
+    use crate::layout::{Accessibility, link, text};
+    let layout = Layout::new(
+        link(Bound::key("target"), text("Open"))
+            .accessibility(Accessibility::new().label("Open the recording")),
+    )
+    .url("app://rec/1");
+    let start = |target: &str| {
+        Payload::start(
+            "la-ios-layout-push-2",
+            "pushed",
+            layout.clone(),
+            values! { "target" => target },
+        )
+        .alert(Alert::new("Recording", "Tap to look"))
+        .to_value()
+    };
+    let payload = start("app://rec/1/details").unwrap();
+    assert_eq!(
+        payload["aps"]["attributes"]["document"]["layout"],
+        json!({"lockScreen":{"type":"link","url":{"bind":"target"},"child":{"type":"text","value":"Open"},
+            "accessibility":{"label":"Open the recording"}},"url":"app://rec/1"})
+    );
+    // A server learns here, not from a link that does nothing, that its value is no URL.
+    assert_eq!(start("details").unwrap_err().code(), "INVALID_INPUT");
+}

@@ -1,5 +1,40 @@
 # Changelog
 
+A release takes the subjects of its commits from `tools/release.sh`, above what was written by hand under
+"Unreleased".
+
+## Unreleased
+
+Phase 1 of [the iOS surface plan](docs/prd-ios-surface.md). Breaking for Rust callers: a new minor version, as
+before 1.0.
+
+- Accessibility. Every node takes `accessibility(Accessibility::new().label(..).value(..).hint(..))`, each member a
+  text or `Bound::key(..)` to a value of any type, or `Accessibility::new().hidden()` for decoration. The widget
+  gives them to VoiceOver; a stack with one becomes a single element that stands for its children.
+- Links. `link(url, label)` opens the app with a URL when its label is tapped, and `Layout::url(..)` when the
+  activity is tapped elsewhere, on the Lock Screen and in the Dynamic Island. A URL is 1 to 1024 ASCII characters
+  with a scheme, or `Bound::key(..)` to a text value that is one. A link stands where a button may, and buttons and
+  links together are at most 4 per region. The app receives the URL as any URL it is opened with; the crate reports no
+  event.
+- Request contract v2 gains three optional members: `accessibility` on a node, the node `link`, and `layout.url`.
+  A 0.3 reader refuses a request that carries them; the crate and its Swift layer ship together.
+- Breaking: `Node` has the public member `accessibility`, `Layout` and `contract::LayoutRegions` the member `url`, and
+  `Element` the variant `Link`, so a struct literal needs the new member and a match over `Element` an arm for it.
+
+Phase 2 of the plan, without the small region of Apple Watch and CarPlay.
+
+- Motion. `Style::content_transition(..)` says how text and symbols change with an update (`NumericText` rolls the
+  digits), and `Node::transition(..)` how a node with `when` or `unless` comes and goes: the transitions the system
+  runs in a Live Activity. The widget now knows a child by its place in the layout, so the node that comes or goes is
+  the one that animates.
+- `Node::sensitive()` marks what a node shows as private; the system hides it on a locked device when asked to.
+- The Dynamic Island's options: `IslandExpanded::priority(region, 0..=100)`, `IslandExpanded::below_if_too_wide(..)`
+  for the leading and trailing regions, and `Island::margins(IslandMargins::new()..)` for each presentation.
+- Request contract v2 gains the optional members `transition` and `privacy` on a node, `contentTransition` in a
+  style, `priority` and `belowIfTooWide` in the expanded island and `margins` in the island.
+- Breaking: `Node` has the public members `transition` and `privacy`, `Style` the member `content_transition`,
+  `IslandExpanded` the members `priority` and `below_if_too_wide`, and `Island` the member `margins`.
+
 ## 0.3.0
 
 - Pushes. `Start::push(Push::Token)` asks ActivityKit for a push token, which arrives as `Event::PushToken` with the

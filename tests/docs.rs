@@ -71,12 +71,21 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     ] {
         says(&usage, phrase, "docs/usage.md");
     }
+    // What a node tells VoiceOver, and where a tap leads.
+    for phrase in [
+        "Accessibility::new()",
+        "link(",
+        ".url(",
+        "onOpenURL",
+        "percent-encode",
+    ] {
+        says(&usage, phrase, "docs/usage.md");
+    }
     let later = read("docs/not-yet-supported.md");
     for phrase in [
         "Transient",
         "Scheduled start",
         "Alert sounds",
-        "Deep links",
         "Toggles",
         "Apple Watch and CarPlay",
         "Left out",

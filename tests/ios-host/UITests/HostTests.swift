@@ -81,7 +81,14 @@ class HostCase: XCTestCase {
     func showLockScreen(until text: String) {
         let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.01))
         top.press(forDuration: 0.1, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8)))
-        XCTAssertTrue(springboard.staticTexts[text].waitForExistence(timeout: 15), "\(text) shows on the Lock Screen")
+        // A new simulator can take half a minute to draw its first activity.
+        let shown = springboard.staticTexts[text].waitForExistence(timeout: 45)
+        if !shown {
+            // What the Lock Screen holds instead, for the log and the screenshots.
+            try? capture("lock-screen-without-" + text.replacingOccurrences(of: " ", with: "-"))
+            print("the Lock Screen without \(text):\n\(springboard.debugDescription)")
+        }
+        XCTAssertTrue(shown, "\(text) shows on the Lock Screen")
         // The system asks once whether the app may show Live Activities.
         let allow = springboard.buttons.matching(NSPredicate(format: "label IN %@", ["Always Allow", "Allow"])).firstMatch
         if allow.waitForExistence(timeout: 3) { allow.tap() }
@@ -116,6 +123,53 @@ final class HostTests: HostCase {
         app.activate()
         waitFor("PASS lockscreen", timeout: 60)
         try capture("lockscreen-report")
+    }
+
+    // AK-ACCESS-3, AK-LINK-5
+    /// What the widget tells assistive technologies is on the Lock Screen, a touch still reaches a button inside a
+    /// labelled stack, and a tap on a link, or beside it, opens the app with the URL, also one whose scheme is not
+    /// the app's: the system hands every URL to the app that owns the activity.
+    func testLabelsAndLinksOnTheLockScreen() throws {
+        launch("surface")
+        waitFor("shown")
+        goHome()
+        showLockScreen(until: "Surface")
+        func labelled(_ label: String) -> XCUIElement {
+            springboard.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
+        }
+        // The system reads the activity's elements from the widget's process, which can take a while after it drew.
+        let trend = labelled("Trend line").waitForExistence(timeout: 30)
+        if !trend {
+            try? capture("surface-without-labels")
+            print("the Lock Screen without the path's label:\n\(springboard.debugDescription)")
+        }
+        XCTAssertTrue(trend, "a path is read by its label")
+        let level = labelled("Input level")
+        XCTAssertTrue(level.waitForExistence(timeout: 10), "a progress view is read by its label")
+        XCTAssertEqual(level.value as? String, "40 percent", "and by the value its accessibility binds")
+        let row = labelled("Level row")
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "a stack with a label is an element of its own")
+        // The element took the trait of the button it holds: it stands for its children. (The tree a UI test sees
+        // lists what is inside an element too, as it lists the text inside a button.)
+        XCTAssertEqual(row.elementType, .button, "that stands for the button inside it")
+        // A hidden node is not checked: a UI test lists hidden elements too, in an app as in an activity.
+        try capture("surface")
+        // The button stands at the trailing end of the labelled stack: a touch there still reaches it.
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        waitFor("PASS surface", timeout: 60)
+        let taps = [("Open details", "activitykit-host://opened?from=link"), ("Surface", "activitykit-host://opened?from=activity"),
+                    ("Open web", "https://example.com/activitykit")]
+        for (label, url) in taps {
+            goHome()
+            showLockScreen(until: "Surface")
+            let target = labelled(label)
+            XCTAssertTrue(target.waitForExistence(timeout: 10), "\(label) shows on the Lock Screen")
+            target.tap()
+            XCTAssertTrue(app.staticTexts["URL \(url)"].waitForExistence(timeout: 20), "a tap on \(label) opens the app with \(url)")
+        }
+        try capture("surface-report")
     }
 
     // AK-RENDER-16, AK-WIDGET-1
