@@ -168,7 +168,7 @@ An island part that the layout leaves out is drawn with a default:
 
 - `expanded`: the lock screen tree, in the bottom region;
 - `compactLeading` and `minimal`: the first `symbol` node of the lock screen tree in document
-  order, conditions ignored, or the SF Symbol `circle.fill` when the tree has no symbol;
+  order, its conditions (`if`, `unless`, `ifStale`) and those of the nodes that hold it ignored, or the SF Symbol `circle.fill` when the tree has no symbol;
 - `compactTrailing`: nothing.
 
 ## Nodes
@@ -178,6 +178,11 @@ Every node is an object with a `type`. Any node may also carry:
 - `style`: a style token;
 - `if` or `unless`, not both: a value key. With `if` the node and its subtree are drawn only when
   the value is truthy, with `unless` only when it is not;
+- `ifStale`: `true` or `false`. With `true` the node and its subtree are drawn only while the content is stale (its
+  `staleAt` has passed and no newer content has come), with `false` only while it is not. The system says which when
+  it draws the activity, so the change needs no update and no running app; content whose own stale date has not
+  passed is fresh again. Beside `if` or `unless` the node is drawn while both hold. Below iOS 16.2 content is never
+  stale;
 - `accessibility`: what assistive technologies read of the node, see [Accessibility](#accessibility);
 - `transition`: how the node comes and goes when its `if` or `unless` shows or hides it: `opacity`, `slide`,
   `moveTop`, `moveBottom`, `moveLeading`, `moveTrailing`, `pushTop`, `pushBottom`, `pushLeading` or `pushTrailing`.
@@ -547,7 +552,7 @@ validators in Rust and Swift, which check those as well and give the results the
 - Not part of 2.0: `layoutRef`, gradients and borders. Added to contract v2 after it, as optional members:
   `accessibility` on a node, the `link` node and `layout.url`; then `transition` and `privacy` on a node,
   `contentTransition` in a style, and the island's `priority`, `belowIfTooWide` and `margins`; then the `toggle`
-  node. The draft's
+  node; then `ifStale` on a node. The draft's
   `image.source.appGroup` became `{ "file": name }`, with the App Group configured once in the widget
   extension instead of named in every request. Custom fonts came as the style member `fontFamily`, and
   custom views as the `custom` node.

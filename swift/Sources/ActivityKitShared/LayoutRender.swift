@@ -390,9 +390,10 @@ extension LayoutDocument {
         LayoutRenderStyle(token.flatMap { styles?[$0] }, values: values)
     }
 
-    /// What a region draws for these values, or nil when it draws nothing.
-    public func render(_ region: LayoutRegion, values: [String: LayoutValue]) -> LayoutRenderNode? {
-        node(for: region).flatMap { render($0, values: values) }
+    /// What a region draws for these values, or nil when it draws nothing. `isStale` is what the system says of the
+    /// content when it draws the activity (`ActivityViewContext.isStale`): it chooses the nodes with `ifStale`.
+    public func render(_ region: LayoutRegion, values: [String: LayoutValue], isStale: Bool = false) -> LayoutRenderNode? {
+        node(for: region).flatMap { render($0, values: values, isStale: isStale) }
     }
 
     /// The priority of an expanded region, 0 unless the layout states one.
@@ -415,17 +416,20 @@ extension LayoutDocument {
     }
 
     /// A node resolved against the values, or nil when its condition hides it or a value it needs is missing.
-    public func render(_ node: LayoutNode, values: [String: LayoutValue]) -> LayoutRenderNode? { render(node, values: values, slot: 0, held: false) }
+    public func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool = false) -> LayoutRenderNode? {
+        render(node, values: values, isStale: isStale, slot: 0, held: false)
+    }
 
     /// `held` says that a node holding this one is marked sensitive.
-    private func render(_ node: LayoutNode, values: [String: LayoutValue], slot: Int, held: Bool) -> LayoutRenderNode? {
+    private func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool, slot: Int, held: Bool) -> LayoutRenderNode? {
         switch node.condition {
         case .when(let key)?: guard values[key]?.isTruthy == true else { return nil }
         case .unless(let key)?: guard values[key]?.isTruthy != true else { return nil }
         case nil: break
         }
+        if let wanted = node.ifStale, wanted != isStale { return nil }
         let sensitive = held || node.privacy == .sensitive
-        guard let content = content(of: node.content, values, held: sensitive) else { return nil }
+        guard let content = content(of: node.content, values, isStale: isStale, held: sensitive) else { return nil }
         let combining: Bool
         switch content {
         case .vstack, .hstack, .zstack, .custom, .link(url: nil, label: _): combining = true
@@ -436,11 +440,11 @@ extension LayoutDocument {
                                 transition: node.transition, isSensitive: node.privacy == .sensitive, slot: slot)
     }
 
-    private func content(of content: LayoutContent, _ values: [String: LayoutValue], held: Bool) -> LayoutRenderContent? {
+    private func content(of content: LayoutContent, _ values: [String: LayoutValue], isStale: Bool, held: Bool) -> LayoutRenderContent? {
         func visible(_ children: [LayoutNode]) -> [LayoutRenderNode] {
-            children.enumerated().compactMap { slot, child in render(child, values: values, slot: slot, held: held) }
+            children.enumerated().compactMap { slot, child in render(child, values: values, isStale: isStale, slot: slot, held: held) }
         }
-        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, slot: 0, held: held) }
+        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, isStale: isStale, slot: 0, held: held) }
         func unit(_ value: Double) -> Double { min(max(value, 0), 1) }
         switch content {
         case let .vstack(children, spacing, alignment): return .vstack(children: visible(children), spacing: spacing, alignment: alignment ?? .center)

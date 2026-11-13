@@ -103,6 +103,8 @@ pub extern "C" fn ak_host_run(report: Report) {
             "scheduled-start" => scheduled_start(&reporter),
             "start-options" => start_options(&reporter),
             "toggle" => toggle_flag(&reporter),
+            "stale-start" => stale_start(&reporter),
+            "stale-check" => stale_check(&reporter),
             "policies" => policies(&reporter),
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
@@ -838,6 +840,67 @@ fn start_options(reporter: &Reporter) -> Outcome {
             }
         }
     }
+    Ok(())
+}
+
+/// How long the content of the stale scenario stays fresh: long enough for the UI test to find it on the Lock
+/// Screen, which a new simulator can take most of a minute to draw.
+const FRESH_FOR: Duration = Duration::from_secs(90);
+
+// AK-STALE-1
+/// A layout that follows staleness: one line while the content is fresh, another once its stale date has passed, with
+/// no update in between. The activity stays, for the UI test to read on the Lock Screen while the date passes.
+fn stale_start(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let lines = [
+        text("Staleness"),
+        text("Fresh").unless_stale(),
+        text("Out of date").when_stale(),
+    ];
+    let start = Start::new(Layout::new(vstack(lines).spacing(6.0)), values! {})
+        .key("host:stale")
+        .stale_at(SystemTime::now() + FRESH_FOR);
+    let activity = block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    check(
+        activity.state() == State::Active,
+        "content with its stale date ahead starts active",
+    )?;
+    reporter.say("fresh: the Lock Screen shows it");
+    Ok(())
+}
+
+// AK-STALE-1, AK-STATE-1
+/// After the stale date, in a new process: ActivityKit lists the activity as stale, and takes an update without a
+/// stale date, which the UI test then reads as fresh content on the Lock Screen. What ActivityKit says of the state
+/// after that update the scenario reports.
+fn stale_check(reporter: &Reporter) -> Outcome {
+    let kit = ActivityKit::new();
+    let events = kit.events();
+    let activities = block_on(kit.activities()).map_err(|error| format!("activities: {error}"))?;
+    let activity = activities
+        .into_iter()
+        .find(|activity| activity.key() == "host:stale")
+        .ok_or("no activity with the key host:stale")?;
+    check(
+        activity.state() == State::Stale,
+        format!(
+            "after its stale date the list says Stale, not {:?}",
+            activity.state()
+        ),
+    )?;
+    block_on(activity.update(values! {})).map_err(|error| format!("update: {error}"))?;
+    check(
+        activity.stale_at().is_none(),
+        "an update without a stale date clears it",
+    )?;
+    let replied = activity.state();
+    let active = state_of(&events, &activity, Duration::from_secs(15), |state| {
+        state == State::Active
+    });
+    reporter.say(format!(
+        "stale in the list; the update's reply says {replied:?}, and an event of Active came within 15 s: {}",
+        active.is_some()
+    ));
     Ok(())
 }
 

@@ -220,6 +220,32 @@ final class HostTests: HostCase {
         try capture("scheduled-start")
     }
 
+    // AK-STALE-1
+    /// A layout follows staleness: the Lock Screen shows the line for fresh content and then, its stale date passed,
+    /// the line for stale content, with no update and with the app ended. ActivityKit then lists the activity as stale,
+    /// and an update without a stale date brings the first line back.
+    func testStaleContentChangesTheLockScreen() throws {
+        launch("stale-start")
+        waitFor("PASS stale-start")
+        goHome()
+        showLockScreen(until: "Fresh")
+        XCTAssertFalse(springboard.staticTexts["Out of date"].exists, "fresh content draws no node for stale content")
+        try capture("stale-fresh")
+        // The change is the system's and the widget's: the app does not run while the date passes.
+        app.terminate()
+        let turned = springboard.staticTexts["Out of date"].waitForExistence(timeout: 180)
+        try capture("stale-out-of-date")
+        XCTAssertTrue(turned, "once the stale date has passed, the node for stale content shows")
+        XCTAssertTrue(waitUntil(5) { !springboard.staticTexts["Fresh"].exists }, "and the node for fresh content is gone")
+        XCUIDevice.shared.press(.home)
+        launch("stale-check")
+        waitFor("PASS stale-check")
+        try capture("stale-report")
+        goHome()
+        showLockScreen(until: "Fresh")
+        XCTAssertFalse(springboard.staticTexts["Out of date"].exists, "an update makes the content fresh again")
+    }
+
     // AK-START-13, AK-ALERT-1
     /// ActivityKit takes an alert with a named sound and a transient start. The scenario reports what the system did
     /// with that activity after the app left the foreground.

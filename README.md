@@ -89,6 +89,7 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 | Island priorities, placement, margins | `IslandExpanded::priority(..)`, `.below_if_too_wide(..)`, `Island::margins(..)` | 16.2 | [the island's options](docs/usage.md#the-dynamic-islands-options) |
 | Motion | `Style::content_transition(..)`, `node.transition(..)` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Private content | `node.sensitive()` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
+| Stale content | `node.when_stale()`, `node.unless_stale()`, with `Start::stale_at(..)` | 16.2 | [stale content](docs/usage.md#stale-content) |
 | Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17 | [events](docs/usage.md#events) |
 | Toggles | `toggle(action_id, key, label)`, `Event::Action { on, .. }` | 17 | [toggles](docs/usage.md#toggles) |
 | Links | `link(url, label)`, `Layout::url(..)` | 16.2 | [links](docs/usage.md#links) |
@@ -199,6 +200,19 @@ let island = Island::new()
     .expanded(IslandExpanded::new().leading(symbol("mic.fill")).trailing(timer("from", "to"))
         .priority(ExpandedRegion::Trailing, 1.0).below_if_too_wide(ExpandedRegion::Leading))
     .margins(IslandMargins::new().expanded(8.0));
+```
+
+### Stale content
+
+```rust
+use std::time::{Duration, SystemTime};
+
+let layout = Layout::new(vstack([
+    text(Bound::key("score")),
+    text("Live").unless_stale(),                    // while the content is fresh
+    text("Waiting for an update").when_stale(),     // once its stale date has passed, without the app running
+]));
+let start = Start::new(layout, values).stale_at(SystemTime::now() + Duration::from_secs(600));
 ```
 
 ### Images and your own views

@@ -20,6 +20,9 @@ pub struct Node {
     /// Key of a value; the node is rendered only while it is not truthy.
     #[serde(skip_serializing_if = "none")]
     pub unless: Option<String>,
+    /// `true`: the node is rendered only while the content is stale; `false`: only while it is not.
+    #[serde(rename = "ifStale", skip_serializing_if = "none")]
+    pub if_stale: Option<bool>,
     /// What assistive technologies read of the node.
     #[serde(skip_serializing_if = "none")]
     pub accessibility: Option<Accessibility>,
@@ -38,6 +41,7 @@ impl From<Element> for Node {
             style: None,
             r#if: None,
             unless: None,
+            if_stale: None,
             accessibility: None,
             transition: None,
             privacy: None,
@@ -56,6 +60,7 @@ impl<'de> Deserialize<'de> for Node {
             Some(_) => Err(D::Error::custom("expected a string")),
         };
         let (style, r#if, unless) = (key("style")?, key("if")?, key("unless")?);
+        let if_stale = member(&mut members, "ifStale")?;
         let accessibility = member(&mut members, "accessibility")?;
         let transition = member(&mut members, "transition")?;
         let privacy = member(&mut members, "privacy")?;
@@ -66,6 +71,7 @@ impl<'de> Deserialize<'de> for Node {
             style,
             r#if,
             unless,
+            if_stale,
             accessibility,
             transition,
             privacy,
@@ -614,6 +620,21 @@ impl Node {
     /// Draws the node only while the value `key` is not truthy.
     pub fn unless(mut self, key: impl Into<String>) -> Self {
         self.unless = Some(key.into());
+        self
+    }
+
+    /// Draws the node only while the content is stale: its stale date ([`Start::stale_at`](crate::Start::stale_at),
+    /// [`Update::stale_at`](crate::Update::stale_at)) has passed and no update has come since. The system says so
+    /// when it draws the activity, so the node appears without the app running. The wire member is `ifStale`; beside
+    /// [`when`](Self::when) or [`unless`](Self::unless) the node is drawn while both hold.
+    pub fn when_stale(mut self) -> Self {
+        self.if_stale = Some(true);
+        self
+    }
+
+    /// Draws the node only while the content is not stale: see [`when_stale`](Self::when_stale).
+    pub fn unless_stale(mut self) -> Self {
+        self.if_stale = Some(false);
         self
     }
 

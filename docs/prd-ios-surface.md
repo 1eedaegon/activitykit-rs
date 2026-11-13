@@ -3,7 +3,7 @@
 Status: phases 1 and 2 are built and are in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5,
 AK-MOTION-1 and 2, AK-PRIVACY-1, AK-ISLAND-1 and 2), except their simulator scenarios and the small region of
 phase 2. Phase 3 is built (AK-START-13 and 14, AK-ALERT-1, AK-TOGGLE-1), each with a scenario on the simulator. Phase
-4, a layout that follows staleness, is planned. Each requirement moves into the specification with its tests when it
+4, a layout that follows staleness, is built (AK-STALE-1), with a scenario on the simulator. Each requirement moves into the specification with its tests when it
 is built, and leaves [Not yet supported](not-yet-supported.md).
 
 ## Why
@@ -155,8 +155,8 @@ Decisions and findings:
 ### Phase 4: staleness
 
 ActivityKit has a stale state: content with a stale date becomes stale when that date passes, the activity's state
-is `stale`, and the widget is told so when it draws (`isStale`). The crate already sets the date (`stale_at`) and
-reports the state (`State::Stale`); what is missing is a layout that looks different while its content is out of
+is `stale`, and the widget is told so when it draws (`isStale`). The crate already set the date (`stale_at`) and
+reported the state (`State::Stale`); what was missing is a layout that looks different while its content is out of
 date, without the app having to be running to send an update.
 
 | ID | Requirement | Contract | iOS |
@@ -170,8 +170,12 @@ Decisions:
 - **Only a condition.** A dimmed or relabelled variant is two nodes, one for each case; a style that changes with
   staleness can come later if two nodes prove clumsy.
 
-Known limit: on the iOS 26.3 simulator ActivityKit reported no `stale` state for a stale date that had passed (the
-specification says so). Whether the widget is redrawn as stale there is what the scenario of this phase finds out.
+Seen on the simulator (iOS 26.3): a layout with one line for fresh and one for stale content, started with a stale
+date 45 s ahead, showed the first line on the Lock Screen and then, with no update, the second; a new process then
+read the activity as `Stale` from ActivityKit's list, and an update without a stale date brought the first line
+back. With the date 90 s ahead and the app ended before it passed, the Lock Screen changed all the same. Earlier
+tries with a stale date 3 s and 12 s ahead had seen no `stale` state within half a minute, so how soon the system
+reports it is its own matter.
 
 ## Left to the layers above
 

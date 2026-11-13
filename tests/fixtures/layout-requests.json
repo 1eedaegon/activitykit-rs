@@ -1458,6 +1458,18 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } }] }] }] }] }] }] } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
       "weight": 320
+    },
+    {
+      "name": "starts a layout with nodes for stale and for fresh content",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "text", "value": "Live", "ifStale": false }, { "type": "text", "value": "Waiting for an update", "ifStale": true, "transition": "opacity" }, { "type": "divider", "if": "live", "ifStale": false }] }, "island": { "minimal": { "type": "symbol", "name": "clock", "ifStale": true } } }, "snapshot": { "revision": 0, "values": { "live": true } } },
+      "weight": 321
+    },
+    {
+      "name": "accepts a stale condition inside a button and a link",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "hstack", "children": [{ "type": "button", "actionId": "retry", "ifStale": true, "child": { "type": "text", "value": "Retry", "ifStale": true } }, { "type": "link", "url": "app://status", "child": { "type": "text", "value": "Open", "ifStale": false } }] } }, "snapshot": { "revision": 0, "values": {} } },
+      "weight": 257
     }
   ],
   "invalid": [
@@ -7681,6 +7693,36 @@
       "name": "rejects a toggle below seven stacks",
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } }] }] }] }] }] }] }] } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a stale condition that is text",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifStale": "true" } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a stale condition that is a number",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifStale": 1 } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null stale condition",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifStale": null } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a stale condition that is bound",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifStale": { "bind": "flag" } } }, "snapshot": { "revision": 0, "values": { "flag": true } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a stale condition that names a value",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifStale": "flag" } }, "snapshot": { "revision": 0, "values": { "flag": true } } },
       "code": "INVALID_INPUT"
     }
   ],

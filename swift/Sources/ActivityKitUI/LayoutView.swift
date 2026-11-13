@@ -17,9 +17,11 @@ public struct LayoutView: View {
     private let node: LayoutRenderNode?
     private let views: LayoutNodeView.Builders
 
-    public init(document: LayoutDocument, values: [String: LayoutValue], region: LayoutRegion, button: ButtonBuilder? = nil,
-                toggle: ToggleBuilder? = nil, custom: CustomBuilder? = nil) {
-        node = document.render(region, values: values)
+    /// `isStale` is what the system says of the content when it draws the activity: it chooses the nodes that are
+    /// drawn only while the content is stale, or only while it is not.
+    public init(document: LayoutDocument, values: [String: LayoutValue], region: LayoutRegion, isStale: Bool = false,
+                button: ButtonBuilder? = nil, toggle: ToggleBuilder? = nil, custom: CustomBuilder? = nil) {
+        node = document.render(region, values: values, isStale: isStale)
         views = LayoutNodeView.Builders(button: button, toggle: toggle, custom: custom)
     }
 

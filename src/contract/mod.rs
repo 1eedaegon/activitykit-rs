@@ -16,6 +16,8 @@ mod presentation_tests;
 #[cfg(test)]
 mod rule_tests;
 #[cfg(test)]
+mod stale_tests;
+#[cfg(test)]
 mod surface_tests;
 #[cfg(test)]
 mod toggle_tests;

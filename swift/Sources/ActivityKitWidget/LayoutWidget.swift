@@ -97,8 +97,14 @@ private struct LayoutRegionView: View {
     let region: LayoutRegion
 
     var body: some View {
-        LayoutView(document: context.attributes.document, values: context.state.values, region: region, button: button, toggle: toggle,
-                   custom: custom)
+        LayoutView(document: context.attributes.document, values: context.state.values, region: region, isStale: isStale,
+                   button: button, toggle: toggle, custom: custom)
+    }
+
+    /// Whether the content's stale date has passed, which the system knows from iOS 16.2.
+    private var isStale: Bool {
+        if #available(iOS 16.2, *) { return context.isStale }
+        return false
     }
 
     /// Buttons run `ActivityKitActionIntent` in the app process.

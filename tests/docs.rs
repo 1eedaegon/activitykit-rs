@@ -92,6 +92,14 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     ] {
         says(&usage, phrase, "docs/usage.md");
     }
+    // A layout that follows the staleness the system reports.
+    for phrase in ["when_stale()", "unless_stale()", "without the app running"] {
+        says(&usage, phrase, "docs/usage.md");
+    }
+    let contract = read("docs/request-contract.md");
+    for phrase in ["`ifStale`", "while both hold"] {
+        says(&contract, phrase, "docs/request-contract.md");
+    }
     let later = read("docs/not-yet-supported.md");
     for phrase in ["Apple Watch and CarPlay", "Left out"] {
         says(&later, phrase, "docs/not-yet-supported.md");

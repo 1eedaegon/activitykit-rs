@@ -68,8 +68,8 @@ let layout = Layout::new(vstack([
 | `toggle(action_id, key, label)` | a switch that shows the flag `key`; iOS 17 and later | |
 | `custom(name)` | a SwiftUI view the app registers | `prop(key, value)` |
 
-Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)`,
-`accessibility(..)`, `transition(..)` and `sensitive()`. A modifier that does not belong to a node leaves it as it is. Each builder returns a `Node`; the enum `Element` behind it is public
+Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)`, `when_stale()`,
+`unless_stale()`, `accessibility(..)`, `transition(..)` and `sensitive()`. A modifier that does not belong to a node leaves it as it is. Each builder returns a `Node`; the enum `Element` behind it is public
 for anything the builders leave out.
 
 Without an `Island`, the expanded island shows the Lock Screen tree, the compact leading and minimal parts the tree's
@@ -130,6 +130,30 @@ with `when` or `unless` comes and goes: `Opacity`, `Slide`, or `Move…` and `Pu
 animations the system runs in a Live Activity, for at most two seconds; it ignores any other. `Node::sensitive()`
 marks what a node and its subtree show as private: the system hides it on a locked device and in the always-on
 display when the person has asked for that.
+
+### Stale content
+
+```rust
+use activitykit::{Bound, Layout, Start};
+use activitykit::layout::{text, vstack};
+use std::time::{Duration, SystemTime};
+
+let layout = Layout::new(vstack([
+    text(Bound::key("score")),
+    text("Live").unless_stale(),
+    text("Waiting for an update").when_stale(),
+]));
+// Ten minutes without an update, and the second line changes by itself.
+let start = Start::new(layout, values).stale_at(SystemTime::now() + Duration::from_secs(600));
+```
+
+Content with a stale date (`stale_at` of a start, an update or an end) becomes stale when that date passes and no
+newer content has come. The system then draws the activity again, and a layout says what it shows in either case:
+`when_stale()` draws a node only while the content is stale, `unless_stale()` only while it is not. This happens in
+the widget, without the app running, so it also covers the app that was ended and the push that never arrived.
+An update whose own stale date has not passed makes the content fresh again. Beside `when(key)` or `unless(key)` a
+node is drawn while both conditions hold. `State::Stale` and `Event::State` tell the app the same thing while it
+runs.
 
 ### The Dynamic Island's options
 

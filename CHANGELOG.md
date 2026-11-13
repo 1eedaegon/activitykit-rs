@@ -24,6 +24,14 @@ The toggle of phase 3.
   third parameter for it.
 - Breaking: `Element` has the variant `Toggle`.
 
+A layout that follows staleness, phase 4 of the plan.
+
+- `Node::when_stale()` draws a node only while the content is stale, `Node::unless_stale()` only while it is not:
+  the system says which when it draws the activity, so a layout changes after its stale date without an update and
+  without the app running.
+- Request contract v2 gains the node member `ifStale`; `LayoutView` and `LayoutDocument.render` take `isStale`.
+- Breaking: `Node` has the public member `if_stale`.
+
 Names.
 
 - Breaking for a host that observes taps itself: the notification a tap is posted with
