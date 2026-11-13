@@ -5,6 +5,14 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.5.0 - 2026-11-13
+
+- feat: scheduled and transient starts, and the sound of an alert (`fbc5c6b`)
+- feat: a toggle node, and a pending activity that takes no update (`098cc94`)
+- refactor: name the identifiers after io.github.1eedaegon.activitykit (`4d92b07`)
+- feat: nodes that are drawn only while the content is stale, or fresh (`2706371`)
+- docs: what the simulator said of the state after a stale activity's update (`319a75a`)
+
 The start options and the alert sound of phase 3 of [the iOS surface plan](docs/prd-ios-surface.md).
 
 - `Start::scheduled(at, alert)` starts an activity at a later time (iOS 26), with the alert the system shows then.
