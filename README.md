@@ -8,7 +8,7 @@ Dynamic Island. The crate is called `activitykit`.
 
 ```toml
 [dependencies]
-activitykit = "0.5"
+activitykit = "0.6"
 ```
 
 Building for an iOS target compiles the Swift bridge into your Rust library, so it needs Xcode. On other targets the

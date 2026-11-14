@@ -5,6 +5,13 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.6.0 - 2026-11-14
+
+- test: the schema names the members the valid fixtures carry (`be32e33`)
+- chore: the plan's rollout names the releases that carried each phase (`828ac87`)
+- feat: a small region for Apple Watch and CarPlay (`1b85938`)
+- test: the preview takes its layout from the environment (`69f3919`)
+
 The small family of Apple Watch and CarPlay, phase 5 of [the iOS surface plan](docs/prd-ios-surface.md).
 
 - `Layout::small(node)` is what an activity shows in the Smart Stack of a paired Apple Watch (iOS 18) and in CarPlay
