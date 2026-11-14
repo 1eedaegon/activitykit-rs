@@ -5,6 +5,10 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.6.2 - 2026-11-14
+
+- docs: the reply to an update of a stale activity differs between simulators (`4921190`)
+
 ## 0.6.1 - 2026-11-14
 
 - docs: the Simulator's CarPlay display shows no Live Activity (`996db33`)
