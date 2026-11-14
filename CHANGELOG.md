@@ -5,6 +5,10 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.6.1 - 2026-11-14
+
+- docs: the Simulator's CarPlay display shows no Live Activity (`996db33`)
+
 ## 0.6.0 - 2026-11-14
 
 - test: the schema names the members the valid fixtures carry (`be32e33`)
