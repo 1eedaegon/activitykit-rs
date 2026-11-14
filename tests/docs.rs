@@ -100,8 +100,12 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     for phrase in ["`ifStale`", "while both hold"] {
         says(&contract, phrase, "docs/request-contract.md");
     }
+    // The small family, and that the extension opts in.
+    for phrase in [".small(", "ActivityKitSmallFamily", "`layout.small`"] {
+        says(&usage, phrase, "docs/usage.md");
+    }
     let later = read("docs/not-yet-supported.md");
-    for phrase in ["Apple Watch and CarPlay", "Left out"] {
+    for phrase in ["push-to-start", "Left out"] {
         says(&later, phrase, "docs/not-yet-supported.md");
     }
 }

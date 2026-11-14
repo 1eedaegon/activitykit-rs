@@ -220,6 +220,48 @@ final class HostTests: HostCase {
         try capture("scheduled-start")
     }
 
+    // AK-SMALL-1, AK-SMALL-2
+    /// A layout with a small region starts with nothing degraded, since the host's widget draws the small family. What
+    /// the widget draws for a family is seen in the preview app, where an app can set the family: the small region,
+    /// the compact parts of a layout without one, and the Lock Screen tree for the medium family.
+    func testSmallFamily() throws {
+        // Below iOS 18 the family does not exist, and the scenario's layout would be degraded.
+        guard #available(iOS 18.0, *) else { throw XCTSkip("the small family needs iOS 18") }
+        launch("small-region")
+        waitFor("PASS small-region")
+        try capture("small-report")
+
+        let preview = XCUIApplication(bundleIdentifier: "io.github.1eedaegon.activitykit.host.preview")
+        func draw(_ layout: String, family: String) {
+            preview.terminate()
+            preview.launchArguments = ["-layout", layout, "-family", family]
+            preview.launch()
+            XCTAssertTrue(preview.staticTexts["family \(family)"].waitForExistence(timeout: 30), "the preview draws for the \(family) family")
+        }
+        func shows(_ text: String) -> Bool { preview.staticTexts[text].exists }
+        let island = #""island":{"compactLeading":{"type":"text","value":"Lead"},"compactTrailing":{"type":"text","value":"Trail"}}"#
+        let small = #""small":{"type":"hstack","children":[{"type":"symbol","name":"mic.fill"},{"type":"text","bind":"status"}]}"#
+        func layout(_ regions: String) -> String {
+            #"{"activityKey":"preview:1","schemaVersion":2,"fallback":"none","layout":{"lockScreen":{"type":"text","value":"On the Lock Screen"},"#
+                + regions + #"},"snapshot":{"revision":0,"values":{"status":"On the wrist"}}}"#
+        }
+
+        draw(layout(small + "," + island), family: "small")
+        XCTAssertTrue(shows("On the wrist"), "the small family draws the small region")
+        XCTAssertFalse(shows("On the Lock Screen") || shows("Lead") || shows("Trail"), "and nothing of the other regions")
+        try capture("small-family")
+
+        draw(layout(small + "," + island), family: "medium")
+        XCTAssertTrue(shows("On the Lock Screen"), "the medium family draws the Lock Screen tree")
+        XCTAssertFalse(shows("On the wrist") || shows("Lead"), "and not the small region")
+
+        draw(layout(island), family: "small")
+        XCTAssertTrue(shows("Lead") && shows("Trail"), "a layout without a small region draws its compact parts for the small family")
+        XCTAssertFalse(shows("On the Lock Screen"), "and not the Lock Screen tree")
+        try capture("small-family-compact")
+        preview.terminate()
+    }
+
     // AK-STALE-1
     /// A layout follows staleness: the Lock Screen shows the line for fresh content and then, its stale date passed,
     /// the line for stale content, with no update and with the app ended. ActivityKit then lists the activity as stale,

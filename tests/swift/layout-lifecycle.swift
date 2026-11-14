@@ -290,7 +290,7 @@ extension LifecycleTests {
                "the same weight without escapes fits the encoded limit")
     }
 
-    // AK-START-9, AK-WIDGET-2
+    // AK-START-9, AK-WIDGET-2, AK-SMALL-2
     @MainActor private static func testLayoutWidgetPreflight() throws {
         let plugIns = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("PlugIns")
         defer { try? FileManager.default.removeItem(at: plugIns.deletingLastPathComponent()) }
@@ -318,5 +318,18 @@ extension LifecycleTests {
         try embed("Layout.appex", ["ActivityKitLayout": 2])
         try LayoutWidgetPreflight.check(plugIns: plugIns)
         expect(LayoutWidgetPreflight.infoKey == "ActivityKitLayout" && LayoutWidgetPreflight.version == 2, "an embedded layout widget passes the preflight")
+
+        // The small family: only a layout widget says that it draws it, with a true flag.
+        expect(LayoutSmallFamily.infoKey == "ActivityKitSmallFamily", "the key of the small family")
+        expect(!LayoutWidgetPreflight.drawsSmallFamily(plugIns: nil) && !LayoutWidgetPreflight.drawsSmallFamily(plugIns: plugIns),
+               "a layout widget without the key does not draw the small family")
+        try embed("Old.appex", ["ActivityKitSmallFamily": true])
+        expect(!LayoutWidgetPreflight.drawsSmallFamily(plugIns: plugIns), "the key of an extension that is no layout widget does not count")
+        for flag: Any in ["YES", "true", false, 0, 1] {
+            try embed("Layout.appex", ["ActivityKitLayout": 2, "ActivityKitSmallFamily": flag])
+            expect(!LayoutWidgetPreflight.drawsSmallFamily(plugIns: plugIns), "only the Boolean true opts in: \(flag)")
+        }
+        try embed("Layout.appex", ["ActivityKitLayout": 2, "ActivityKitSmallFamily": true])
+        expect(LayoutWidgetPreflight.drawsSmallFamily(plugIns: plugIns), "a layout widget with the flag draws the small family")
     }
 }

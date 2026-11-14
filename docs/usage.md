@@ -155,6 +155,27 @@ An update whose own stale date has not passed makes the content fresh again. Bes
 node is drawn while both conditions hold. `State::Stale` and `Event::State` tell the app the same thing while it
 runs.
 
+### Apple Watch and CarPlay
+
+```rust
+use activitykit::{Bound, Layout};
+use activitykit::layout::{hstack, symbol, text, vstack};
+
+let layout = Layout::new(vstack([text("Recording"), text(Bound::key("status"))]))
+    // What the Smart Stack of a paired Apple Watch and CarPlay show: a glance, without buttons.
+    .small(hstack([symbol("mic.fill"), text(Bound::key("status"))]));
+```
+
+A paired Apple Watch (iOS 18 with watchOS 11) and CarPlay (iOS 26) show an iPhone's Live Activity by themselves, with
+the compact leading and trailing parts of the Dynamic Island. `Layout::small` gives them a view of their own: a tree
+of at most 12 nodes, without buttons, links or toggles, on the layout's background tint, and a tap opens the layout's
+URL. The widget draws it only when its extension opts in, with `ActivityKitSmallFamily` set to true in its Info.plist
+([iOS setup](ios-setup.md#the-widget-extension)); a widget states the families it draws once, for every activity, so
+this is the extension's choice and not a layout's. With the key, a layout without a small region shows its compact
+parts side by side there, in a row of the widget's own and without the island's margins. Without the key the system
+shows the compact parts itself, and `degraded_features()` of an activity whose layout has the region holds
+`layout.small`.
+
 ### The Dynamic Island's options
 
 ```rust

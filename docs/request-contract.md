@@ -158,7 +158,8 @@ The Swift layer checks this, because it holds the started activity.
   },
   "background": Color | Binding,   // optional; tint of the activity background
   "keyline": Color | Binding,      // optional; tint of the Dynamic Island keyline
-  "url": Url | Binding             // optional; what a tap on the activity opens the app with
+  "url": Url | Binding,            // optional; what a tap on the activity opens the app with
+  "small": Node                    // optional; for the small family, on Apple Watch and in CarPlay
 }
 ```
 
@@ -170,6 +171,15 @@ An island part that the layout leaves out is drawn with a default:
 - `compactLeading` and `minimal`: the first `symbol` node of the lock screen tree in document
   order, its conditions (`if`, `unless`, `ifStale`) and those of the nodes that hold it ignored, or the SF Symbol `circle.fill` when the tree has no symbol;
 - `compactTrailing`: nothing.
+
+`small` is what the activity shows where the system asks the widget for the small activity family: the Smart Stack of
+Apple Watch (iOS 18) and CarPlay (iOS 26). It has no default of its own, and is drawn on `background` and opens `url`
+as the Lock Screen tree does. The layout widget draws the family only when its extension's Info.plist sets
+`ActivityKitSmallFamily` to the Boolean true, since a widget states its families once, for every activity: then a
+layout's `small` is drawn there, and a layout without it shows its `compactLeading` and `compactTrailing` parts (or
+their defaults) in a row, without the island's `margins`. Without the key the widget states no family of its own,
+the system shows the compact parts itself, and the record of a layout with `small` lists `layout.small` in
+`degradedFeatures`, as it does below iOS 18.
 
 ## Nodes
 
@@ -242,7 +252,7 @@ feed as whitespace, and both accept path data without a command.
 - Depth: at most 8. The root node of a region has depth 1, and a node in `children` or the
   `child` of a button, a link or a toggle is one level deeper than its parent.
 - Nodes per region, containers included: `lockScreen` 40, each expanded region 12,
-  `compactLeading` 3, `compactTrailing` 3, `minimal` 3.
+  `compactLeading` 3, `compactTrailing` 3, `minimal` 3, `small` 12.
 - Buttons, links and toggles: only in `lockScreen` and the expanded regions, never inside one
   another at any depth, and at most 4 per region, the three kinds together.
 
@@ -555,7 +565,7 @@ validators in Rust and Swift, which check those as well and give the results the
 - Not part of 2.0: `layoutRef`, gradients and borders. Added to contract v2 after it, as optional members:
   `accessibility` on a node, the `link` node and `layout.url`; then `transition` and `privacy` on a node,
   `contentTransition` in a style, and the island's `priority`, `belowIfTooWide` and `margins`; then the `toggle`
-  node; then `ifStale` on a node. The draft's
+  node; then `ifStale` on a node; then the region `small`. The draft's
   `image.source.appGroup` became `{ "file": name }`, with the App Group configured once in the widget
   extension instead of named in every request. Custom fonts came as the style member `fontFamily`, and
   custom views as the `custom` node.

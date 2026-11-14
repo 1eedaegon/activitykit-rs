@@ -16,6 +16,12 @@ final class LayoutActivityKitBackend: LayoutActivityBackend {
     private let system = ActivityKitAdapter<LiveActivityLayoutAttributes>(schemaVersion: 2)
     /// The names that the app's `ActivityKitCustomViews` class registers, read once.
     private let customViews = CustomViewCatalog.names()
+    /// The system asks a widget for the small family from iOS 18, and the layout widget answers when its extension
+    /// opts in.
+    private let drawsSmall: Bool = {
+        guard #available(iOS 18.0, *) else { return false }
+        return LayoutWidgetPreflight.drawsSmallFamily(plugIns: Bundle.main.builtInPlugInsURL)
+    }()
     private let presentations: Presentations
     private let observer: ActivityObserver
 
@@ -62,7 +68,7 @@ final class LayoutActivityKitBackend: LayoutActivityBackend {
     private func describe(_ activity: Activity<LiveActivityLayoutAttributes>, relevance: Double? = nil) -> LayoutActivity {
         LayoutActivity(id: activity.attributes.instanceID, attributes: activity.attributes, snapshot: system.state(of: activity),
                        state: system.lifecycle(of: activity),
-                       degradedFeatures: activity.attributes.document.unknownCustomViews(registered: customViews),
+                       degradedFeatures: activity.attributes.document.degradedFeatures(registered: customViews, drawsSmall: drawsSmall),
                        relevance: relevance ?? system.relevance(of: activity))
     }
 }

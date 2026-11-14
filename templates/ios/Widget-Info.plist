@@ -28,6 +28,11 @@
   <!-- The app checks for an extension with this key before it starts an activity. -->
   <key>ActivityKitLayout</key>
   <integer>2</integer>
+  <!-- To draw the small family, in the Smart Stack of Apple Watch (iOS 18) and in CarPlay (iOS 26): a layout's small
+       region, or the compact parts of a layout without one. Without it the system draws the compact parts there.
+  <key>ActivityKitSmallFamily</key>
+  <true/>
+  -->
   <!-- Only for images the app draws (image nodes with a file source): an App Group of both targets.
   <key>ActivityKitAppGroup</key>
   <string>group.com.example.app</string>

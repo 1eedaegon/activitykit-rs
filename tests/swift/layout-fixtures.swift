@@ -76,7 +76,7 @@ extension LifecycleTests {
 
     // AK-CONTRACT-2, AK-CONTRACT-4, AK-CONTRACT-5, AK-CONTRACT-6, AK-CONTRACT-12, AK-END-6, AK-PUSH-3,
     // AK-ACCESS-2, AK-LINK-2, AK-LINK-3, AK-LINK-4, AK-MOTION-1, AK-MOTION-2, AK-PRIVACY-1, AK-ISLAND-1, AK-ISLAND-2, AK-TOGGLE-1,
-    // AK-STALE-1
+    // AK-STALE-1, AK-SMALL-1
     @MainActor static func testLayoutFixtures() throws {
         guard CommandLine.arguments.count > 1 else { fatalError("Pass the path of tests/fixtures/layout-requests.json") }
         let file = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))

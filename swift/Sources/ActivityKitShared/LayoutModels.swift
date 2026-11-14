@@ -548,15 +548,18 @@ public struct LayoutRegions: Codable, Sendable, LayoutObject {
     public let background: LayoutBindable<LayoutColor>?, keyline: LayoutBindable<LayoutColor>?
     /// A URL, or bound to a text value that is one.
     public let url: LayoutBindable<String>?
+    /// The tree for the small activity family, on Apple Watch and in CarPlay.
+    public let small: LayoutNode?
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
         lockScreen = try object.need("lockScreen"); island = try object.take("island")
         background = try object.take("background"); keyline = try object.take("keyline"); url = try object.take("url")
+        small = try object.take("small")
         try object.finish()
     }
     public func encode(to encoder: Encoder) throws { try encodeMembers(to: encoder) }
     var members: LayoutMembers {
-        [("lockScreen", lockScreen), ("island", island), ("background", background), ("keyline", keyline), ("url", url)]
+        [("lockScreen", lockScreen), ("island", island), ("background", background), ("keyline", keyline), ("url", url), ("small", small)]
     }
 }
 
