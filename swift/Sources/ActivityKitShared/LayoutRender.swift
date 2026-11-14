@@ -3,18 +3,20 @@ import Foundation
 /// The places a layout activity is drawn in.
 public enum LayoutRegion: String, CaseIterable, Sendable {
     case lockScreen, expandedLeading, expandedTrailing, expandedCenter, expandedBottom, compactLeading, compactTrailing, minimal
+    /// For the small activity family, on Apple Watch and in CarPlay.
+    case small
 
     var mostNodes: Int {
         switch self {
         case .lockScreen: return 40
-        case .expandedLeading, .expandedTrailing, .expandedCenter, .expandedBottom: return 12
+        case .expandedLeading, .expandedTrailing, .expandedCenter, .expandedBottom, .small: return 12
         case .compactLeading, .compactTrailing, .minimal: return 3
         }
     }
     /// Whether the region takes buttons, links and toggles.
     var allowsButtons: Bool {
         switch self {
-        case .compactLeading, .compactTrailing, .minimal: return false
+        case .compactLeading, .compactTrailing, .minimal, .small: return false
         default: return true
         }
     }
@@ -339,6 +341,7 @@ extension LayoutRegions {
         case .compactLeading: return island?.compactLeading
         case .compactTrailing: return island?.compactTrailing
         case .minimal: return island?.minimal
+        case .small: return small
         }
     }
 }
@@ -373,7 +376,8 @@ extension LayoutDocument {
 
     /// The tree a region shows: its own, or the default of an absent island part. The expanded island
     /// defaults to the lock screen tree in its bottom region, the compact leading and minimal parts to
-    /// the lock screen's first symbol or `circle.fill`, and the compact trailing part to nothing.
+    /// the lock screen's first symbol or `circle.fill`, and the compact trailing part to nothing. The small
+    /// region has no default: `smallFamilyRegions` says what stands in for it.
     public func node(for region: LayoutRegion) -> LayoutNode? {
         if let node = layout.node(in: region) { return node }
         switch region {

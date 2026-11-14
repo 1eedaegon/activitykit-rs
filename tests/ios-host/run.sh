@@ -46,11 +46,16 @@ built() {
   [ -n "${BUILD_KEY:-}" ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$BUILD_KEY" ] || return 1
   for file in ActivityKitHost.app/ActivityKitHost \
     ActivityKitHost.app/PlugIns/ActivityKitHostWidget.appex/ActivityKitHostWidget \
+    ActivityKitHostPreview.app/ActivityKitHostPreview \
     ActivityKitHostUITests-Runner.app/PlugIns/ActivityKitHostUITests.xctest/ActivityKitHostUITests; do
     [ -f "$products/Debug-iphonesimulator/$file" ] || return 1
   done
   [ -n "$(xctestrun)" ]
 }
+
+# The widget's Info.plist is the template's, with the small family on, which the template leaves to the app.
+cp "$here/../../templates/ios/Widget-Info.plist" "$here/Widget-Info.plist"
+plutil -replace ActivityKitSmallFamily -bool YES "$here/Widget-Info.plist"
 
 if built; then
   echo "the products in $products were built for $BUILD_KEY: no build"

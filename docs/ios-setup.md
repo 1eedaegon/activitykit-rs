@@ -128,6 +128,13 @@ the integer `2`: before a start, the app checks that an embedded extension carri
 widget of your own can sit in the same bundle; `LayoutView` and the layout types come with `import ActivityKitWidget`
 for one that draws the layout itself.
 
+`ActivityKitSmallFamily` set to the Boolean true (`<true/>`) in the same Info.plist makes the widget draw the small
+activity family, which the system shows in the Smart Stack of a paired Apple Watch (iOS 18 with watchOS 11) and in
+CarPlay (iOS 26): a layout's `small` region, or the compact parts of a layout without one. Text does not count, so
+set the key in the file and not through a build setting, which expands to text. Without the key the widget states no
+family beside its own, and the system draws the compact parts there itself. The template has the key in a comment. To see what a layout draws for the family without a watch, an app can draw
+`LayoutContentView(document:values:)` with `.environment(\.activityFamily, .small)`.
+
 ## Drawn images
 
 `ActivityKit::write_image` needs an App Group that both targets have in `com.apple.security.application-groups`, named

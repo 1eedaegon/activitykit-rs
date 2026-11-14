@@ -26,6 +26,7 @@ extension LifecycleTests {
         try testRenderPresentation()
         try testRenderToggles()
         try testRenderStaleness()
+        try testRenderSmall()
     }
 
     // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
@@ -278,7 +279,8 @@ extension LifecycleTests {
             && expanded.render(.compactTrailing, values: values)?.content == .text("0.5"), "an expanded island shows only its own regions")
         let full = try layoutRequest(sessionLayout).document
         let sessionValues = try layoutRequest(sessionLayout).snapshot.values
-        for region in LayoutRegion.allCases { expect(full.render(region, values: sessionValues) != nil, "session layout renders \(region)") }
+        for region in LayoutRegion.allCases where region != .small { expect(full.render(region, values: sessionValues) != nil, "session layout renders \(region)") }
+        expect(full.render(.small, values: sessionValues) == nil, "the session layout has no small region, which has no default")
         expect(children(full.render(.lockScreen, values: sessionValues)).count == 3, "the session note is hidden and the pause button shown")
     }
 
@@ -467,5 +469,27 @@ extension LifecycleTests {
         }
         let node = try layoutDocument(#"{"type":"divider","ifStale":true}"#).layout.lockScreen
         expect(document.render(node, values: [:]) == nil && document.render(node, values: [:], isStale: true)?.content == .divider, "one node renders the same way")
+    }
+
+    // AK-SMALL-1, AK-SMALL-2
+    @MainActor private static func testRenderSmall() throws {
+        let document = try layoutDocument(#"{"type":"text","value":"Lock"}"#,
+            layout: #","small":{"type":"hstack","children":[{"type":"symbol","name":"mic.fill"},{"type":"text","bind":"status"},{"type":"custom","name":"dial"},"#
+                + #"{"type":"text","value":"Late","ifStale":true}]},"island":{"compactLeading":{"type":"symbol","name":"mic"}}"#)
+        let small = document.render(.small, values: ["status": .string("Live")])
+        expect(texts(small) == ["Live"] && children(small).count == 3, "the small region draws its own tree, with the values of the render")
+        expect(texts(document.render(.small, values: ["status": .string("Live")], isStale: true)) == ["Live", "Late"], "and follows staleness as any region")
+        expect(LayoutRegion.allCases.contains(.small) && document.smallFamilyRegions == [.small], "a layout with the region shows it for the small family")
+        expect(document.customViewNames == ["dial"], "the custom views of the small region are known")
+
+        let plain = try layoutDocument(#"{"type":"hstack","children":[{"type":"symbol","name":"mic.fill"},{"type":"text","value":"Lock"}]}"#)
+        expect(plain.render(.small, values: [:]) == nil && plain.node(for: .small) == nil, "a layout without the region has no tree of its own for the family")
+        expect(plain.smallFamilyRegions == [.compactLeading, .compactTrailing], "it shows its compact parts there, as the system does without the family")
+
+        expect(document.degradedFeatures(registered: ["dial"], drawsSmall: true).isEmpty, "a small region the widget draws is no degraded feature")
+        expect(document.degradedFeatures(registered: ["dial"], drawsSmall: false) == ["layout.small"], "one the widget does not draw is reported")
+        expect(document.degradedFeatures(registered: nil, drawsSmall: false) == ["layout.custom.dial", "layout.small"], "after the custom views without a view")
+        expect(plain.degradedFeatures(registered: nil, drawsSmall: false).isEmpty && plain.degradedFeatures(registered: nil, drawsSmall: true).isEmpty,
+               "a layout without the region reports nothing of it")
     }
 }

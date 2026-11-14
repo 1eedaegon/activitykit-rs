@@ -103,6 +103,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "scheduled-start" => scheduled_start(&reporter),
             "start-options" => start_options(&reporter),
             "toggle" => toggle_flag(&reporter),
+            "small-region" => small_region(&reporter),
             "stale-start" => stale_start(&reporter),
             "stale-check" => stale_check(&reporter),
             "policies" => policies(&reporter),
@@ -840,6 +841,25 @@ fn start_options(reporter: &Reporter) -> Outcome {
             }
         }
     }
+    Ok(())
+}
+
+// AK-SMALL-1, AK-SMALL-2
+/// A layout with a small region starts, and nothing of it is degraded: the host's widget extension sets
+/// `ActivityKitSmallFamily`, so the widget draws the family. The activity stays, for a look at a screen that shows it.
+fn small_region(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let status = || text(Bound::key("status"));
+    let layout = Layout::new(vstack([text("Small family"), status()]).spacing(6.0))
+        .small(hstack([symbol("mic.fill"), status()]).spacing(4.0));
+    let start = Start::new(layout, values! { "status" => "On the wrist" }).key("host:small");
+    let activity = block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    let degraded = activity.degraded_features();
+    check(
+        degraded.is_empty(),
+        format!("the widget draws the small family, yet {degraded:?} is degraded"),
+    )?;
+    reporter.say("started with a small region, nothing degraded");
     Ok(())
 }
 

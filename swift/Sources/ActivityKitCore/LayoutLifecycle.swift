@@ -84,6 +84,9 @@ public enum LayoutWidgetPreflight {
 
     private static func isLayoutWidget(_ bundle: URL) -> Bool { info(bundle)?[infoKey] as? Int == version }
 
+    /// Whether an embedded layout widget draws the small family: its Info.plist sets `ActivityKitSmallFamily` to true.
+    public static func drawsSmallFamily(plugIns: URL?) -> Bool { layoutWidgets(plugIns: plugIns).contains(where: LayoutSmallFamily.isOn) }
+
     private static func info(_ bundle: URL) -> [String: Any]? {
         guard bundle.pathExtension == "appex", let data = try? Data(contentsOf: bundle.appendingPathComponent("Info.plist")) else { return nil }
         return try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]

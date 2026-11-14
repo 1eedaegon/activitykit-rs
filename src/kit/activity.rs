@@ -114,7 +114,8 @@ impl Activity {
         self.shared.known().revision
     }
 
-    /// What the widget leaves out, such as `layout.custom.<name>` for a custom view the app does not register.
+    /// What the widget leaves out: `layout.custom.<name>` for a custom view the app does not register, and
+    /// `layout.small` for a small region when the widget does not draw the small family.
     pub fn degraded_features(&self) -> Vec<String> {
         self.shared.known().degraded.clone()
     }

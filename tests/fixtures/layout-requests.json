@@ -1470,6 +1470,24 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "hstack", "children": [{ "type": "button", "actionId": "retry", "ifStale": true, "child": { "type": "text", "value": "Retry", "ifStale": true } }, { "type": "link", "url": "app://status", "child": { "type": "text", "value": "Open", "ifStale": false } }] } }, "snapshot": { "revision": 0, "values": {} } },
       "weight": 257
+    },
+    {
+      "name": "starts a layout with a small region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "hstack", "children": [{ "type": "symbol", "name": "mic.fill" }, { "type": "text", "bind": "status", "style": "s" }] } }, "styles": { "s": { "size": 12 } }, "snapshot": { "revision": 0, "values": { "status": "Live" } } },
+      "weight": 218
+    },
+    {
+      "name": "accepts a small region beside an island, with conditions on its nodes",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "island": { "minimal": { "type": "symbol", "name": "mic" } }, "small": { "type": "vstack", "children": [{ "type": "text", "value": "Fresh", "ifStale": false }, { "type": "text", "value": "Waiting", "ifStale": true }, { "type": "progress", "bind": "level", "unless": "done" }] } }, "snapshot": { "revision": 0, "values": { "level": 0.5, "done": false } } },
+      "weight": 333
+    },
+    {
+      "name": "accepts a small region of twelve nodes in eight levels",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "hstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "text", "value": "a" }] }] }] }] }] }] }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }] } }, "snapshot": { "revision": 0, "values": {} } },
+      "weight": 440
     }
   ],
   "invalid": [
@@ -7724,6 +7742,78 @@
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifStale": "flag" } }, "snapshot": { "revision": 0, "values": { "flag": true } } },
       "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null small region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": null }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a small region that is a word",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": "text" }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a small region that is a list of nodes",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": [{ "type": "text", "value": "a" }] }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a button in the small region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "button", "actionId": "stop", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a link in the small region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "link", "url": "app://a", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a toggle in the small region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a button inside a stack of the small region",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "hstack", "children": [{ "type": "text", "value": "a" }, { "type": "button", "actionId": "stop", "child": { "type": "text", "value": "a" } }] } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a small region of thirteen nodes",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "hstack", "children": [{ "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }, { "type": "text", "value": "a" }] } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a small region nine levels deep",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "vstack", "children": [{ "type": "text", "value": "a" }] }] }] }] }] }] }] }] } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a small region bound to a value the start lacks",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "text", "bind": "absent" } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a small region with a style the start lacks",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "text", "value": "a", "style": "s" } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a small region inside the island",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "island": { "minimal": { "type": "symbol", "name": "mic" }, "small": { "type": "text", "value": "a" } } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
     }
   ],
   "updates": [
@@ -7971,6 +8061,18 @@
       "name": "rejects an update that turns the flag of a toggle into text",
       "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "Mute" } } }, "snapshot": { "revision": 0, "values": { "muted": false } } },
       "update": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": { "muted": "yes" } } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "updates the value the small region shows",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "text", "bind": "status" } }, "snapshot": { "revision": 0, "values": { "status": "Live" } } },
+      "update": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": { "status": "Paused" } } },
+      "weight": 115
+    },
+    {
+      "name": "rejects an update without the value the small region shows",
+      "start": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "text", "value": "Recording" }, "small": { "type": "text", "bind": "status" } }, "snapshot": { "revision": 0, "values": { "status": "Live" } } },
+      "update": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "values": {} } },
       "code": "INVALID_INPUT"
     }
   ],

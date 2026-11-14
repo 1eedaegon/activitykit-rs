@@ -5,6 +5,20 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+The small family of Apple Watch and CarPlay, phase 5 of [the iOS surface plan](docs/prd-ios-surface.md).
+
+- `Layout::small(node)` is what an activity shows in the Smart Stack of a paired Apple Watch (iOS 18) and in CarPlay
+  (iOS 26): at most 12 nodes, without buttons, links or toggles. Request contract v2 gains `layout.small`.
+- The widget draws the small family only when its extension's Info.plist sets `ActivityKitSmallFamily` to the Boolean
+  true. A layout without a small region then shows its compact parts there, in a row. Without the key the system
+  shows the compact parts itself, as before, and `degraded_features()` of an activity whose layout has the region
+  holds `layout.small`. On iOS 18 the widget now states its supplemental families in either case, an empty list
+  without the key.
+- `LayoutContentView` draws an activity's content for the family in the environment; an app can use it to see a
+  layout as a watch gets it.
+- Breaking: `Layout` and `contract::LayoutRegions` have the public member `small`; in Swift, `LayoutRegion` has the
+  case `small` and `LayoutRegions` the member `small`.
+
 ## 0.5.0 - 2026-11-13
 
 - feat: scheduled and transient starts, and the sound of an alert (`fbc5c6b`)

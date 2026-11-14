@@ -37,6 +37,8 @@ pub struct Layout {
     pub keyline: Option<Bindable<Color>>,
     /// The URL a tap on the activity opens the app with.
     pub url: Option<Bindable<String>>,
+    /// What the activity shows where the system asks for the small family: Apple Watch and CarPlay.
+    pub small: Option<Node>,
     /// Styles by token, 0 to 24.
     pub styles: BTreeMap<String, Style>,
 }
@@ -49,6 +51,7 @@ impl Layout {
             background: None,
             keyline: None,
             url: None,
+            small: None,
             styles: BTreeMap::new(),
         }
     }
@@ -82,6 +85,16 @@ impl Layout {
         self
     }
 
+    /// What the activity shows in the Smart Stack of Apple Watch and in CarPlay, where the system asks the widget for
+    /// the small family (iOS 18): a tree of at most 12 nodes, without buttons, links or toggles. The widget draws it
+    /// only when its extension's Info.plist sets `ActivityKitSmallFamily`; otherwise the system shows the compact
+    /// parts of the Dynamic Island there, and [`Activity::degraded_features`](crate::Activity::degraded_features)
+    /// holds `layout.small`.
+    pub fn small(mut self, node: impl Into<Node>) -> Self {
+        self.small = Some(node.into());
+        self
+    }
+
     /// The wire member `layout` and the style table, absent when empty.
     pub(crate) fn into_wire(self) -> (LayoutRegions, Option<BTreeMap<String, Style>>) {
         let regions = LayoutRegions {
@@ -90,6 +103,7 @@ impl Layout {
             background: self.background,
             keyline: self.keyline,
             url: self.url,
+            small: self.small,
         };
         (regions, (!self.styles.is_empty()).then_some(self.styles))
     }

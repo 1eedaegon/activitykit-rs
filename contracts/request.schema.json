@@ -165,6 +165,10 @@
       "required": ["lockScreen"],
       "properties": {
         "lockScreen": { "$ref": "#/$defs/node" },
+        "small": {
+          "description": "For the small activity family, on Apple Watch and in CarPlay: at most 12 nodes, without buttons, links or toggles.",
+          "$ref": "#/$defs/node"
+        },
         "island": {
           "type": "object", "additionalProperties": false, "minProperties": 1,
           "properties": {

@@ -43,7 +43,10 @@ bash tests/release/run.sh       # the release tool, in repositories of its own
     a named sound, and a transient start; a toggle flipped on and off, each tap
     with the state asked for, and the switch following the app's update; a layout with a line for fresh and a line
     for stale content, whose Lock Screen changed from one to the other when its stale date, 90 s ahead, had passed,
-    with no update and with the app ended, the list then saying `Stale`, and back after an update; a start from the background, which ActivityKit
+    with no update and with the app ended, the list then saying `Stale`, and back after an update; a layout with a
+    small region that starts with nothing degraded, and, in the host's preview app, what the widget's content view
+    draws for the small family (the small region, or the compact parts of a layout without one) and for the medium
+    one (the Lock Screen tree); a start from the background, which ActivityKit
     refuses (`NotForeground`); `activities()` after a relaunch, whose handle continues the revision, and the same
     keyed start returning the running activity before and after it; redacted receipts that keep no values, and the
     values ActivityKit shows after a relaunch; a start that asks for a push token, which ActivityKit refuses without

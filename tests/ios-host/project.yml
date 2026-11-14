@@ -1,6 +1,8 @@
 # The iOS test host, generated with XcodeGen (run.sh does it). The app target is App/Host.swift linked against the
 # Rust static library of src/lib.rs, which holds activitykit and its Swift bridge, and against the ActivityKitIntent
-# product; the widget extension is templates/ios/Widget.swift linked against ActivityKitWidget, as in any app.
+# product; the widget extension is templates/ios/Widget.swift linked against ActivityKitWidget, as in any app, with the
+# template's Info.plist and the small family on (run.sh writes Widget-Info.plist). A second app, Preview, draws a
+# layout for a family with the package's own views; it holds no Rust, so that it can link them.
 name: ActivityKitHost
 options:
   deploymentTarget:
@@ -60,9 +62,22 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.1eedaegon.activitykit.host.widget
-        INFOPLIST_FILE: ../../templates/ios/Widget-Info.plist
+        INFOPLIST_FILE: Widget-Info.plist
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+  ActivityKitHostPreview:
+    type: application
+    platform: iOS
+    sources:
+      - path: Preview
+    dependencies:
+      - package: activitykit
+        product: ActivityKitWidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.1eedaegon.activitykit.host.preview
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
   ActivityKitHostUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -70,6 +85,8 @@ targets:
       - path: UITests
     dependencies:
       - target: ActivityKitHost
+      # A second app of the tests: Xcode installs it beside the host.
+      - target: ActivityKitHostPreview
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.1eedaegon.activitykit.host.uitests
@@ -80,6 +97,7 @@ schemes:
     build:
       targets:
         ActivityKitHost: all
+        ActivityKitHostPreview: [test]
         ActivityKitHostUITests: [test]
     test:
       targets:

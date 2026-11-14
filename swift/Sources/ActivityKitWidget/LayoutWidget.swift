@@ -20,12 +20,28 @@ import ActivityKitIntent
 /// }
 /// ```
 ///
-/// Its Info.plist sets `ActivityKitLayout` to the integer 2, which the app checks before a start.
+/// Its Info.plist sets `ActivityKitLayout` to the integer 2, which the app checks before a start. With
+/// `ActivityKitSmallFamily` set to true there, the widget also draws the small family, which the system shows in the
+/// Smart Stack of Apple Watch and in CarPlay (iOS 18): a layout's small region, or its compact parts.
 @available(iOS 16.1, *)
 public struct ActivityKitLayoutWidget: Widget {
     public init() {}
 
     public var body: some WidgetConfiguration {
+        Self.withFamilies(activities)
+    }
+
+    /// The families beside the medium one that every Live Activity has. A widget states them once, for every activity
+    /// it draws, so the extension's Info.plist decides. Without its key the list is empty: the two results of this
+    /// function must be one type, so the widget cannot leave the statement out, and states that it has none.
+    private static func withFamilies(_ configuration: some WidgetConfiguration) -> some WidgetConfiguration {
+        if #available(iOS 18.0, *) {
+            return configuration.supplementalActivityFamilies(LayoutSmallFamily.isOn(Bundle.main.infoDictionary ?? [:]) ? [.small] : [])
+        }
+        return configuration
+    }
+
+    private var activities: some WidgetConfiguration {
         ActivityConfiguration(for: LiveActivityLayoutAttributes.self) { context in
             LayoutLockScreen(context: context)
         } dynamicIsland: { context in
@@ -85,7 +101,10 @@ private struct LayoutLockScreen: View {
     let context: ActivityViewContext<LiveActivityLayoutAttributes>
 
     var body: some View {
-        LayoutRegionView(context: context, region: .lockScreen)
+        let host = LayoutActivityHost(context: context)
+        // The Lock Screen tree, or what the layout shows where the system asks for the small family.
+        LayoutContentView(document: context.attributes.document, values: context.state.values, isStale: host.isStale,
+                          button: host.button, toggle: host.toggle, custom: host.custom)
             .activityBackgroundTint(context.attributes.document.background(values: context.state.values).map { Color($0, scheme: scheme) })
             .widgetURL(context.attributes.document.url(values: context.state.values))
     }
@@ -97,18 +116,26 @@ private struct LayoutRegionView: View {
     let region: LayoutRegion
 
     var body: some View {
-        LayoutView(document: context.attributes.document, values: context.state.values, region: region, isStale: isStale,
-                   button: button, toggle: toggle, custom: custom)
+        let host = LayoutActivityHost(context: context)
+        LayoutView(document: context.attributes.document, values: context.state.values, region: region, isStale: host.isStale,
+                   button: host.button, toggle: host.toggle, custom: host.custom)
     }
+}
+
+/// What a view of the package needs from the activity it draws: its staleness, and the controls and custom views of
+/// this app.
+@available(iOS 16.1, *)
+private struct LayoutActivityHost {
+    let context: ActivityViewContext<LiveActivityLayoutAttributes>
 
     /// Whether the content's stale date has passed, which the system knows from iOS 16.2.
-    private var isStale: Bool {
+    var isStale: Bool {
         if #available(iOS 16.2, *) { return context.isStale }
         return false
     }
 
     /// Buttons run `ActivityKitActionIntent` in the app process.
-    private var button: LayoutView.ButtonBuilder? {
+    var button: LayoutView.ButtonBuilder? {
         guard #available(iOS 17.0, *) else { return nil }
         let activityId = context.attributes.instanceID
         return { actionId, label in
@@ -117,7 +144,7 @@ private struct LayoutRegionView: View {
     }
 
     /// Toggles run the same intent, with the state the person asks for: the opposite of the one shown.
-    private var toggle: LayoutView.ToggleBuilder? {
+    var toggle: LayoutView.ToggleBuilder? {
         guard #available(iOS 17.0, *) else { return nil }
         let activityId = context.attributes.instanceID
         return { actionId, isOn, label in
@@ -126,7 +153,7 @@ private struct LayoutRegionView: View {
     }
 
     /// A `custom` node draws the view of its name from the app's `ActivityKitCustomViews`, or nothing.
-    private var custom: LayoutView.CustomBuilder {
+    var custom: LayoutView.CustomBuilder {
         { name, props in
             ActivityKitCustomViewRegistry.registered?.views[name]?.make(ActivityKitCustomProps(values: props.mapValues(ActivityKitCustomProps.Value.init)))
         }

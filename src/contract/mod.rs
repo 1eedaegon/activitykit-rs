@@ -16,6 +16,8 @@ mod presentation_tests;
 #[cfg(test)]
 mod rule_tests;
 #[cfg(test)]
+mod small_tests;
+#[cfg(test)]
 mod stale_tests;
 #[cfg(test)]
 mod surface_tests;
@@ -79,6 +81,9 @@ pub struct LayoutRegions {
     /// The URL a tap on the activity opens the app with: a URL, or bound to a text value that is one.
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub url: Option<Bindable<String>>,
+    /// The tree for the small activity family, on Apple Watch and in CarPlay.
+    #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
+    pub small: Option<Node>,
 }
 
 /// Lock screen visibility of the Android notification. iOS checks it and then ignores it.

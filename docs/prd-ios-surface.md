@@ -3,8 +3,10 @@
 Status: phases 1 and 2 are built and are in [the specification](spec.md) (AK-ACCESS-1 to 3, AK-LINK-1 to 5,
 AK-MOTION-1 and 2, AK-PRIVACY-1, AK-ISLAND-1 and 2), except their simulator scenarios and the small region of
 phase 2. Phase 3 is built (AK-START-13 and 14, AK-ALERT-1, AK-TOGGLE-1), each with a scenario on the simulator. Phase
-4, a layout that follows staleness, is built (AK-STALE-1), with a scenario on the simulator. Each requirement moves into the specification with its tests when it
-is built, and leaves [Not yet supported](not-yet-supported.md).
+4, a layout that follows staleness, is built (AK-STALE-1), with a scenario on the simulator. Phase 5, the small
+family of Apple Watch and CarPlay, is built (AK-SMALL-1 and 2): its contract and what the widget draws for each
+family have tests, the drawing in an app of the test host, and no watch or car's screen was seen. Each requirement moves into the specification
+with its tests when it is built, and leaves [Not yet supported](not-yet-supported.md).
 
 ## Why
 
@@ -92,7 +94,7 @@ Decisions:
 
 ### Phase 2: presentation
 
-Render and contract only. Built, except the small region.
+Render and contract only. Built; the small region became phase 5.
 
 | ID | Requirement | Contract | iOS |
 | --- | --- | --- | --- |
@@ -101,7 +103,6 @@ Render and contract only. Built, except the small region.
 | AK-ISLAND-1 | An expanded region states its priority and whether it may go below the camera when too wide. | `island.expanded.priority: { <region>: 0 to 100 }`, `island.expanded.belowIfTooWide: [leading, trailing]` | 16.2 |
 | AK-ISLAND-2 | The island's presentations set their content margins. | `island.margins: { <presentation>: number or four edges }` | 16.2 |
 | AK-PRIVACY-1 | A node is marked sensitive, and the system hides it on a locked device and in the always-on display. | node member `privacy: "sensitive"` | 16.2 |
-| AK-SMALL-1 | A layout has a region of its own for Apple Watch and CarPlay; without it the system shows the compact views. Not built. | `layout.small: Node`, no buttons (proposed) | 18 (Watch), 26 (CarPlay) |
 
 Decisions:
 
@@ -112,10 +113,6 @@ Decisions:
   counted, is stable.
 - **A node is marked sensitive, never marked public.** The modifier is applied only where the layout asks, so that a
   child cannot undo what its stack says.
-- **The small region waits.** A widget declares the families it draws once, for every activity, so a layout without a
-  small region would lose the compact views the system shows on a watch today and get whatever the widget draws
-  instead. That needs a default that looks right on a watch, and no test here can show a watch. It comes with a
-  device to look at, not before.
 
 General animation is not a goal: ActivityKit runs its own animation of at most two seconds and ignores the rest.
 
@@ -177,6 +174,33 @@ back. With the date 90 s ahead and the app ended before it passed, the Lock Scre
 tries with a stale date 3 s and 12 s ahead had seen no `stale` state within half a minute, so how soon the system
 reports it is its own matter.
 
+### Phase 5: the small family
+
+On Apple Watch (the Smart Stack) and in CarPlay the system shows the Live Activity of the iPhone. Without a word from
+the widget it shows the compact leading and trailing parts of the Dynamic Island. A widget that declares the small
+family draws a view of its own there instead.
+
+| ID | Requirement | Contract | iOS |
+| --- | --- | --- | --- |
+| AK-SMALL-1 | A layout has a region of its own for the small family. | `layout.small: Node`, at most 12 nodes, no buttons, links or toggles; `Layout::small(node)` | 18 (Watch), 26 (CarPlay) |
+| AK-SMALL-2 | The widget asks for the small family only when its extension says so. It then draws the small region, or the compact parts of a layout without one. An app learns when its small region is not drawn. | the extension's Info.plist key `ActivityKitSmallFamily`; `layout.small` among the degraded features | 18 |
+
+Decisions:
+
+- **The extension opts in.** A widget declares its families once, for every activity it draws, so it cannot ask for
+  the small family only for the layouts that have the region. It asks when its Info.plist sets
+  `ActivityKitSmallFamily`, beside the two keys the extension already has. Without the key the system shows the
+  compact parts, as before. The widget cannot leave the statement out on iOS 18, since its configuration is one
+  type either way: it then states an empty list of families, which is taken to mean none.
+- **A layout without the region draws its compact parts**, leading and trailing in a row, which is what the system
+  shows without the family, as near as the widget can draw it. An app that opts in keeps what its older layouts
+  showed.
+- **No controls, twelve nodes.** A watch face and a car's screen are for a glance: the region takes no buttons,
+  links or toggles, like the compact parts, and as many nodes as an expanded region, since it is a view of its own
+  and not a corner of the island.
+- **Not drawn, then said.** `degraded_features()` holds `layout.small` when a layout has the region and the widget
+  does not draw the family: the extension lacks the key, or iOS is below 18.
+
 ## Left to the layers above
 
 - **Android's native presentation** (progress segments, metrics, chips, the Now Bar): a declarative Android member of
@@ -219,8 +243,9 @@ Lock Screen, touches a button inside a labelled stack, and follows a link, the l
 the test host. Phase 2 is proven at the unit and Swift host levels, and its SwiftUI is compiled and drawn by the
 simulator's existing scenarios; what the system animates, hides and places has no scenario.
 
-Known limits: a watch or CarPlay shows the small region only on real hardware or a paired simulator, a sound is not
-heard by a test, and versions below the simulator's are read, not run.
+Known limits: a sound is not heard by a test, versions below the simulator's are read, not run, and no watch was
+at hand: the small family is drawn in an app of the test host, where the family can be set, and what a watch or a
+car makes of it is not seen.
 
 ## Rollout
 
@@ -228,7 +253,7 @@ heard by a test, and versions below the simulator's are read, not run.
 | --- | --- | --- |
 | 0.4.0 | Phases 1 and 2, without the small region | spec (AK-ACCESS, AK-LINK, AK-MOTION, AK-PRIVACY, AK-ISLAND), request-contract, usage, ios-setup (receiving a URL), changelog |
 | 0.5.0 | Phases 3 and 4 | spec (AK-START-13 and 14, AK-ALERT-1, AK-TOGGLE-1, AK-STALE-1), request-contract, bridge, usage |
-| later | The small region | with a watch to look at |
+| the next minor | Phase 5 | spec (AK-SMALL-1 and 2), request-contract, usage, ios-setup (the extension's key) |
 
 The version of a release follows its commits ([testing](testing.md#releases)): phases that reach `main` together are
 one release.
@@ -236,6 +261,6 @@ one release.
 ## Open questions
 
 1. (Settled) `Event::Action` of a toggle carries the state asked for, so an app need not keep what it last sent.
-2. Does the small region need its own node limit, or the compact parts' 3? And what does a layout without one show
-   on a watch once the widget declares the family?
+2. (Settled) The small region takes 12 nodes, as an expanded region; a layout without one draws its compact parts
+   once the widget declares the family, and the widget declares it only when its extension opts in.
 3. Is a per-node `transition` enough, or does a layout need one default for all of its nodes?

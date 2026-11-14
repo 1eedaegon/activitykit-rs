@@ -485,6 +485,10 @@ impl Scope<'_> {
         require(layout.url.as_ref().is_none_or(|target| self.target(target)))?;
         self.bindings(layout)?;
         self.region(&layout.lock_screen, 40, true)?;
+        if let Some(small) = &layout.small {
+            // As many nodes as an expanded region, and no controls: a watch and a car's screen are for a glance.
+            self.region(small, 12, false)?;
+        }
         let Some(island) = &layout.island else {
             return Ok(());
         };
