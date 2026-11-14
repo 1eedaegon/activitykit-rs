@@ -15,7 +15,7 @@ links = "activitykit"
 include = [
     "/src/**", "/build.rs", "/Cargo.toml", "/README.md", "/CHANGELOG.md", "/LICENSE-*",
     "/swift/Package.swift", "/swift/Sources/**", "/templates/**", "/contracts/**",
-    "/tests/contract.rs", "/tests/fixtures/**", "/docs/**",
+    "/tests/contract.rs", "/tests/schema.rs", "/tests/fixtures/**", "/docs/**",
 ]
 
 # docs.rs documents the iOS build; build.rs skips Swift there.

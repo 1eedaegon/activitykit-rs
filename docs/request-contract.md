@@ -536,6 +536,9 @@ total  = 48 + 2 + 2                            = 52    layout, {} for styles, {}
 
 ## What the schema covers
 
+A test (`tests/schema.rs`) compares the members the schema names with the members the valid fixtures carry, on nodes,
+layouts, islands and styles, in both directions; no validator runs the schema against the fixtures.
+
 The JSON Schema checks shapes, ranges and patterns, including the characters allowed in `d`, the
 shape of a binding (`$defs/bound`), the props of a custom node, `fontFamily` beside `design`, the form
 of a URL and the members of `accessibility`. It

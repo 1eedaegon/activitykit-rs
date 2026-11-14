@@ -205,7 +205,7 @@ Errors are variants of `activitykit::Error`. iOS versions are where ActivityKit 
 | AK-ERROR-4 | `SystemLimit` says whether the app's or the device's limit was reached. | `targetMaximumExceeded` → `App`; `globalMaximumExceeded` → `Device`. | — | all |
 | AK-ERROR-5 | `Error` and `LimitScope` leave room for more: a match needs a `_` arm. | A match without `_` does not compile. | — | all |
 | AK-DOCS-1 | The docs and the rustdoc state the 8-hour and 12-hour limits, the four-hour dismissal, what an alert shows, that relevance is kept and stale dates clear, that dropping ends or cancels nothing, and what is not supported yet. | — | — | all |
-| AK-CONTRACT-1 | The Rust validator gives every fixture its verdict, code and weight. | 1281 requests, 41 updates and 6 ends. | `InvalidInput`, `PayloadTooLarge` | all |
+| AK-CONTRACT-1 | The Rust validator gives every fixture its verdict, code and weight. | 1288 requests, 41 updates and 6 ends. | `InvalidInput`, `PayloadTooLarge` | all |
 | AK-CONTRACT-2 | The Swift validator gives every fixture the same. | — | the same | Mac host |
 | AK-CONTRACT-3 | Every fixture sent through the C functions gets the same answer. | — | the same | Mac host |
 | AK-CONTRACT-4 | An update is checked against its start: keys, types, references, weight. | — | `InvalidInput`, `PayloadTooLarge` | all |
@@ -218,6 +218,7 @@ Errors are variants of `activitykit::Error`. iOS versions are where ActivityKit 
 | AK-CONTRACT-11 | A number read from JSON text keeps the value that was written. | `96.00000000000001` stays outside 6..96. | `InvalidInput` | all |
 | AK-CONTRACT-12 | Snapshots take an optional `timestamp`, `end_layout` optional final content, records a `relevance`, in every layer. | The fixtures with these members. | `InvalidInput`, `PayloadTooLarge` | all |
 | AK-CONTRACT-13 | A record carries what ActivityKit knows and nothing of other platforms: `id`, `activityKey`, `schemaVersion`, `snapshot`, `state`, `degradedFeatures` and, when known, `relevance`; no `backend`, `visibility`, `promotionRequested` or `promotionState`, which a cross-platform layer adds at its own boundary. A reader passes over members it does not know, so a record written by 0.1 still reads. | The record of a start → those members and no other. | — | all |
+| AK-CONTRACT-14 | The JSON Schema names the members the validators take and no others: every node definition names the members any node may carry, and the members it names for a node type, `accessibility`, the layout, the island, its expanded part and margins, a style and a frame are those the valid fixtures carry there. No validator runs the schema against the fixtures. | A node definition without `ifStale`, a layout without `url`, or a style member no valid fixture carries → the test fails. | — | all |
 
 ## The C bridge
 
@@ -426,6 +427,7 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 | AK-CONTRACT-11 | `tests/contract.rs::numbers_keep_their_value_when_read_from_json_text` (unit) |
 | AK-CONTRACT-12 | `tests/contract.rs::every_fixture_gets_its_verdict_code_and_weight` (unit)<br>`tests/contract.rs::every_end_fixture_is_checked_against_its_start` (unit)<br>`tests/swift/layout-fixtures.swift::testLayoutFixtures` (Swift host)<br>`tests/swift/bridge-abi.swift::testBridgeFixtures` (Swift host) |
 | AK-CONTRACT-13 | `src/contract/model_tests.rs::a_record_carries_what_activitykit_knows_and_reads_past_older_members` (unit)<br>`tests/swift/layout-lifecycle.swift::testLayoutLifecycle` (Swift host)<br>`tests/swift/bridge-abi.swift::testBridgeLifecycle` (Swift host) |
+| AK-CONTRACT-14 | `tests/schema.rs::every_node_definition_names_the_common_members` (unit)<br>`tests/schema.rs::the_schema_names_the_members_of_the_fixtures_nodes` (unit)<br>`tests/schema.rs::the_schema_names_the_members_of_the_fixtures_layouts_and_styles` (unit) |
 | AK-BRIDGE-1 | `tests/swift/bridge-abi.swift::testBridgeLifecycle` (Swift host) |
 | AK-BRIDGE-2 | `tests/swift/bridge-abi.swift::testBridgeLifecycle` (Swift host) |
 | AK-BRIDGE-3 | `tests/swift/bridge-abi.swift::testBridgeLifecycle` (Swift host)<br>`tests/swift/bridge-abi.swift::testBridgeFromManyThreads` (Swift host)<br>`tests/swift/bridge-abi.swift::testBridgeAuthorizationAndImages` (Swift host) |
