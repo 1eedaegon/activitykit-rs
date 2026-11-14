@@ -253,7 +253,7 @@ extension LifecycleTests {
         expect(code(unsound) == "INVALID_INPUT", "a sound that is no file name is refused")
     }
 
-    // AK-AUTH-2, AK-BRIDGE-1, AK-BRIDGE-2, AK-BRIDGE-3, AK-BRIDGE-7, AK-END-1, AK-END-4, AK-START-1, AK-START-4, AK-START-8, AK-UPDATE-1, AK-UPDATE-2, AK-UPDATE-6, AK-UPDATE-7, AK-CONTRACT-13
+    // AK-AUTH-2, AK-BRIDGE-1, AK-BRIDGE-2, AK-BRIDGE-3, AK-BRIDGE-7, AK-END-1, AK-END-4, AK-START-1, AK-START-4, AK-START-8, AK-UPDATE-1, AK-UPDATE-2, AK-UPDATE-6, AK-UPDATE-7, AK-CONTRACT-13, AK-CONTRACT-17
     @MainActor static func testBridgeLifecycle() async throws {
         let system = install()
         let request = layoutJSON(key: "rec:1", lockScreen: meterLayout, values: #"{"title":"Rec","progress":0.2}"#, revision: 0)
@@ -296,6 +296,21 @@ extension LifecycleTests {
             expect(code(update) == "INVALID_INPUT", "an unreadable update is INVALID_INPUT: \(broken)")
             expect(code(end) == "INVALID_INPUT", "an unreadable end is INVALID_INPUT: \(broken)")
         }
+        // AK-CONTRACT-17: JSON can carry one half of a surrogate pair as an escape, which no string holds. Such text
+        // is not read: the request is INVALID_INPUT, wherever the half stands.
+        let lone = [#"{"title":"a\ud800","progress":0}"#, #"{"title":"\udc00","progress":0}"#, #"{"title":"a","progress":0,"a\ud800b":1}"#]
+        for values in lone {
+            let request = layoutJSON(key: "rec:lone", lockScreen: meterLayout, values: values, revision: 0)
+            let refused = await call(C.start, #"{"request":\#(request)}"#)
+            expect(code(refused) == "INVALID_INPUT", "half a surrogate pair is INVALID_INPUT: \(values)")
+        }
+        let pair = layoutJSON(key: "rec:pair", lockScreen: meterLayout, values: #"{"title":"\ud83d\ude00","progress":0}"#, revision: 0)
+        let smiling = data(await call(C.start, #"{"request":\#(pair)}"#))
+        let shown = ((smiling["snapshot"] as? [String: Any])?["values"] as? [String: Any])?["title"] as? String
+        expect(shown == "\u{1F600}", "a whole pair is one character")
+        let paired = smiling["id"] as? String ?? ""
+        _ = await call(C.end, #"{"request":{"id":"\#(paired)","policy":{"kind":"immediate"}}}"#)
+
         let values = #"{"title":"a","progress":0}"#
         let second = layoutJSON(key: "rec:2", lockScreen: meterLayout, values: values, revision: 0)
         let extra = await call(C.start, #"{"request":\#(second.dropLast()),"token":"x"}}"#)
