@@ -234,9 +234,10 @@ final class HostTests: HostCase {
         let preview = XCUIApplication(bundleIdentifier: "io.github.1eedaegon.activitykit.host.preview")
         func draw(_ layout: String, family: String) {
             preview.terminate()
-            preview.launchArguments = ["-layout", layout, "-family", family]
+            preview.launchEnvironment = ["AK_LAYOUT": layout, "AK_FAMILY": family]
             preview.launch()
-            XCTAssertTrue(preview.staticTexts["family \(family)"].waitForExistence(timeout: 30), "the preview draws for the \(family) family")
+            let drawn = preview.staticTexts["family \(family)"].waitForExistence(timeout: 30)
+            XCTAssertTrue(drawn, "the preview draws for the \(family) family, and says: \(preview.staticTexts["status"].firstMatch.label)")
         }
         func shows(_ text: String) -> Bool { preview.staticTexts[text].exists }
         let island = #""island":{"compactLeading":{"type":"text","value":"Lead"},"compactTrailing":{"type":"text","value":"Trail"}}"#
