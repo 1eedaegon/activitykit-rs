@@ -245,7 +245,8 @@ simulator's existing scenarios; what the system animates, hides and places has n
 
 Known limits: a sound is not heard by a test, versions below the simulator's are read, not run, and no watch was
 at hand: the small family is drawn in an app of the test host, where the family can be set, and what a watch or a
-car makes of it is not seen.
+car makes of it is not seen. The Simulator's CarPlay display does not help: on iOS 26.3 it shows a grid of four apps
+and no Dashboard, where a Live Activity would be.
 
 ## Rollout
 
