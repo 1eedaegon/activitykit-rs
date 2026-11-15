@@ -11,19 +11,31 @@
 //! Xcode; nothing links then. docs.rs (`DOCS_RS`) has no Xcode either, so the build skips Swift there too.
 //! `IPHONEOS_DEPLOYMENT_TARGET` sets the Swift deployment target (15.0 at least).
 
-// As in the library: no `unwrap` and no `expect`. A build that cannot go on says why and stops.
-#![deny(clippy::unwrap_used, clippy::expect_used)]
+// As in the library: nothing here ends the build with a panic. A build that cannot go on says why and fails.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    clippy::get_unwrap,
+    clippy::indexing_slicing,
+    clippy::string_slice,
+    clippy::panic,
+    clippy::panic_in_result_fn,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 use std::{
     env,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, ExitCode},
 };
 
 const PRODUCT: &str = "ActivityKitBridge";
 const LOWEST_IOS: (u32, u32) = (15, 0);
 
-fn main() {
+fn main() -> ExitCode {
     for path in ["build.rs", "swift/Package.swift", "swift/Sources"] {
         println!("cargo:rerun-if-changed={path}");
     }
@@ -31,20 +43,23 @@ fn main() {
     println!("cargo:rerun-if-env-changed=ACTIVITYKIT_SKIP_SWIFT");
     println!("cargo:rerun-if-env-changed=DOCS_RS");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("ios") {
-        return;
+        return ExitCode::SUCCESS;
     }
     if env::var_os("DOCS_RS").is_some() {
-        return;
+        return ExitCode::SUCCESS;
     }
     if env::var_os("ACTIVITYKIT_SKIP_SWIFT").is_some() {
         println!(
             "cargo:warning=ACTIVITYKIT_SKIP_SWIFT is set: the Swift bridge is not built and nothing will link"
         );
-        return;
+        return ExitCode::SUCCESS;
     }
+    // Cargo shows what a failed build script wrote to its standard error.
     if let Err(message) = build() {
-        panic!("activitykit: {message}");
+        eprintln!("activitykit: {message}");
+        return ExitCode::FAILURE;
     }
+    ExitCode::SUCCESS
 }
 
 struct Target {
@@ -182,8 +197,9 @@ fn build() -> Result<(), String> {
     let info = run(xcrun().args(["swift", "-target", &triple, "-print-target-info"]))?;
     let info: serde_json::Value = serde_json::from_str(&info)
         .map_err(|error| format!("unreadable swift -print-target-info: {error}"))?;
-    let paths = info["paths"]["runtimeLibraryPaths"]
-        .as_array()
+    let paths = info
+        .pointer("/paths/runtimeLibraryPaths")
+        .and_then(serde_json::Value::as_array)
         .ok_or("swift -print-target-info has no runtimeLibraryPaths")?;
     for path in paths.iter().filter_map(serde_json::Value::as_str) {
         println!("cargo:rustc-link-search=native={path}");

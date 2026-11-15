@@ -22,8 +22,24 @@
 //! crate. `build.rs` compiles its bridge into the Rust library for iOS targets; the app's widget extension links its
 //! `ActivityKitWidget` product. See `docs/ios-setup.md`.
 
-// An `unwrap` or an `expect` is for a test. Outside the tests an error is handed on, never turned into a panic.
-#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
+// Outside the tests nothing ends the process in place of handing an error on: no `unwrap` and no `expect`, no index
+// or slice that can be out of bounds, no `panic!` and none of its kin. Those are for a test.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        clippy::get_unwrap,
+        clippy::indexing_slicing,
+        clippy::string_slice,
+        clippy::panic,
+        clippy::panic_in_result_fn,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+    )
+)]
 
 mod bridge;
 pub mod contract;

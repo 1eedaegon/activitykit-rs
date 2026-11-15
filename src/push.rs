@@ -93,11 +93,18 @@ impl PushToken {
         if text.is_empty() || !text.len().is_multiple_of(2) {
             return None;
         }
-        let digit = |byte: u8| (byte as char).to_digit(16).map(|digit| digit as u8);
+        let digit = |byte: &u8| {
+            let digit = (*byte as char).to_digit(16)?;
+            u8::try_from(digit).ok()
+        };
+        let byte = |pair: &[u8]| match pair {
+            [high, low] => Some(digit(high)? << 4 | digit(low)?),
+            _ => None,
+        };
         let bytes = text
             .as_bytes()
-            .chunks(2)
-            .map(|pair| Some(digit(pair[0])? << 4 | digit(pair[1])?))
+            .chunks_exact(2)
+            .map(byte)
             .collect::<Option<Vec<u8>>>()?;
         Some(Self(bytes))
     }
@@ -333,9 +340,12 @@ impl Payload {
                 };
                 input.validate()?;
                 let wire = serde_json::to_value(&input).map_err(|_| Error::invalid())?;
-                let mut document = json!({ "layout": wire["layout"] });
+                // A member that the request lacks is null, as on the wire.
+                let member = |name: &str| wire.get(name).cloned().unwrap_or_default();
+                let mut document = serde_json::Map::new();
+                document.insert("layout".into(), member("layout"));
                 if let Some(styles) = wire.get("styles") {
-                    document["styles"] = styles.clone();
+                    document.insert("styles".into(), styles.clone());
                 }
                 aps.insert(
                     "attributes-type".into(),
@@ -347,12 +357,12 @@ impl Payload {
                         "instanceID": id,
                         "activityKey": key,
                         "schemaVersion": 2,
-                        "fallback": wire["fallback"],
+                        "fallback": member("fallback"),
                         "initialFingerprint": fingerprint(&wire),
                         "document": document,
                     }),
                 );
-                aps.insert("content-state".into(), wire["snapshot"].clone());
+                aps.insert("content-state".into(), member("snapshot"));
                 aps.insert("alert".into(), alert.wire()?);
                 if self.input_push_token {
                     aps.insert("input-push-token".into(), 1.into());

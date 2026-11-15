@@ -16,20 +16,44 @@ fn says(text: &str, phrase: &str, file: &str) {
 }
 
 // AK-ERROR-6
-/// The code outside the tests is held to no `unwrap` and no `expect`: the crate's root and the build script deny
-/// clippy's lints for them, and CI runs clippy with warnings denied. The tests are free of the rule.
+/// What clippy must not find outside the tests: the ways in which code ends the process in place of handing an
+/// error on.
+const NO_PANIC: [&str; 11] = [
+    "unwrap_used",
+    "expect_used",
+    "unwrap_in_result",
+    "get_unwrap",
+    "indexing_slicing",
+    "string_slice",
+    "panic",
+    "panic_in_result_fn",
+    "unreachable",
+    "todo",
+    "unimplemented",
+];
+
+// AK-ERROR-6
+/// The code outside the tests is held to that: the crate's root and the build script deny clippy's lints for it,
+/// and CI runs clippy with warnings denied. The tests are free of the rule.
 #[test]
-fn the_code_outside_the_tests_denies_unwrap_and_expect() {
+fn the_code_outside_the_tests_denies_what_would_panic() {
     let library = read("src/lib.rs");
-    assert!(
-        library.contains("#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]"),
-        "src/lib.rs"
-    );
     let script = read("build.rs");
     assert!(
-        script.contains("#![deny(clippy::unwrap_used, clippy::expect_used)]"),
-        "build.rs"
+        library.contains("#![cfg_attr( not(test), deny("),
+        "src/lib.rs"
     );
+    assert!(script.contains("#![deny("), "build.rs");
+    // A lint's name ends where the list goes on or closes: `panic` is not the start of `panic_in_result_fn`.
+    let names = |text: &str, lint: &str| {
+        let ends = [",", " )", ")"];
+        ends.iter()
+            .any(|end| text.contains(&format!("clippy::{lint}{end}")))
+    };
+    for lint in NO_PANIC {
+        assert!(names(&library, lint), "src/lib.rs denies {lint}");
+        assert!(names(&script, lint), "build.rs denies {lint}");
+    }
     let ci = read(".github/workflows/ci.yml");
     assert!(
         ci.contains("cargo clippy --locked --all-targets -- -D warnings"),
