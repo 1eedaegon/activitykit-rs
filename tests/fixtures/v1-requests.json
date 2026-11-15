@@ -1,0 +1,211 @@
+{
+  "valid": [
+    {
+      "name": "starts a progress with a notification fallback",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "배송", "status": "출발", "progress": 0 } }
+    },
+    {
+      "name": "starts a timer with its times in epoch milliseconds",
+      "command": "start",
+      "input": { "activityKey": "timer-1", "schemaVersion": 1, "template": "timer", "fallback": "none", "snapshot": { "revision": 1, "title": "집중", "status": "진행 중", "timer": { "startedAt": 1793808000000, "endsAt": 1793809500000 } } }
+    },
+    {
+      "name": "starts a progress with a stale date",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0.5, "staleAt": 1793809500000 } }
+    },
+    {
+      "name": "starts with the largest revision and the largest time",
+      "command": "start",
+      "input": { "activityKey": "timer-1", "schemaVersion": 1, "template": "timer", "fallback": "none", "snapshot": { "revision": 9007199254740991, "title": "Download", "status": "Running", "timer": { "startedAt": 0, "endsAt": 8640000000000000 } } }
+    },
+    {
+      "name": "starts with a title that is U+0085, which ECMAScript does not count as whitespace",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "updates the whole snapshot, with a stale date that has passed",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 2, "title": "Download", "status": "Complete", "progress": 1, "staleAt": 0 } }
+    },
+    {
+      "name": "updates a timer",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 3, "title": "Download", "status": "Running", "timer": { "startedAt": 10, "endsAt": 20 } } }
+    },
+    {
+      "name": "ends at once",
+      "command": "end",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate" } }
+    },
+    {
+      "name": "ends by the system's default policy",
+      "command": "end",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "default" } }
+    },
+    {
+      "name": "ends after a time",
+      "command": "end",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "after", "at": 1793809500000 } }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "rejects a command the contract does not have",
+      "command": "endAll",
+      "input": {}
+    },
+    {
+      "name": "rejects an update without a title and a status",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 3, "progress": 0.5 } }
+    },
+    {
+      "name": "rejects a title that is only U+FEFF, which ECMAScript counts as whitespace",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "﻿", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects a title of only spaces",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "   ", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects an empty status",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "", "progress": 0 } }
+    },
+    {
+      "name": "rejects an unknown member of a start",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0 }, "priority": 1 }
+    },
+    {
+      "name": "rejects an unknown member of a snapshot",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0, "note": "a" } }
+    },
+    {
+      "name": "rejects a start of version 1 that says version 2",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 2, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects a template the contract does not have",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "countdown", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects a fallback the contract does not have",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "banner", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects a start of a progress whose snapshot has a timer",
+      "command": "start",
+      "input": { "activityKey": "delivery:123", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "timer": { "startedAt": 10, "endsAt": 20 } } }
+    },
+    {
+      "name": "rejects a start of a timer whose snapshot has a progress",
+      "command": "start",
+      "input": { "activityKey": "timer-1", "schemaVersion": 1, "template": "timer", "fallback": "none", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0.5 } }
+    },
+    {
+      "name": "rejects a snapshot with a progress and a timer",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0.5, "timer": { "startedAt": 10, "endsAt": 20 } } }
+    },
+    {
+      "name": "rejects a snapshot with neither a progress nor a timer",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 1, "title": "Download", "status": "Running" } }
+    },
+    {
+      "name": "rejects a progress above 1",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 1.5 } }
+    },
+    {
+      "name": "rejects a progress that is text",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": "half" } }
+    },
+    {
+      "name": "rejects a timer without its end",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "timer": { "startedAt": 10 } } }
+    },
+    {
+      "name": "rejects a time one millisecond above the largest",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "timer": { "startedAt": 0, "endsAt": 8640000000000001 } } }
+    },
+    {
+      "name": "rejects a time that is a fraction",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0, "staleAt": 1.5 } }
+    },
+    {
+      "name": "rejects a negative revision",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": -1, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects a revision that is a fraction",
+      "command": "update",
+      "input": { "id": "opaque-handle-1", "snapshot": { "revision": 1.5, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects an activity key that starts with a dot",
+      "command": "start",
+      "input": { "activityKey": ".delivery", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects an activity key of 129 characters",
+      "command": "start",
+      "input": { "activityKey": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk", "schemaVersion": 1, "template": "progress", "fallback": "notification", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects an empty id",
+      "command": "update",
+      "input": { "id": "", "snapshot": { "revision": 0, "title": "Download", "status": "Running", "progress": 0 } }
+    },
+    {
+      "name": "rejects an id of only spaces",
+      "command": "end",
+      "input": { "id": "  ", "policy": { "kind": "immediate" } }
+    },
+    {
+      "name": "rejects an id of 257 characters",
+      "command": "end",
+      "input": { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "policy": { "kind": "immediate" } }
+    },
+    {
+      "name": "rejects an end without a policy",
+      "command": "end",
+      "input": { "id": "opaque-handle-1" }
+    },
+    {
+      "name": "rejects a policy the contract does not have",
+      "command": "end",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "never" } }
+    },
+    {
+      "name": "rejects an after policy without its time",
+      "command": "end",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "after" } }
+    },
+    {
+      "name": "rejects a time on an immediate policy",
+      "command": "end",
+      "input": { "id": "opaque-handle-1", "policy": { "kind": "immediate", "at": 1793809500000 } }
+    },
+    {
+      "name": "rejects a null policy",
+      "command": "end",
+      "input": { "id": "opaque-handle-1", "policy": null }
+    }
+  ]
+}

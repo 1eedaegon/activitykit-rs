@@ -100,7 +100,7 @@ and keeps a minus zero.
 Strings hold Unicode scalar values only. JSON can carry a lone UTF-16 surrogate as an escape such
 as `\ud800`; a v2 request with one in any string is `INVALID_INPUT`. The JSON parsers of Rust and
 Swift refuse such text before a validator runs, so the shared fixture file cannot hold this case:
-the Rust and Swift tests would fail to read the whole file.
+the Rust and Swift tests would fail to read the whole file. Each layer has a test of its own for it.
 
 Start, update and end return this record, and the list returns a list of them:
 
@@ -546,8 +546,11 @@ total  = 48 + 2 + 2                            = 52    layout, {} for styles, {}
 
 ## What the schema covers
 
-A test (`tests/schema.rs`) compares the members the schema names with the members the valid fixtures carry, on nodes,
-layouts, islands and styles, in both directions; no validator runs the schema against the fixtures.
+A validator runs the schema against the fixtures (`tests/schema_validator.rs`): every valid fixture is valid for it,
+and it refuses an invalid one unless `tests/fixtures/beyond-the-schema.json` names it, which is the list of what
+the schema leaves to the validators in Rust and Swift. The definitions of contract v1 are run with
+`tests/fixtures/v1-requests.json`. Another test (`tests/schema.rs`) compares the members the schema names with the
+members the valid fixtures carry, on nodes, layouts, islands and styles, in both directions.
 
 The JSON Schema checks shapes, ranges and patterns, including the characters allowed in `d`, the
 shape of a binding (`$defs/bound`), the props of a custom node, `fontFamily` beside `design`, the form

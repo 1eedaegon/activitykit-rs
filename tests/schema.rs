@@ -1,7 +1,8 @@
-//! The JSON Schema of the request contract (`contracts/request.schema.json`) beside the fixtures. No validator runs
-//! here: the schema's objects are closed, so a member the validators take and the schema does not name is a request
-//! the schema wrongly refuses. The test reads which members the schema names and compares them with the members the
-//! valid fixtures carry, in both directions.
+//! The JSON Schema of the request contract (`contracts/request.schema.json`) beside the fixtures, read as data.
+//! The schema's objects are closed, so a member the validators take and the schema does not name is a request the
+//! schema wrongly refuses. The tests read which members the schema names and compare them with the members the
+//! valid fixtures carry, in both directions: that says which member is missing where, and finds a member the
+//! schema names and nothing uses. `schema_validator.rs` runs the schema itself.
 
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};

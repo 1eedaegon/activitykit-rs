@@ -5,7 +5,7 @@ tests that prove it. `tools/spec-coverage.sh` fails when a requirement has no te
 does not name the requirement, or a test names an ID the specification lacks.
 
 ```sh
-cargo test                      # the API against a fake bridge, the contract rules, every fixture, the schema's members, the docs, doctests
+cargo test                      # the API against a fake bridge, the contract rules, every fixture, the schema run by a validator, the docs, doctests
 cargo llvm-cov --summary-only --fail-under-lines 80
 sh tests/swift/run.sh           # the Swift models, lifecycle and C bridge on the Mac, every fixture, coverage ≥ 80 %
 sh tests/build/run.sh           # what build.rs does for each target ("host": only the host and the type check)
