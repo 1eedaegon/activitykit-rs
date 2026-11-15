@@ -15,6 +15,36 @@ fn says(text: &str, phrase: &str, file: &str) {
     assert!(text.contains(phrase), "{file} does not say {phrase:?}");
 }
 
+// AK-ERROR-6
+/// The code outside the tests is held to no `unwrap` and no `expect`: the crate's root and the build script deny
+/// clippy's lints for them, and CI runs clippy with warnings denied. The tests are free of the rule.
+#[test]
+fn the_code_outside_the_tests_denies_unwrap_and_expect() {
+    let library = read("src/lib.rs");
+    assert!(
+        library.contains("#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]"),
+        "src/lib.rs"
+    );
+    let script = read("build.rs");
+    assert!(
+        script.contains("#![deny(clippy::unwrap_used, clippy::expect_used)]"),
+        "build.rs"
+    );
+    let ci = read(".github/workflows/ci.yml");
+    assert!(
+        ci.contains("cargo clippy --locked --all-targets -- -D warnings"),
+        "CI runs clippy on every target"
+    );
+    // The examples a reader copies have none either.
+    for file in ["README.md", "docs/usage.md", "docs/ios-setup.md"] {
+        let text = read(file);
+        assert!(
+            !text.contains(".unwrap()") && !text.contains(".expect("),
+            "{file}"
+        );
+    }
+}
+
 // AK-DOCS-1
 #[test]
 fn the_docs_state_the_system_limits_and_behaviors() {

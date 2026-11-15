@@ -11,6 +11,9 @@
 //! Xcode; nothing links then. docs.rs (`DOCS_RS`) has no Xcode either, so the build skips Swift there too.
 //! `IPHONEOS_DEPLOYMENT_TARGET` sets the Swift deployment target (15.0 at least).
 
+// As in the library: no `unwrap` and no `expect`. A build that cannot go on says why and stops.
+#![deny(clippy::unwrap_used, clippy::expect_used)]
+
 use std::{
     env,
     path::{Path, PathBuf},

@@ -206,6 +206,7 @@ Errors are variants of `activitykit::Error`. iOS versions are where ActivityKit 
 | AK-ERROR-3 | `UnsupportedFeature` names the feature and the iOS it needs, before anything reaches ActivityKit. | `{feature: "transient", minimumIos: "18.0"}` → `UnsupportedFeature { feature: "transient", minimum_ios: (18, 0) }`. | `Native` when a member is missing | all |
 | AK-ERROR-4 | `SystemLimit` says whether the app's or the device's limit was reached. | `targetMaximumExceeded` → `App`; `globalMaximumExceeded` → `Device`. | — | all |
 | AK-ERROR-5 | `Error` and `LimitScope` leave room for more: a match needs a `_` arm. | A match without `_` does not compile. | — | all |
+| AK-ERROR-6 | No `unwrap` and no `expect` stands outside the tests: an error is handed on, never turned into a panic. The crate's root denies clippy's `unwrap_used` and `expect_used` where it is not built for its tests, the build script denies them, and CI runs clippy on every target with warnings denied. The examples of the README and the guides have none. The tests are free of the rule. | An `unwrap()` in `src/kit.rs` → clippy fails; one in `src/kit/tests.rs` → fine. | — | all |
 | AK-DOCS-1 | The docs and the rustdoc state the 8-hour and 12-hour limits, the four-hour dismissal, what an alert shows, that relevance is kept and stale dates clear, that dropping ends or cancels nothing, and what is not supported yet. | — | — | all |
 | AK-CONTRACT-1 | The Rust validator gives every fixture its verdict, code and weight. | 1303 requests, 43 updates and 6 ends. | `InvalidInput`, `PayloadTooLarge` | all |
 | AK-CONTRACT-2 | The Swift validator gives every fixture the same. | — | the same | Mac host |
@@ -419,6 +420,7 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 | AK-ERROR-3 | `src/error.rs::every_code_reads_back_as_itself` (unit)<br>`src/kit/tests.rs::swift_errors_keep_their_codes_and_messages` (unit)<br>`tests/swift/mapping.swift::testFailureMembers` (Swift host) |
 | AK-ERROR-4 | `src/error.rs::every_code_reads_back_as_itself` (unit)<br>`src/kit/tests.rs::swift_errors_keep_their_codes_and_messages` (unit)<br>`tests/swift/mapping.swift::testErrorTable` (Swift host)<br>`tests/swift/mapping.swift::testFailureMembers` (Swift host) |
 | AK-ERROR-5 | `src/error.rs::Error` (doc)<br>`src/error.rs::LimitScope` (doc) |
+| AK-ERROR-6 | `tests/docs.rs::the_code_outside_the_tests_denies_unwrap_and_expect` (doc) |
 | AK-DOCS-1 | `tests/docs.rs::the_docs_state_the_system_limits_and_behaviors` (unit)<br>`tests/docs.rs::no_doc_says_what_is_no_longer_true` (unit) |
 | AK-CONTRACT-1 | `tests/contract.rs::every_fixture_gets_its_verdict_code_and_weight` (unit)<br>`tests/contract.rs::valid_fixtures_keep_their_verdict_and_weight_through_the_typed_models` (unit) |
 | AK-CONTRACT-2 | `tests/swift/layout-fixtures.swift::testLayoutFixtures` (Swift host) |
