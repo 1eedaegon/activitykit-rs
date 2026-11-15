@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.6.3 - 2026-11-15
+
+- test: a validator runs the schema against the fixtures (`fc734ce`)
+- chore: no unwrap and no expect outside the tests, held by clippy (`5e10dfa`)
+- refactor: nothing outside the tests can panic on an index or a panic (`eb8c17f`)
+
 ## 0.6.2 - 2026-11-14
 
 - docs: the reply to an update of a stale activity differs between simulators (`4921190`)
