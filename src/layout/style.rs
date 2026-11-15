@@ -14,7 +14,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 /// use activitykit::{Bound, Style};
 ///
 /// let status = Style::new().color(Bound::key("tone"));
-/// assert_eq!(serde_json::to_value(&status).unwrap(), serde_json::json!({ "color": { "bind": "tone" } }));
+/// assert_eq!(serde_json::to_value(&status)?, serde_json::json!({ "color": { "bind": "tone" } }));
+/// # Ok::<(), serde_json::Error>(())
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
