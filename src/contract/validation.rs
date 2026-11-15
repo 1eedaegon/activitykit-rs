@@ -275,7 +275,7 @@ fn expanded_options(expanded: &IslandExpanded) -> Result<()> {
         let beside = |region: &ExpandedRegion| {
             matches!(region, ExpandedRegion::Leading | ExpandedRegion::Trailing) && has(region)
         };
-        let twice = regions.len() == 2 && regions[0] == regions[1];
+        let twice = matches!(regions.as_slice(), [first, second] if first == second);
         require((1..=2).contains(&regions.len()) && !twice && regions.iter().all(beside))?;
     }
     Ok(())
