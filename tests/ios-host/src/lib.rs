@@ -8,7 +8,7 @@ use activitykit::{
     Activity, ActivityKit, Alert, Bound, End, Error, Event, Layout, Push, Receipts, Start, State,
     Style, Update, Value,
     layout::{
-        Accessibility, ButtonStyle, Font, Frame, ImageSource, IndicatorKind, button, custom,
+        Accessibility, ButtonStyle, Color, Font, Frame, ImageSource, IndicatorKind, button, custom,
         divider, gauge, hstack, image, link, path, progress, spacer, symbol, text, timer, toggle,
         vstack, zstack,
     },
@@ -106,6 +106,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "small-region" => small_region(&reporter),
             "stale-start" => stale_start(&reporter),
             "stale-check" => stale_check(&reporter),
+            "appearance" => appearance(&reporter),
             "policies" => policies(&reporter),
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
@@ -934,6 +935,45 @@ fn stale_check(reporter: &Reporter) -> Outcome {
         "stale in the list; the update's reply says {replied:?}, and an event of Active came within 15 s: {}",
         active.is_some()
     ));
+    Ok(())
+}
+
+// AK-RENDER-17
+/// A card and a box in it, each colored with a pair of its own: yellow or blue, and green or magenta. The UI test
+/// reads from a screenshot which color of each pair the Lock Screen shows. The timer and the controls are there
+/// because cards with them came in two appearances far more often than cards of text alone.
+fn appearance(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let pair = |light: &str, dark: &str| Color::Adaptive {
+        light: light.to_owned(),
+        dark: dark.to_owned(),
+    };
+    let controls = [
+        timer("from", "to"),
+        toggle("flag", "on", text("Flag")),
+        button("tap", text("Tap")),
+    ];
+    let lines = [
+        text("Appearance"),
+        hstack(controls).spacing(12.0),
+        text("Box").style("box"),
+    ];
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_millis() as u64;
+    let values = values! { "from" => now, "to" => now + 600_000, "on" => false };
+    let layout = Layout::new(vstack(lines).spacing(8.0))
+        .background(pair("#FFFF00", "#0000FF"))
+        .style(
+            "box",
+            Style::new()
+                .frame(Frame::new().width(220.0).height(48.0))
+                .background(pair("#00FF00", "#FF00FF")),
+        );
+    let start = Start::new(layout, values).key("host:appearance");
+    block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    reporter.say("started: the Lock Screen shows it");
     Ok(())
 }
 

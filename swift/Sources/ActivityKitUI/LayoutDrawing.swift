@@ -5,8 +5,9 @@ import ActivityKitShared
 @available(iOS 16.1, *)
 extension Color {
     /// A layout color as `scheme` shows it: a system color, one sRGB color, or the light or dark color of a pair.
-    /// Resolve a pair with the view's `colorScheme`: the system judges a Live Activity's background tint
-    /// when it archives the view, and a dynamic color left it a different appearance than the text.
+    /// Resolve a pair with the `colorScheme` of the view that draws it, so that it is of the appearance its
+    /// neighbors are of. A dynamic color would be the system's to resolve, and for a Live Activity's background
+    /// tint the system resolved it for another appearance than it drew the text in.
     public init(_ spec: LayoutColorSpec, scheme: ColorScheme) {
         switch spec {
         case .semantic(let name): self = name.color

@@ -5,6 +5,15 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- A layout's `background` that is a light and dark pair is of the appearance its content is drawn in, on the Lock
+  Screen and in the banner. The widget gave a pair to the system as the activity's background tint, and a card
+  came with the pair's light color behind content of the dark appearance and stayed so until the next update. Seen
+  on the iOS 26.3 simulator in the light appearance, at some starts and not at others (here at one of two, in
+  another project's pictures at 28 of 55); no phone was looked at. The widget now draws a pair itself, behind the
+  content. What stays as it was: a hex color and a color name are the system's tint, and so is a pair in the small
+  family of Apple Watch and CarPlay. What changes with a pair: the system's own parts of a card, such as its
+  question whether the app may go on showing Live Activities, have the system's colors and no longer the pair's.
+
 ## 0.6.4 - 2026-11-18
 
 - fix: a button's tap asks for no state (`12ae8ec`)

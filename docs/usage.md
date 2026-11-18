@@ -74,7 +74,8 @@ for anything the builders leave out.
 
 Without an `Island`, the expanded island shows the Lock Screen tree, the compact leading and minimal parts the tree's
 first symbol, and the compact trailing part nothing. `Layout::background` and `Layout::keyline` tint the Lock Screen
-presentation and the island's keyline.
+presentation and the island's keyline. A background that is a light and dark pair is not the system's tint on the
+Lock Screen: the widget draws it behind the content, so that it is of the appearance the content is drawn in.
 
 `Style::new()` has a builder for each member: `font`, `size`, `weight`, `design`, `font_family`, `monospaced_digit`,
 `color`, `line_limit`, `minimum_scale_factor`, `alignment`, `padding`, `frame`, `background`, `corner_radius`,
