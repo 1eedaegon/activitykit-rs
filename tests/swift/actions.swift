@@ -55,6 +55,13 @@ extension LifecycleTests {
                          "the bridge's event says which state was asked for")
         try await verify(try event(heard.actions[1]) == ["type": "action", "activityId": "la-1", "actionId": "stop", "activityKey": "job:1"],
                          "and nothing of a state for a button")
+
+        // The intent carries the state as two values, since the system hands the app a value that was never set as
+        // false: a tap is a toggle's only when it says so, and whatever its other value is, a button's has no state.
+        expect(ActionPost.state(isToggle: false, isOn: false) == nil && ActionPost.state(isToggle: false, isOn: true) == nil,
+               "a tap that does not say it is a toggle's asks for no state")
+        expect(ActionPost.state(isToggle: true, isOn: true) == true && ActionPost.state(isToggle: true, isOn: false) == false,
+               "a toggle's tap asks for the state it carries")
     }
 
     // AK-EVENT-3, AK-EVENT-4, AK-EVENT-6, AK-EVENT-14

@@ -14,20 +14,25 @@ public struct ActivityKitActionIntent: LiveActivityIntent {
 
     @Parameter(title: "Activity") public var activityId: String
     @Parameter(title: "Action") public var actionId: String
-    /// The state the person asked a toggle for; a button has none.
-    @Parameter(title: "On") public var isOn: Bool?
+    /// Whether the action is a toggle's. Only then does the tap ask for a state: a button's intent sets neither value,
+    /// and the system hands both to the app as false.
+    @Parameter(title: "Toggle", default: false) public var isToggle: Bool
+    /// The state the person asked a toggle for. A button's says nothing.
+    @Parameter(title: "On", default: false) public var isOn: Bool
 
     public init() {}
+    /// `isOn` is the state a toggle is asked for; a button gives none.
     public init(activityId: String, actionId: String, isOn: Bool? = nil) {
         self.activityId = activityId
         self.actionId = actionId
-        self.isOn = isOn
+        self.isToggle = isOn != nil
+        self.isOn = isOn ?? false
     }
 
     /// Runs in the app process and hands the tap to activitykit's bridge (`ActionPost`): every 100 ms for up to 5 s
     /// until the bridge acknowledges it, which it does once the app has taken the event.
     public func perform() async throws -> some IntentResult {
-        try await ActionPost.post(activityId: activityId, actionId: actionId, isOn: isOn)
+        try await ActionPost.post(activityId: activityId, actionId: actionId, isOn: ActionPost.state(isToggle: isToggle, isOn: isOn))
         return .result()
     }
 }
