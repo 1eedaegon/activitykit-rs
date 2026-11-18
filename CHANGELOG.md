@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- A button's tap comes without a state again: `Event::Action { on: None, .. }`. Since 0.5.0 it came with
+  `on: Some(false)`, on a phone and on the simulator, so an app could not tell it from a toggle that was asked to
+  switch off. The intent carried the state as one optional value, and the system hands the app a value that was
+  never set as false. It now carries two, whether the tap is a toggle's and which state it asks for.
+  `ActivityKitActionIntent.isOn` is a `Bool` beside the new `isToggle`; its initializer is unchanged.
+
 ## 0.6.3 - 2026-11-15
 
 - test: a validator runs the schema against the fixtures (`fc734ce`)

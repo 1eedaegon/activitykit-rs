@@ -11,6 +11,11 @@ public enum ActionPost {
     /// Between two posts, in nanoseconds.
     public static let interval: UInt64 = 100_000_000
 
+    /// The state a tap asks for, from the two values the intent carries: a toggle's tap says that it is one and which
+    /// state it asks for, and any other tap asks for none. The intent cannot carry one optional value for this: the
+    /// system hands the app a value that was never set as false, and a button's tap would ask to switch off.
+    public static func state(isToggle: Bool, isOn: Bool) -> Bool? { isToggle ? isOn : nil }
+
     /// Posts the tap until it is acknowledged or the attempts run out, and says whether it was acknowledged. `isOn` is
     /// the state the person asked a toggle for; a button has none.
     @discardableResult

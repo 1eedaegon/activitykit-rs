@@ -255,7 +255,7 @@ fn start(kit: &ActivityKit, reporter: &Reporter, key: &str) -> Result<Activity, 
 }
 
 /// Start, turn the bound color red, wait for the Stop button on the Lock Screen (the UI test taps it), then end.
-// AK-AUTH-1, AK-CUSTOM-3, AK-END-1, AK-END-6, AK-EVENT-1, AK-EVENT-2, AK-EVENT-8, AK-EVENT-14, AK-HANDLE-3, AK-KIT-1, AK-START-1, AK-STATE-2, AK-THREAD-2, AK-UPDATE-1, AK-UPDATE-5, AK-UPDATE-11, AK-UPDATE-12, AK-UPDATE-16
+// AK-AUTH-1, AK-CUSTOM-3, AK-END-1, AK-END-6, AK-EVENT-1, AK-EVENT-2, AK-EVENT-8, AK-EVENT-14, AK-HANDLE-3, AK-KIT-1, AK-START-1, AK-STATE-2, AK-THREAD-2, AK-UPDATE-1, AK-UPDATE-5, AK-UPDATE-11, AK-UPDATE-12, AK-UPDATE-16, AK-TOGGLE-1
 fn lock_screen(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let events = kit.events();
@@ -303,12 +303,18 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
             activity,
             action,
             acknowledgement,
+            on,
             ..
-        } => Some((activity, action, acknowledgement)),
+        } => Some((activity, action, acknowledgement, on)),
         _ => None,
     });
-    let (tapped, action, acknowledgement) = tapped.ok_or("no tap within 3 minutes")?;
+    let (tapped, action, acknowledgement, on) = tapped.ok_or("no tap within 3 minutes")?;
     reporter.say(format!("action {action} from {}", tapped.id()));
+    // AK-TOGGLE-1: only a toggle asks for a state.
+    check(
+        on.is_none(),
+        format!("a button's tap asks for no state, not {on:?}"),
+    )?;
     // AK-EVENT-14: the handler updates the activity and takes a second in all, holding the acknowledgement; the tap's
     // intent waits for it.
     let stopping = values! { "status" => "Stopping", "tone" => "gray", "level" => 1.0 };
@@ -469,7 +475,7 @@ fn cold_tap_start(reporter: &Reporter) -> Outcome {
 
 /// The launch the tap caused: the kit is made at once, the tap arrives, the handler updates the activity and the
 /// intent is acknowledged after it.
-// AK-EVENT-15
+// AK-EVENT-15, AK-TOGGLE-1
 fn cold_tap(reporter: &Reporter) -> Outcome {
     let launched = Instant::now();
     if let Some(mark) = cold_tap_mark() {
@@ -483,11 +489,18 @@ fn cold_tap(reporter: &Reporter) -> Outcome {
             activity,
             action,
             acknowledgement,
+            on,
             ..
-        } => Some((activity, action, acknowledgement)),
+        } => Some((activity, action, acknowledgement, on)),
         _ => None,
     });
-    let (activity, action, acknowledgement) = tapped.ok_or("no tap within 20 s of the launch")?;
+    let (activity, action, acknowledgement, on) =
+        tapped.ok_or("no tap within 20 s of the launch")?;
+    // AK-TOGGLE-1: in a process the system launched for the tap as well.
+    check(
+        on.is_none(),
+        format!("a button's tap that launches the app asks for no state, not {on:?}"),
+    )?;
     let after = launched.elapsed();
     reporter.say(format!(
         "action {action} from {} {after:?} after the launch",
