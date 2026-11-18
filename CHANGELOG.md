@@ -5,6 +5,10 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.6.4 - 2026-11-18
+
+- fix: a button's tap asks for no state (`12ae8ec`)
+
 - A button's tap comes without a state again: `Event::Action { on: None, .. }`. Since 0.5.0 it came with
   `on: Some(false)`, on a phone and on the simulator, so an app could not tell it from a toggle that was asked to
   switch off. The intent carried the state as one optional value, and the system hands the app a value that was
