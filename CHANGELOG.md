@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.6.5 - 2026-11-18
+
+- fix: a color pair behind a card is drawn with the content (`4c47152`)
+- fix: the widget draws a color pair in the small family too (`b5044b5`)
+- docs: the Lock Screen was seen once with a light card and light content (`bc2963a`)
+
 - A layout's `background` that is a light and dark pair is of the appearance its content is drawn in. The widget
   gave a pair to the system as the activity's background tint, and a card came with the pair's light color behind
   content of the dark appearance: white text on a light card. Seen on simulators with the iPhone in the light
