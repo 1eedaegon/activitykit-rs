@@ -156,7 +156,7 @@ The Swift layer checks this, because it holds the started activity.
     "minimal": Node,
     "margins": { ... }             // optional; see "Options of the Dynamic Island"
   },
-  "background": Color | Binding,   // optional; tint of the activity background
+  "background": Color | Binding,   // optional; the color behind the activity on the Lock Screen
   "keyline": Color | Binding,      // optional; tint of the Dynamic Island keyline
   "url": Url | Binding,            // optional; what a tap on the activity opens the app with
   "small": Node                    // optional; for the small family, on Apple Watch and in CarPlay
@@ -409,6 +409,11 @@ A Color is one of:
 - a hex string, `#RRGGBB` or `#RRGGBBAA`, with digits in either case. It is used in light and in
   dark mode alike;
 - `{ "light": hex, "dark": hex }`, with both members.
+
+`layout.background` as a name or a hex string is the activity's background tint, which the system draws. As a pair
+it is drawn by the layout widget, behind the content and in the appearance the content is drawn in. As the tint, a
+pair came on simulators as its light color behind content of the dark appearance: on the Lock Screen of iOS 26.3 at
+some starts, and in the Smart Stack of a paired Apple Watch.
 
 A style is applied to its node in this order: font and text members with `contentTransition`, `color`, `tint` and
 `buttonStyle`, `padding`, `frame`, `background`, `cornerRadius`, `opacity`.

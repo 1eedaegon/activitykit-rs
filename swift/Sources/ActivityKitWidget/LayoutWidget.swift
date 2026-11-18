@@ -97,17 +97,65 @@ public struct ActivityKitLayoutWidget: Widget {
 
 @available(iOS 16.1, *)
 private struct LayoutLockScreen: View {
-    @Environment(\.colorScheme) private var scheme
     let context: ActivityViewContext<LiveActivityLayoutAttributes>
 
     var body: some View {
         let host = LayoutActivityHost(context: context)
+        let document = context.attributes.document
         // The Lock Screen tree, or what the layout shows where the system asks for the small family.
-        LayoutContentView(document: context.attributes.document, values: context.state.values, isStale: host.isStale,
-                          button: host.button, toggle: host.toggle, custom: host.custom)
-            .activityBackgroundTint(context.attributes.document.background(values: context.state.values).map { Color($0, scheme: scheme) })
-            .widgetURL(context.attributes.document.url(values: context.state.values))
+        let content = LayoutContentView(document: document, values: context.state.values, isStale: host.isStale,
+                                        button: host.button, toggle: host.toggle, custom: host.custom)
+        Group {
+            if #available(iOS 18.0, *) {
+                content.modifier(LayoutFamilyCardColor(document: document, values: context.state.values))
+            } else {
+                content.modifier(LayoutCardColor(document: document, values: context.state.values, isSmallFamily: false))
+            }
+        }
+        .widgetURL(document.url(values: context.state.values))
     }
+}
+
+/// Colors the card behind the content with the layout's background: as the system's tint, or, for a light and dark
+/// pair, drawn here behind the content and with it (`LayoutDocument.drawnBackground`).
+@available(iOS 16.1, *)
+private struct LayoutCardColor: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    let document: LayoutDocument
+    let values: [String: LayoutValue]
+    let isSmallFamily: Bool
+
+    func body(content: Content) -> some View {
+        let drawn = document.drawnBackground(values: values)
+        return content
+            // The content is as wide as its widest node, in the middle of a card that is as wide as the system makes
+            // it. A card on the Lock Screen is as high as its content; the small family's tile has a height of the
+            // system's, which the color fills as well.
+            .frame(maxWidth: drawn == nil ? nil : .infinity, maxHeight: drawn != nil && isSmallFamily ? .infinity : nil)
+            .background { if let drawn { LayoutPairColor(pair: drawn) } }
+            .activityBackgroundTint(document.backgroundTint(values: values).map { Color($0, scheme: scheme) })
+    }
+}
+
+/// Reads the family the system asks for, which the environment has from iOS 18.
+@available(iOS 18.0, *)
+private struct LayoutFamilyCardColor: ViewModifier {
+    @Environment(\.activityFamily) private var family
+    let document: LayoutDocument
+    let values: [String: LayoutValue]
+
+    func body(content: Content) -> some View {
+        content.modifier(LayoutCardColor(document: document, values: values, isSmallFamily: family == .small))
+    }
+}
+
+/// The color of a pair in the appearance that this view is drawn in, read where it is drawn.
+@available(iOS 16.1, *)
+private struct LayoutPairColor: View {
+    @Environment(\.colorScheme) private var scheme
+    let pair: LayoutColorSpec
+
+    var body: some View { Color(pair, scheme: scheme) }
 }
 
 @available(iOS 16.1, *)

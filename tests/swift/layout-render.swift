@@ -27,6 +27,7 @@ extension LifecycleTests {
         try testRenderToggles()
         try testRenderStaleness()
         try testRenderSmall()
+        try testCardBackground()
     }
 
     // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
@@ -469,6 +470,31 @@ extension LifecycleTests {
         }
         let node = try layoutDocument(#"{"type":"divider","ifStale":true}"#).layout.lockScreen
         expect(document.render(node, values: [:]) == nil && document.render(node, values: [:], isStale: true)?.content == .divider, "one node renders the same way")
+    }
+
+    // AK-RENDER-17
+    /// A background that is a light and dark pair is the widget's to draw behind the content; every other color is
+    /// the system's tint.
+    @MainActor private static func testCardBackground() throws {
+        let lock = #"{"type":"text","value":"Lock"}"#
+        let pair = try layoutDocument(lock, layout: ##","background":{"light":"#FFFFFF","dark":"#111111"}"##)
+        let color = pair.background
+        expect(color == .adaptive(light: LayoutRGBA(red: 1, green: 1, blue: 1, alpha: 1), dark: LayoutRGBA(red: 17 / 255, green: 17 / 255, blue: 17 / 255, alpha: 1)),
+               "the layout's background is the pair")
+        expect(pair.drawnBackground(values: [:]) == color && pair.backgroundTint(values: [:]) == nil,
+               "the widget draws a pair behind the content, and the system gets no tint")
+
+        let paper: [String: LayoutValue] = ["paper": .string("green")]
+        for member in [##""#FF8000""##, ##""#FF800080""##, #""primary""#, #""clear""#, #"{"bind":"paper"}"#] {
+            let document = try layoutDocument(lock, layout: #","background":"# + member)
+            let background = document.background(values: paper)
+            expect(background != nil, "the layout has the background \(member)")
+            expect(document.drawnBackground(values: paper) == nil && document.backgroundTint(values: paper) == background,
+                   "\(member) is the system's tint")
+        }
+
+        let plain = try layoutDocument(lock)
+        expect(plain.drawnBackground(values: [:]) == nil && plain.backgroundTint(values: [:]) == nil, "a layout without a background has neither")
     }
 
     // AK-SMALL-1, AK-SMALL-2

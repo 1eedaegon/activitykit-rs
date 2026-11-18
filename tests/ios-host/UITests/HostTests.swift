@@ -85,6 +85,12 @@ class HostCase: XCTestCase {
 
     /// Pulls the Lock Screen down until `text` shows, and allows Live Activities if the system asks.
     func showLockScreen(until text: String) {
+        pullLockScreenDown(until: text)
+        allowLiveActivities()
+    }
+
+    /// Pulls the Lock Screen down and waits until `text` shows on it.
+    func pullLockScreenDown(until text: String) {
         pullLockScreenDown()
         // A new simulator can take half a minute to draw its first activity.
         let shown = springboard.staticTexts[text].waitForExistence(timeout: 45)
@@ -94,16 +100,23 @@ class HostCase: XCTestCase {
             print("the Lock Screen without \(text):\n\(springboard.debugDescription)")
         }
         XCTAssertTrue(shown, "\(text) shows on the Lock Screen")
-        // The system asks once whether the app may show Live Activities.
+    }
+
+    /// The system asks once whether the app may show Live Activities.
+    func allowLiveActivities() {
         let allow = springboard.buttons.matching(NSPredicate(format: "label IN %@", ["Always Allow", "Allow"])).firstMatch
         if allow.waitForExistence(timeout: 3) { allow.tap() }
     }
 
     func capture(_ name: String) throws {
+        try save(XCUIScreen.main.screenshot(), as: name)
+    }
+
+    func save(_ screenshot: XCUIScreenshot, as name: String) throws {
         let folder = ProcessInfo.processInfo.environment["AK_SHOTS"].map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: folder.appendingPathComponent(name + ".png"), options: .atomic)
+        try screenshot.pngRepresentation.write(to: folder.appendingPathComponent(name + ".png"), options: .atomic)
     }
 }
 
