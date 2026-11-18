@@ -74,8 +74,8 @@ for anything the builders leave out.
 
 Without an `Island`, the expanded island shows the Lock Screen tree, the compact leading and minimal parts the tree's
 first symbol, and the compact trailing part nothing. `Layout::background` and `Layout::keyline` tint the Lock Screen
-presentation and the island's keyline. A background that is a light and dark pair is not the system's tint on the
-Lock Screen: the widget draws it behind the content, so that it is of the appearance the content is drawn in.
+presentation and the island's keyline. A background that is a light and dark pair is not the system's tint: the
+widget draws it behind the content, so that it is of the appearance the content is drawn in.
 
 `Style::new()` has a builder for each member: `font`, `size`, `weight`, `design`, `font_family`, `monospaced_digit`,
 `color`, `line_limit`, `minimum_scale_factor`, `alignment`, `padding`, `frame`, `background`, `corner_radius`,
@@ -169,7 +169,7 @@ let layout = Layout::new(vstack([text("Recording"), text(Bound::key("status"))])
 
 A paired Apple Watch (iOS 18 with watchOS 11) and CarPlay (iOS 26) show an iPhone's Live Activity by themselves, with
 the compact leading and trailing parts of the Dynamic Island. `Layout::small` gives them a view of their own: a tree
-of at most 12 nodes, without buttons, links or toggles, on the layout's background tint, and a tap opens the layout's
+of at most 12 nodes, without buttons, links or toggles, on the layout's background, and a tap opens the layout's
 URL. The widget draws it only when its extension opts in, with `ActivityKitSmallFamily` set to true in its Info.plist
 ([iOS setup](ios-setup.md#the-widget-extension)); a widget states the families it draws once, for every activity, so
 this is the extension's choice and not a layout's. With the key, a layout without a small region shows its compact

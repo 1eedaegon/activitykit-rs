@@ -117,7 +117,7 @@ private struct LayoutLockScreen: View {
 }
 
 /// Colors the card behind the content with the layout's background: as the system's tint, or, for a light and dark
-/// pair in the medium family, drawn here behind the content and with it (`LayoutDocument.drawnBackground`).
+/// pair, drawn here behind the content and with it (`LayoutDocument.drawnBackground`).
 @available(iOS 16.1, *)
 private struct LayoutCardColor: ViewModifier {
     @Environment(\.colorScheme) private var scheme
@@ -126,13 +126,14 @@ private struct LayoutCardColor: ViewModifier {
     let isSmallFamily: Bool
 
     func body(content: Content) -> some View {
-        let drawn = document.drawnBackground(values: values, isSmallFamily: isSmallFamily)
-        let tint = document.backgroundTint(values: values, isSmallFamily: isSmallFamily)
+        let drawn = document.drawnBackground(values: values)
         return content
-            // The content is as wide as its widest node, in the middle of a card that is as wide as the system makes it.
-            .frame(maxWidth: drawn == nil ? nil : .infinity)
+            // The content is as wide as its widest node, in the middle of a card that is as wide as the system makes
+            // it. A card on the Lock Screen is as high as its content; the small family's tile has a height of the
+            // system's, which the color fills as well.
+            .frame(maxWidth: drawn == nil ? nil : .infinity, maxHeight: drawn != nil && isSmallFamily ? .infinity : nil)
             .background { if let drawn { LayoutPairColor(pair: drawn) } }
-            .activityBackgroundTint(tint.map { Color($0, scheme: scheme) })
+            .activityBackgroundTint(document.backgroundTint(values: values).map { Color($0, scheme: scheme) })
     }
 }
 

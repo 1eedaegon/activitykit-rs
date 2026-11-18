@@ -473,34 +473,28 @@ extension LifecycleTests {
     }
 
     // AK-RENDER-17
-    /// A background that is a light and dark pair is the widget's to draw behind the content, where the widget draws
-    /// the medium family; in the small family, and for every other color, it is the system's tint.
+    /// A background that is a light and dark pair is the widget's to draw behind the content; every other color is
+    /// the system's tint.
     @MainActor private static func testCardBackground() throws {
         let lock = #"{"type":"text","value":"Lock"}"#
         let pair = try layoutDocument(lock, layout: ##","background":{"light":"#FFFFFF","dark":"#111111"}"##)
         let color = pair.background
         expect(color == .adaptive(light: LayoutRGBA(red: 1, green: 1, blue: 1, alpha: 1), dark: LayoutRGBA(red: 17 / 255, green: 17 / 255, blue: 17 / 255, alpha: 1)),
                "the layout's background is the pair")
-        expect(pair.drawnBackground(values: [:], isSmallFamily: false) == color && pair.backgroundTint(values: [:], isSmallFamily: false) == nil,
+        expect(pair.drawnBackground(values: [:]) == color && pair.backgroundTint(values: [:]) == nil,
                "the widget draws a pair behind the content, and the system gets no tint")
-        expect(pair.drawnBackground(values: [:], isSmallFamily: true) == nil && pair.backgroundTint(values: [:], isSmallFamily: true) == color,
-               "in the small family a pair is the system's tint")
 
         let paper: [String: LayoutValue] = ["paper": .string("green")]
         for member in [##""#FF8000""##, ##""#FF800080""##, #""primary""#, #""clear""#, #"{"bind":"paper"}"#] {
             let document = try layoutDocument(lock, layout: #","background":"# + member)
             let background = document.background(values: paper)
             expect(background != nil, "the layout has the background \(member)")
-            for isSmallFamily in [false, true] {
-                expect(document.drawnBackground(values: paper, isSmallFamily: isSmallFamily) == nil
-                       && document.backgroundTint(values: paper, isSmallFamily: isSmallFamily) == background,
-                       "\(member) is the system's tint, in the small family: \(isSmallFamily)")
-            }
+            expect(document.drawnBackground(values: paper) == nil && document.backgroundTint(values: paper) == background,
+                   "\(member) is the system's tint")
         }
 
         let plain = try layoutDocument(lock)
-        expect(plain.drawnBackground(values: [:], isSmallFamily: false) == nil && plain.backgroundTint(values: [:], isSmallFamily: false) == nil,
-               "a layout without a background has neither")
+        expect(plain.drawnBackground(values: [:]) == nil && plain.backgroundTint(values: [:]) == nil, "a layout without a background has neither")
     }
 
     // AK-SMALL-1, AK-SMALL-2

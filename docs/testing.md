@@ -46,7 +46,8 @@ bash tests/release/run.sh       # the release tool, in repositories of its own
     with no update and with the app ended, the list then saying `Stale`, and back after an update; a layout with a
     small region that starts with nothing degraded, and, in the host's preview app, what the widget's content view
     draws for the small family (the small region, or the compact parts of a layout without one) and for the medium
-    one (the Lock Screen tree); a start from the background, which ActivityKit
+    one (the Lock Screen tree); a card and a box in it colored with two light and dark pairs, which screenshots
+    show in colors of one appearance over several starts and when the appearance turns; a start from the background, which ActivityKit
     refuses (`NotForeground`); `activities()` after a relaunch, whose handle continues the revision, and the same
     keyed start returning the running activity before and after it; redacted receipts that keep no values, and the
     values ActivityKit shows after a relaunch; a start that asks for a push token, which ActivityKit refuses without

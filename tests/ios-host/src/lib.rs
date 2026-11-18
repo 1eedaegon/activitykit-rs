@@ -964,11 +964,18 @@ fn appearance(reporter: &Reporter) -> Outcome {
         .as_millis() as u64;
     let values = values! { "from" => now, "to" => now + 600_000, "on" => false };
     let layout = Layout::new(vstack(lines).spacing(8.0))
+        .small(hstack([text("Small"), text("Chip").style("chip")]).spacing(8.0))
         .background(pair("#FFFF00", "#0000FF"))
         .style(
             "box",
             Style::new()
                 .frame(Frame::new().width(220.0).height(48.0))
+                .background(pair("#00FF00", "#FF00FF")),
+        )
+        .style(
+            "chip",
+            Style::new()
+                .frame(Frame::new().width(64.0).height(28.0))
                 .background(pair("#00FF00", "#FF00FF")),
         );
     let start = Start::new(layout, values).key("host:appearance");

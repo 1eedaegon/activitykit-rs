@@ -411,9 +411,9 @@ A Color is one of:
 - `{ "light": hex, "dark": hex }`, with both members.
 
 `layout.background` as a name or a hex string is the activity's background tint, which the system draws. As a pair
-it is drawn by the layout widget, behind the content and in the appearance the content is drawn in, on the Lock
-Screen and in the banner; in the small family it is the tint. As the tint, a pair came on the iOS 26.3 simulator as
-its light color behind content of the dark appearance at some starts.
+it is drawn by the layout widget, behind the content and in the appearance the content is drawn in. As the tint, a
+pair came on simulators as its light color behind content of the dark appearance: on the Lock Screen of iOS 26.3 at
+some starts, and in the Smart Stack of a paired Apple Watch.
 
 A style is applied to its node in this order: font and text members with `contentTransition`, `color`, `tint` and
 `buttonStyle`, `padding`, `frame`, `background`, `cornerRadius`, `opacity`.
