@@ -215,5 +215,11 @@ only below 16.2; its runtime was deleted afterwards for its 6 GB and is download
 among the elements that UIKit's accessibility protocols give assistive technologies (`testHiddenNodesAreNotRead`).
 iOS 17.1 has no simulator runtime that Xcode 26.3 downloads.
 
+On phones, by the liveactivity-rs session with the plugin's demo on activitykit 0.6.6 (2026-11-20): the built app's
+App Intents metadata began `ActivityKitActionIntent` with iOS 17.2; on an iPhone XS (iOS 18.7.12) and an iPhone 16
+(iOS 27.2) a bound style, a tap on the Lock Screen's button and on its switch reached the app, and the cards were 355
+points wide on the XS's screen of 375 and 365 on the iPhone 16's of 393: 10 and 14 points from the sides, as on the
+simulators. The demo's layouts fill the card's width, so a control of a narrower layout was not tapped on a phone.
+
 Not tested: a phone, iOS 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.
