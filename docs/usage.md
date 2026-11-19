@@ -26,7 +26,7 @@ need not try a request to learn it:
 | `push_to_start` | iOS 17.2 | `Builder::push_to_start(true)` watches nothing |
 | `push_channels` | iOS 18 | `Start::push(Push::Channel(..))` fails with `Error::UnsupportedFeature` before ActivityKit is asked |
 | `transient` | iOS 18 | `Start::transient()` fails the same way |
-| `scheduled_start` | iOS 26 | `Start::scheduled(..)` fails the same way |
+| `scheduled_start` | iOS 26, in an app built with the iOS 26 SDK | `Start::scheduled(..)` fails the same way; on iOS 26 in an app built with an older SDK, with `Error::ConfigurationRequired` |
 | `small_family` | iOS 18, and the widget extension sets `ActivityKitSmallFamily` | Apple Watch and CarPlay show the island's compact parts |
 
 Off iOS, `authorization()` reports nothing supported and every other call answers `Error::Unsupported` after it has

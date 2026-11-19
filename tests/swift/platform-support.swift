@@ -24,6 +24,12 @@ extension LifecycleTests {
         expect(!features(26, 0, widget: false).smallFamily && features(26, 0, widget: false).scheduledStart,
                "without a widget that draws it there is no small family")
         expect(on(LiveActivityFeatures()) == [], "a device without Live Activities runs none of them")
+        var asked = 0
+        func widget() -> Bool { asked += 1; return true }
+        _ = LiveActivityFeatures(version: OperatingSystemVersion(majorVersion: 17, minorVersion: 4, patchVersion: 0), widgetDrawsSmallFamily: widget())
+        expect(asked == 0, "below iOS 18 the widget extension is not read")
+        _ = LiveActivityFeatures(version: OperatingSystemVersion(majorVersion: 18, minorVersion: 0, patchVersion: 0), widgetDrawsSmallFamily: widget())
+        expect(asked == 1, "from iOS 18 it is")
     }
 
     // AK-PLATFORM-1, AK-START-7

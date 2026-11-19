@@ -15,11 +15,11 @@ public struct LiveActivityFeatures: Equatable, Sendable {
 
     public init(buttons: Bool = false) { self.buttons = buttons }
 
-    /// What `version` runs.
-    public init(version: OperatingSystemVersion, widgetDrawsSmallFamily: Bool) {
+    /// What `version` runs. Whether the widget draws the small family is asked only from iOS 18.
+    public init(version: OperatingSystemVersion, widgetDrawsSmallFamily: @autoclosure () -> Bool) {
         func from(_ major: Int, _ minor: Int = 0) -> Bool { (version.majorVersion, version.minorVersion) >= (major, minor) }
         buttons = from(17, 2); pushToStart = from(17, 2)
-        pushChannels = from(18); transient = from(18); smallFamily = from(18) && widgetDrawsSmallFamily
+        pushChannels = from(18); transient = from(18); smallFamily = from(18) && widgetDrawsSmallFamily()
         scheduledStart = from(26)
     }
 }

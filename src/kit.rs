@@ -98,7 +98,8 @@ pub struct Authorization {
     /// Supported, and a start may be transient ([`Start::transient`]): iOS 18 and later; below it as a channel.
     #[serde(default)]
     pub transient: bool,
-    /// Supported, and a start may be scheduled ([`Start::scheduled`]): iOS 26 and later; below it as a channel.
+    /// Supported, and a start may be scheduled ([`Start::scheduled`]): iOS 26 and later, in an app built with the
+    /// iOS 26 SDK; below iOS 26 as a channel.
     #[serde(default)]
     pub scheduled_start: bool,
     /// Supported, iOS 18 or later, and the app's widget extension draws the small family (its Info.plist sets

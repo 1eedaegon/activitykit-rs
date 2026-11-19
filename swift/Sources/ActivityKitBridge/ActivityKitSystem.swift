@@ -21,9 +21,16 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
     }
 
     /// What this device runs of the later features, read once: neither the iOS nor the embedded widget extension
-    /// changes while the app runs.
-    static let features = LiveActivityFeatures(version: ProcessInfo.processInfo.operatingSystemVersion,
-                                               widgetDrawsSmallFamily: LayoutWidgetPreflight.drawsSmallFamily(plugIns: Bundle.main.builtInPlugInsURL))
+    /// changes while the app runs. The extension is read only where the system asks for the small family (iOS 18).
+    /// A scheduled start needs the app built with the iOS 26 SDK too, as the adapter's request does.
+    static let features: LiveActivityFeatures = {
+        var features = LiveActivityFeatures(version: ProcessInfo.processInfo.operatingSystemVersion,
+                                            widgetDrawsSmallFamily: LayoutWidgetPreflight.drawsSmallFamily(plugIns: Bundle.main.builtInPlugInsURL))
+        #if !compiler(>=6.2)
+        features.scheduledStart = false
+        #endif
+        return features
+    }()
 
     private static func reply(enabled: Bool) -> AuthorizationReply {
         var frequentPushes = false
