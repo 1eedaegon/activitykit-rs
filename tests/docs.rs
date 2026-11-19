@@ -162,6 +162,16 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     for phrase in ["push-to-start", "Left out"] {
         says(&later, phrase, "docs/not-yet-supported.md");
     }
+    // What the system leaves to a layout on the Lock Screen (AK-RENDER-18).
+    for phrase in [
+        "Placement on the Lock Screen",
+        "There is no margin",
+        "the card shows it in its middle",
+        "at most 160 points",
+        "max_width(Dimension::Infinity)",
+    ] {
+        says(&usage, phrase, "docs/usage.md");
+    }
     // Where a button and a toggle begin (AK-RENDER-10), and why it is not the iOS of their intent's protocol.
     says(
         &usage,

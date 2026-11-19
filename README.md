@@ -47,7 +47,8 @@ if !kit.authorization().enabled {
 let layout = Layout::new(vstack([
     hstack([symbol("mic.fill"), text("Recording").style("status"), button("stop", text("Stop"))]),
     progress("level"),
-]))
+]).style("card"))
+.style("card", Style::new().padding(16.0))            // the system adds no margin inside the card
 .style("status", Style::new().color(Bound::key("tone")));
 
 let activity = kit.start(layout, values! { "tone" => "green", "level" => 0.2 }).await?;
@@ -110,7 +111,8 @@ let layout = Layout::new(vstack([
     hstack([symbol("mic.fill"), text(Bound::key("status")).style("status"), spacer(), timer("from", "to")]),
     progress("level").style("level"),
     text("Too loud").when("loud"),                         // drawn only while the value `loud` is truthy
-]).spacing(10.0))
+]).spacing(10.0).style("card"))
+.style("card", Style::new().padding(16.0))                 // room to the card's edges and rounded corners
 .style("status", Style::new().font(Font::Headline).color(Bound::key("tone")))   // follows the value `tone`
 .style("level", Style::new().tint(Bound::key("tone")))
 .island(Island::new()
