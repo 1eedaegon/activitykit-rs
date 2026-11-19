@@ -208,5 +208,12 @@ SE (3rd generation) with iOS 26.3; and a hex color as the system's tint read as 
 points below the top of the screen, with its nine boxes in the same places; one test failed there for a start that
 answered `NATIVE_ERROR` on the loaded Mac, after the nine boxes of its first card had been found in their places.
 
-Not tested: a phone, iOS 16.0, 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
+On 2026-11-20 two more were run. On a simulator of iOS 16.0, which has no ActivityKit, the test host built for 15.0
+ran, and the crate answered `Unsupported` to a start and to the list (`testOlderSystemsAnswerUnsupported`, which runs
+only below 16.2; its runtime was deleted afterwards for its 6 GB and is downloaded again with `xcodebuild
+-downloadPlatform iOS -buildVersion 16.0`). In the preview app on iOS 16.2 and 26.3, a layout's hidden nodes were not
+among the elements that UIKit's accessibility protocols give assistive technologies (`testHiddenNodesAreNotRead`).
+iOS 17.1 has no simulator runtime that Xcode 26.3 downloads.
+
+Not tested: a phone, iOS 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.
