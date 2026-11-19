@@ -252,6 +252,7 @@ Errors are variants of `activitykit::Error`. iOS versions are where ActivityKit 
 | AK-BUILD-4 | On any other target build.rs builds no Swift and needs no Xcode. | Linux or macOS host → no Swift build. | — | all |
 | AK-BUILD-5 | Under docs.rs (`DOCS_RS`) or `ACTIVITYKIT_SKIP_SWIFT`, the iOS code type-checks without a Swift build. | `cargo check --target aarch64-apple-ios` without Xcode → passes. | — | any |
 | AK-BUILD-6 | The Swift deployment target is `IPHONEOS_DEPLOYMENT_TARGET`, raised to 15.0. | 16.4 → 16.4; 12.0 → 15.0. | — | Mac with Xcode |
+| AK-BUILD-7 | build.rs builds the bridge with SwiftPM's own build system and names it (`--build-system native`). Left to the default of `swift build`, which is Swift Build from Xcode 27, the command builds no bridge for iOS: Swift Build does not take the flags that retarget each compile. | `xcrun swift build --build-system native …` | a build error naming the failed command | Mac with Xcode |
 
 ## The widget and its renderer
 
@@ -307,6 +308,7 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 - AK-SMALL-1, AK-SMALL-2: No watch and no car's screen was at hand, and no test runs a Watch simulator: its runtime is a download of 5 GB. It was looked at by hand on 2026-11-19, on a Watch simulator (Apple Watch Series 11 46mm, watchOS 26.2) paired with the iPhone simulator (iOS 26.3), with the scenarios `small-region` and `appearance` of the test host: the watch received the activity, asked the iPhone's widget for the small family in a tile of 194 by 80.5 points with a corner radius of 12.5, and its Smart Stack drew the layout's small region and not the Lock Screen tree. The watch waits 30 s for that content before it presents a new activity; on a loaded Mac it came later, and the card then came into the Smart Stack without the presentation. A preview app in the test host draws the widget's content view with the family set, which an app may do: that shows in CI what the package draws for each family. Still Apple's and not seen: a watch itself, the family in CarPlay (iOS 26), how near the row of compact parts of a layout without a small region comes to the system's own, and that an empty list of supplemental families, which the widget states without the key, is the same as none. The Simulator's CarPlay display (iOS 26.3) was tried and cannot say: it shows a grid of four apps and no Dashboard, and an activity with a small region, and an alert on an update of one, left it as it was. Below iOS 18, where the family does not exist, is read, not run.
 - AK-TOGGLE-1: No simulator below iOS 17 runs here, so the label drawn alone there is read, not run.
 - AK-BUILD-2: On an Intel Mac the `aarch64-apple-ios-sim` Rust target is not installed; CI's Apple-silicon runner builds it.
+- AK-BUILD-7: No Xcode whose `swift build` defaults to Swift Build runs here or in CI: that the build fails there is the report of an app built with Xcode 27.2, which carried this one flag as its patch of the crate. Named by hand on Xcode 26.3 (`--build-system swiftbuild`), Swift Build built the package for the Mac (`platform MACOS` in its objects) into `ActivityKitBridge.o` and left no `libActivityKitBridge.a`, so build.rs would have found no library. The checks read the flag in build.rs, ask this Xcode's `swift build` whether it has the build system, and build with it for each target.
 
 ## Tests
 
@@ -458,6 +460,7 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 | AK-BUILD-4 | `tests/build/run.sh::check_host` (build) |
 | AK-BUILD-5 | `tests/build/run.sh::check_skip` (build) |
 | AK-BUILD-6 | `tests/build/run.sh::check_ios` (build) |
+| AK-BUILD-7 | `tests/build/run.sh::check_build_system` (build)<br>`tests/build/run.sh::check_native_build_system` (build)<br>`tests/build/run.sh::check_ios` (build) |
 | AK-WIDGET-1 | `tests/ios-host/UITests/HostTests.swift::testLockScreenButtonReachesRust` (simulator)<br>`tests/ios-host/UITests/HostTests.swift::testEveryNodeTypeDraws` (simulator) |
 | AK-WIDGET-2 | `tests/swift/layout-lifecycle.swift::testLayoutWidgetPreflight` (Swift host) |
 | AK-RENDER-1 | `tests/swift/layout-render.swift::testRenderContent` (Swift host) |

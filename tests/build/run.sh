@@ -35,6 +35,26 @@ check_skip() {
   done
 }
 
+# AK-BUILD-7: build.rs names SwiftPM's native build system. Left to `swift build`, it is Swift Build from Xcode 27,
+# which does not build for iOS from the flags that retarget each compile.
+check_build_system() {
+  if grep -Eq '"--build-system", *"native"' "$root/build.rs"; then
+    pass "AK-BUILD-7 build.rs names the native build system"
+  else
+    fail "AK-BUILD-7 build.rs leaves the build system to the default of swift build"
+  fi
+}
+
+# AK-BUILD-7: and the `swift build` of this Xcode has that build system.
+check_native_build_system() {
+  if ! command -v xcrun >/dev/null 2>&1; then skip "AK-BUILD-7: no Xcode"; return; fi
+  if xcrun swift build --help 2>/dev/null | grep -A1 -e '--build-system' | grep -q 'native'; then
+    pass "AK-BUILD-7 this Xcode's swift build has the native build system"
+  else
+    fail "AK-BUILD-7 this Xcode's swift build offers no native build system"
+  fi
+}
+
 # AK-BUILD-1, AK-BUILD-2, AK-BUILD-3, AK-BUILD-6: an iOS target builds the bridge for its platform, architecture and
 # deployment target (IPHONEOS_DEPLOYMENT_TARGET, raised to 15.0). AK-BRIDGE-8: the library exports the eight C functions.
 check_ios() {
@@ -62,7 +82,9 @@ check_ios() {
 
 check_host
 check_skip
+check_build_system
 if [ "${1:-all}" != host ]; then
+  check_native_build_system
   check_ios "AK-BUILD-1 AK-BUILD-6" aarch64-apple-ios IOS arm64 16.4 16.4
   check_ios "AK-BUILD-2" aarch64-apple-ios-sim IOSSIMULATOR arm64 17.0 17.0
   check_ios "AK-BUILD-3 AK-BUILD-6" x86_64-apple-ios IOSSIMULATOR x86_64 12.0 15.0

@@ -5,7 +5,8 @@
 //! These are the flags SwiftPM needs to build for iOS, the same the `swift-rs` crate passes: SwiftPM builds for the
 //! host and `-Xswiftc -sdk/-target` retarget each compile to iOS. `swift-rs` itself is not used because it builds every
 //! target of the package (here also the SwiftUI renderer and the widget, which the app's library must not hold) and
-//! needs a static product named like the package.
+//! needs a static product named like the package. The build system is named, SwiftPM's own: Swift Build, the default
+//! of `swift build` from Xcode 27, does not build for iOS from these flags.
 //!
 //! `ACTIVITYKIT_SKIP_SWIFT=1` skips the Swift build, for `cargo check` or `clippy` of the iOS code on a machine without
 //! Xcode; nothing links then. docs.rs (`DOCS_RS`) has no Xcode either, so the build skips Swift there too.
@@ -178,6 +179,8 @@ fn build() -> Result<(), String> {
     run(xcrun()
         .arg("swift")
         .arg("build")
+        // Not the default, which Xcode 27 made Swift Build: that does not take the retargeting below.
+        .args(["--build-system", "native"])
         .args(["--package-path", &package.display().to_string()])
         .args(["--build-path", &out.display().to_string()])
         .args(["--product", PRODUCT])
