@@ -91,7 +91,8 @@ The [request contract](request-contract.md) has every rule and limit: at most 40
 ### Placement on the Lock Screen
 
 The system gives the card its place and its width, and makes it as high as the layout. The layout decides the rest,
-and the system helps with nothing inside the card:
+and the system helps with nothing inside the card. The numbers below were measured on simulators of iOS 26.3, an
+iPhone 17 Pro and an iPhone SE (3rd generation); no older system and no phone has been measured yet:
 
 - **There is no margin.** A node at the edge of the layout touches the edge of the card, and the card's rounded
   corners cut what stands in them: a box of 44 points in a corner keeps 93 % of itself. Give the root a padding, as
@@ -120,8 +121,8 @@ and the system helps with nothing inside the card:
   `max_height(Dimension::Infinity)` on the root does not ask for those 160 points (such a card was 64 points high):
   state a `height` or a `min_height`.
 
-These were read from screenshots of simulators' Lock Screens, to the pixel (`tests/ios-host/UITests/PlacementTests.swift`).
-On a phone without a Dynamic Island an alert shows the same card as a banner.
+They were read from screenshots of the Lock Screen, to the pixel (`tests/ios-host/UITests/PlacementTests.swift`). On
+a phone without a Dynamic Island an alert shows the same card as a banner, which was read on the iPhone SE.
 
 ### Toggles
 

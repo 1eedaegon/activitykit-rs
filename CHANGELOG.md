@@ -14,7 +14,8 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
   find a control of such content under a tap, took the tap as one on the activity and opened the app: on the
   simulators of iOS 17.2 and 17.4, for a text above a toggle or a button, and not for a layout that fills the card's
   width. The widget now takes the card's whole width for the content on the Lock Screen; a narrower layout stands in
-  the middle of it as before. iOS 18 and later were not affected.
+  the middle of it as before. With it the same layouts were tapped on the iOS 17.4 simulator; iOS 17.2 has not been
+  run again since. iOS 18.0 and 26.3 found such controls before the change.
 
 ## 0.6.5 - 2026-11-18
 
