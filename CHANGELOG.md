@@ -5,6 +5,11 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- The crate builds for iOS with Xcode 27. There `swift build` defaults to Swift Build, which does not build for iOS
+  from the flags build.rs passes, and the build of the bridge failed; an app had to patch the crate. build.rs now
+  names SwiftPM's own build system (`--build-system native`), the default up to Xcode 26. Reported from Xcode 27.2,
+  which this repository's tests do not run on yet; on Xcode 26.3, Swift Build named by hand built the package for
+  the Mac and left no library.
 - Buttons and toggles begin with iOS 17.2, not 17.0. On iOS 17.0 a button was drawn and a tap on it ran nothing, in
   the app or in the widget (seen on the simulator; iOS 17.1 was not run). The cause is not the code but the metadata
   Xcode writes for it: an App Intent that is newer than the iOS its module is built for (this package: 15) is
