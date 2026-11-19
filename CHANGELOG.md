@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- An update costs the Swift layer less. Its checks measured the activity's fixed attributes again each time, the
+  weight of the layout and the size of the attributes encoded, which was most of their time: now each activity's
+  are measured once, at its first update. On an Intel Mac the checks of an update of a layout of 40 nodes took
+  616 µs before and 39 µs after. A widget's render resolves each style once, not once for each node that names it:
+  a Lock Screen of 40 nodes rendered in 47 µs instead of about 100.
+
 - The crate builds for iOS with Xcode 27. There `swift build` defaults to Swift Build, which does not build for iOS
   from the flags build.rs passes, and the build of the bridge failed; an app had to patch the crate. build.rs now
   names SwiftPM's own build system (`--build-system native`), the default up to Xcode 26. Reported from Xcode 27.2,

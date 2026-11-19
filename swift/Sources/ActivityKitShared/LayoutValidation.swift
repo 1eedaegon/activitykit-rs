@@ -137,11 +137,18 @@ extension LayoutSnapshot {
     }
     /// The rules that need the activity: the keys and types accepted at start, the layout's references and the whole weight.
     public func validate(replacing current: LayoutSnapshot, in document: LayoutDocument) throws {
+        try validate(replacing: current, in: document, documentWeight: document.weight)
+    }
+
+    /// The same rules, with the document's weight as the caller measures it (`LayoutAttributesMeasure`): asked for
+    /// last, once the keys, the types and the references hold.
+    public func validate(replacing current: LayoutSnapshot, in document: LayoutDocument,
+                         documentWeight: @autoclosure () throws -> Int) throws {
         guard values.count == current.values.count, values.allSatisfy({ $0.value.hasType(of: current.values[$0.key]) }) else {
             throw LayoutRules.changed
         }
         try document.validateReferences(values)
-        guard document.weight + values.wireWeight <= LayoutRules.maxWeight else { throw LayoutRules.heavy }
+        guard try documentWeight() + values.wireWeight <= LayoutRules.maxWeight else { throw LayoutRules.heavy }
     }
 }
 
