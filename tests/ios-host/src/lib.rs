@@ -21,6 +21,8 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
+mod placement;
+
 /// Set by the host app once it is in the background (App/Host.swift).
 static IN_BACKGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -123,7 +125,20 @@ pub extern "C" fn ak_host_run(report: Report) {
             "cold-tap-start" => cold_tap_start(&reporter),
             "cold-tap" => cold_tap(&reporter),
             "intents" => intents(&reporter),
-            other => Err(format!("no scenario {other}")),
+            "place-anchors" => placement::anchors(&reporter, placement::Card::Drawn),
+            "place-anchors-tint" => placement::anchors(&reporter, placement::Card::Tint),
+            "place-anchors-plain" => placement::anchors(&reporter, placement::Card::Plain),
+            "place-banner" => placement::banner(&reporter),
+            "place-padding" => placement::padding(&reporter),
+            "place-stacks" => placement::stacks(&reporter),
+            "place-minimum" => placement::height(&reporter, false),
+            "place-fill" => placement::height(&reporter, true),
+            "place-shapes" => placement::shapes(&reporter),
+            // `size-1` to `size-5`: that many bars in the card.
+            other => match other.strip_prefix("size-").map(str::parse::<usize>) {
+                Some(Ok(rows @ 1..=5)) => placement::size(&reporter, rows),
+                _ => Err(format!("no scenario {other}")),
+            },
         };
         match outcome {
             Ok(()) => reporter.say(format!("PASS {scenario}")),

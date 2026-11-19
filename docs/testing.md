@@ -53,6 +53,13 @@ bash tests/release/run.sh       # the release tool, in repositories of its own
     values ActivityKit shows after a relaunch; a start that asks for a push token, which ActivityKit refuses without
     the capability, and an update that does not come back as `Event::Updated`; a tap on the Lock Screen while the app is
     not running, which launches it, reaches Rust and is acknowledged after the handler.
+  - `PlacementTests`: layouts of boxes in pure colors on a card of one color, found in screenshots of the Lock
+    Screen and measured to the pixel: a box at each of a frame's nine alignments, at the card's edges, in its corners
+    and in its middle, on a card whose color the widget draws, the system tints or nobody sets; padding of four
+    lengths and of one; stacks, their alignments and a spacer; a card that grows and shrinks with one to five bars
+    over updates, and the 160 points at which the system cuts it; a minimum height; boxes with a corner radius, a
+    pill, and a box in a box; and, on a phone without a Dynamic Island (`DEVICE_TYPE`), the same card as the banner
+    of an alert.
   - `PolicyTests`, which runs last because it leaves ended activities on the Lock Screen: the reply of a dropped update
     reaching the handle, an end with the system's default keeping its score and its place, an end's relevance, a
     dismissal at a time eight seconds ahead and at once for a past time.
@@ -179,6 +186,16 @@ iPhone Pro its runtime knows:
 After the two fixes that those runs led to (AK-RENDER-10, AK-RENDER-19) the toggle test passed on a simulator of iOS
 17.4, where a button under a text had not been tapped in eleven tries before. The whole suite has not run again on
 the six runtimes since: that run was started and stopped when the Mac ran out of memory.
+
+The placement tests ran on iOS 26.3: on an iPhone 17 Pro, where all passed but the banner's, which that phone does
+not show, and on an iPhone SE (3rd generation), where the banner's passed too and one failed for a start that
+answered `NATIVE_ERROR` on the loaded Mac, after the nine boxes of its first card had been found in their places.
+The card was 14 points from the screen's sides on the Pro and 10 on the SE, and 148 points high for a layout of
+148; of a box of 44 points in a corner 93 % showed. With one to five bars of 40 points one activity's card was 40,
+80, 120, 160 and 160 points high, the last without the upper half of its first bar and the lower half of its last;
+a card whose frame takes all the height it can get was 64 points high. A hex color as the system's tint read (251,
+251, 24) for `#FFFF00`. The banner of an alert on the SE was the same card, 8 points below the top of the screen,
+with its nine boxes in the same places.
 
 Not tested: a phone, iOS 16.0, 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.
