@@ -15,56 +15,6 @@ enum PairColor: Equatable, CustomStringConvertible {
     }
 }
 
-/// A screenshot as its pixels, read by parts given in the points of the screen.
-struct Pixels {
-    private let bytes: [UInt8]
-    private let width: Int
-    private let height: Int
-    private let scale: CGFloat
-
-    /// `screen` is the size of the screen in points.
-    init?(_ screenshot: XCUIScreenshot, screen: CGSize) {
-        guard let image = screenshot.image.cgImage, screen.width > 0 else { return nil }
-        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
-        let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(data: buffer.baseAddress, width: image.width, height: image.height, bitsPerComponent: 8,
-                                          bytesPerRow: image.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
-            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-            return true
-        }
-        guard drawn else { return nil }
-        self.bytes = bytes
-        width = image.width
-        height = image.height
-        scale = CGFloat(image.width) / screen.width
-    }
-
-    /// The color of the pair that the average of `part` is nearest to, if it is near one at all.
-    func color(in part: CGRect, light: (Int, Int, Int), dark: (Int, Int, Int)) -> PairColor {
-        let columns = max(0, Int(part.minX * scale))..<min(width, Int(part.maxX * scale))
-        let rows = max(0, Int(part.minY * scale))..<min(height, Int(part.maxY * scale))
-        guard !columns.isEmpty, !rows.isEmpty else { return .neither(red: -1, green: -1, blue: -1) }
-        var sums = (0, 0, 0)
-        for row in rows {
-            for column in columns {
-                let at = (row * width + column) * 4
-                sums = (sums.0 + Int(bytes[at]), sums.1 + Int(bytes[at + 1]), sums.2 + Int(bytes[at + 2]))
-            }
-        }
-        let count = columns.count * rows.count
-        let mean = (sums.0 / count, sums.1 / count, sums.2 / count)
-        func distance(_ color: (Int, Int, Int)) -> Int {
-            abs(mean.0 - color.0) + abs(mean.1 - color.1) + abs(mean.2 - color.2)
-        }
-        // A third of the way between the two colors of a pair that differ in every channel.
-        let near = 250
-        if distance(light) < near { return .light }
-        if distance(dark) < near { return .dark }
-        return .neither(red: mean.0, green: mean.1, blue: mean.2)
-    }
-}
-
 /// The colors of light and dark pairs on the Lock Screen, where the system draws the widget's view and not the app:
 /// the scenario `appearance` colors its card yellow or blue and a box in it green or magenta.
 final class AppearanceTests: HostCase {

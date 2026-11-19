@@ -10,7 +10,7 @@ use activitykit::ActivityKit;
 let kit = ActivityKit::new();
 let authorization = kit.authorization();
 // supported: the device has Live Activities (iPhone with iOS 16.2, iPad with iPadOS 17).
-// enabled: and they are on for this app. buttons: iOS 17 or later, where the OS runs a button's intent.
+// enabled: and they are on for this app. buttons: iOS 17.2 or later, where the OS runs a button's intent.
 ```
 
 `authorization()` says what the device and the person allow. It does not check the app's setup: with `enabled` true a
@@ -47,7 +47,8 @@ use activitykit::layout::{button, hstack, progress, spacer, symbol, text, vstack
 let layout = Layout::new(vstack([
     hstack([symbol("mic.fill"), text(Bound::key("status")).style("status"), spacer(), button("stop", text("Stop"))]),
     progress("level").style("level"),
-]).spacing(10.0))
+]).spacing(10.0).style("card"))
+.style("card", Style::new().padding(16.0))
 .style("status", Style::new().font(Font::Headline).color(Bound::key("tone")))
 .style("level", Style::new().tint(Bound::key("tone")))
 .island(Island::new().compact_trailing(text(Bound::key("status"))));
@@ -63,9 +64,9 @@ let layout = Layout::new(vstack([
 | `path(d, [w, h])` | SVG path data, without arcs | `stroke(width)` |
 | `progress(key)`, `gauge(key)` | a number value | `kind`, `range` (gauge) |
 | `timer(start, end)` | between two times in epoch milliseconds | `counts_up` |
-| `button(action_id, label)` | a button; iOS 17 and later | |
+| `button(action_id, label)` | a button; iOS 17.2 and later, below it its label | |
 | `link(url, label)` | a link that opens the app with a URL | |
-| `toggle(action_id, key, label)` | a switch that shows the flag `key`; iOS 17 and later | |
+| `toggle(action_id, key, label)` | a switch that shows the flag `key`; iOS 17.2 and later, below it its label | |
 | `custom(name)` | a SwiftUI view the app registers | `prop(key, value)` |
 
 Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)`, `when_stale()`,
@@ -86,6 +87,42 @@ name). `font_family` names a font that the widget extension bundles and lists un
 
 The [request contract](request-contract.md) has every rule and limit: at most 40 nodes on the Lock Screen, 8 levels,
 4 buttons, links and toggles per region, 24 styles, 32 values, and layout, styles and values together within a weight of 3584.
+
+### Placement on the Lock Screen
+
+The system gives the card its place and its width, and makes it as high as the layout. The layout decides the rest,
+and the system helps with nothing inside the card. The numbers below were measured on simulators of iOS 16.2 to
+26.3, and were the same on each; no phone has been measured yet:
+
+- **There is no margin.** A node at the edge of the layout touches the edge of the card, and the card's rounded
+  corners cut what stands in them: a box of 44 points in a corner keeps 93 % of itself. Give the root a padding, as
+  the example above does.
+- **A layout is as wide as its widest node, and the card shows it in its middle.** A stack's `alignment` moves its
+  children inside the stack, not the stack in the card. To put something at an edge, let a node fill the width and
+  say where its content goes, or push with a `spacer()`, which takes the room that is left:
+
+  ```rust
+  use activitykit::Style;
+  use activitykit::layout::{hstack, spacer, text, Alignment, Dimension, Frame};
+
+  // At the leading edge: the text fills the width and stands at its leading end.
+  let leading = Style::new().frame(Frame::new().max_width(Dimension::Infinity).alignment(Alignment::Leading));
+  // At both edges: the spacer takes what the two texts leave.
+  let both = hstack([text("Left"), spacer(), text("Right")]);
+  ```
+
+  A frame's `alignment` has nine places: the edges, the corners and the middle. A style's own `alignment` is another
+  thing: it aligns the lines of a text that wraps, and moves nothing.
+- **A style is applied in one order**: padding, the frame, the background, the corner radius, the opacity. A
+  background therefore covers the padding of its node, and padding, a background and a corner radius on one node make
+  a box that looks like a card. Room outside such a box is the padding of a node around it.
+- **The card is as high as the layout**, and follows an update that shows or hides nodes. It is at most 160 points
+  high: of a higher layout the system shows the middle, and cuts the top and the bottom alike.
+  `max_height(Dimension::Infinity)` on the root does not ask for those 160 points (such a card was 64 points high):
+  state a `height` or a `min_height`.
+
+They were read from screenshots of the Lock Screen, to the pixel (`tests/ios-host/UITests/PlacementTests.swift`). On
+a phone without a Dynamic Island an alert shows the same card as a banner, which was read on the iPhone SE.
 
 ### Toggles
 

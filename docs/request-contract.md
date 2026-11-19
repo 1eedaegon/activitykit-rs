@@ -290,7 +290,7 @@ start and the request after it, and run the `updates` and `ends` fixtures.
 { "type": "toggle", "actionId": "mute", "bind": "muted", "child": { "type": "text", "value": "Mute" } }
 ```
 
-A `toggle` draws a switch beside its `child` (iOS 17; below it, the child alone, like a button's label). The switch
+A `toggle` draws a switch beside its `child` (iOS 17.2; below it, the child alone, like a button's label). The switch
 shows the boolean value that `bind` names. A tap changes nothing by itself: it reaches the app as an action with
 `actionId` and the state the person asked for, the opposite of the value shown, and the app sends an update with the
 new value to move the switch. The bridge's `action` event carries that state as `on`; a button's has none.

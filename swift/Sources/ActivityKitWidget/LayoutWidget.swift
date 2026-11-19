@@ -126,14 +126,17 @@ private struct LayoutCardColor: ViewModifier {
     let isSmallFamily: Bool
 
     func body(content: Content) -> some View {
-        let drawn = document.drawnBackground(values: values)
+        let colors = document.cardColors(values: values)
+        let drawn = colors.drawn
         return content
             // The content is as wide as its widest node, in the middle of a card that is as wide as the system makes
-            // it. A card on the Lock Screen is as high as its content; the small family's tile has a height of the
-            // system's, which the color fills as well.
-            .frame(maxWidth: drawn == nil ? nil : .infinity, maxHeight: drawn != nil && isSmallFamily ? .infinity : nil)
+            // it. On the Lock Screen the widget takes that whole width for it, whatever colors the card: iOS 17 does
+            // not find a button or a toggle of content narrower than the card under a tap, and opens the app as for
+            // a tap on the activity. A card there is as high as its content. The small family's tile is the
+            // system's in both directions, and a color the widget draws fills it.
+            .frame(maxWidth: drawn != nil || !isSmallFamily ? .infinity : nil, maxHeight: drawn != nil && isSmallFamily ? .infinity : nil)
             .background { if let drawn { LayoutPairColor(pair: drawn) } }
-            .activityBackgroundTint(document.backgroundTint(values: values).map { Color($0, scheme: scheme) })
+            .activityBackgroundTint(colors.tint.map { Color($0, scheme: scheme) })
     }
 }
 
@@ -182,9 +185,10 @@ private struct LayoutActivityHost {
         return false
     }
 
-    /// Buttons run `ActivityKitActionIntent` in the app process.
+    /// Buttons run `ActivityKitActionIntent` in the app process, from the iOS that runs it (17.2, see the intent);
+    /// below it a button is its label.
     var button: LayoutView.ButtonBuilder? {
-        guard #available(iOS 17.0, *) else { return nil }
+        guard #available(iOS 17.2, *) else { return nil }
         let activityId = context.attributes.instanceID
         return { actionId, label in
             AnyView(Button(intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId)) { label })
@@ -193,7 +197,7 @@ private struct LayoutActivityHost {
 
     /// Toggles run the same intent, with the state the person asks for: the opposite of the one shown.
     var toggle: LayoutView.ToggleBuilder? {
-        guard #available(iOS 17.0, *) else { return nil }
+        guard #available(iOS 17.2, *) else { return nil }
         let activityId = context.attributes.instanceID
         return { actionId, isOn, label in
             AnyView(Toggle(isOn: isOn, intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId, isOn: !isOn)) { label })

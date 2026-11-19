@@ -70,6 +70,13 @@ extension and the settings below go into that project. The app target needs:
   product of the package to the app (except `ActivityKitViews`, below): the bridge's Swift code is in the Rust library
   already, and a second copy would duplicate its symbols. The app must not define its own `ActivityKitActionIntent`:
   Xcode refuses an intent that conflicts with one of a linked package.
+
+  Buttons and toggles begin with iOS 17.2, though `LiveActivityIntent` is of iOS 17.0. Xcode writes an intent that is
+  newer than the iOS its module is built for (this package: 15) into the app's metadata as one that begins with
+  iOS 17.2, and without the name by which an older system finds the type; on the iOS 17.0 simulator a tap on a button
+  so built ran nothing. Below iOS 17.2 the widget therefore draws a button and a toggle as their labels, and
+  `Authorization::buttons` is false. What Xcode wrote is in the built app:
+  `YourApp.app/Metadata.appintents/extract.actionsdata`, under `actions.ActivityKitActionIntent`.
 - **The widget extension** as a dependency, embedded.
 
 Start activities while the app is in the foreground.

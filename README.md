@@ -47,7 +47,8 @@ if !kit.authorization().enabled {
 let layout = Layout::new(vstack([
     hstack([symbol("mic.fill"), text("Recording").style("status"), button("stop", text("Stop"))]),
     progress("level"),
-]))
+]).style("card"))
+.style("card", Style::new().padding(16.0))            // the system adds no margin inside the card
 .style("status", Style::new().color(Bound::key("tone")));
 
 let activity = kit.start(layout, values! { "tone" => "green", "level" => 0.2 }).await?;
@@ -110,7 +111,8 @@ let layout = Layout::new(vstack([
     hstack([symbol("mic.fill"), text(Bound::key("status")).style("status"), spacer(), timer("from", "to")]),
     progress("level").style("level"),
     text("Too loud").when("loud"),                         // drawn only while the value `loud` is truthy
-]).spacing(10.0))
+]).spacing(10.0).style("card"))
+.style("card", Style::new().padding(16.0))                 // room to the card's edges and rounded corners
 .style("status", Style::new().font(Font::Headline).color(Bound::key("tone")))   // follows the value `tone`
 .style("level", Style::new().tint(Bound::key("tone")))
 .island(Island::new()
@@ -149,7 +151,7 @@ once, `End::default()` leaves it on the Lock Screen for up to four hours, `End::
 use activitykit::Event;
 use activitykit::layout::{button, text};
 
-let stop = button("stop", text("Stop"));             // in the layout; iOS 17
+let stop = button("stop", text("Stop"));             // in the layout; iOS 17.2
 let events = kit.events();
 while let Ok(event) = events.recv().await {
     match event {
@@ -275,7 +277,7 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 
 ## Limits
 
-- iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons need iOS 17.
+- iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons and toggles need iOS 17.2; below it they show their labels.
 - A layout holds at most 40 nodes on the Lock Screen and 12 in the small region, 8 levels, 4 buttons, links and toggles per region, 24 styles and 32
   values, and layout, styles and values together weigh at most 3584 ([the contract](docs/request-contract.md)).
 - An activity starts only while the app is in the foreground, or a short while after it left it. The system ends it

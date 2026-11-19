@@ -483,6 +483,7 @@ extension LifecycleTests {
                "the layout's background is the pair")
         expect(pair.drawnBackground(values: [:]) == color && pair.backgroundTint(values: [:]) == nil,
                "the widget draws a pair behind the content, and the system gets no tint")
+        expect(pair.cardColors(values: [:]).drawn == color && pair.cardColors(values: [:]).tint == nil, "and both come from one reading")
 
         let paper: [String: LayoutValue] = ["paper": .string("green")]
         for member in [##""#FF8000""##, ##""#FF800080""##, #""primary""#, #""clear""#, #"{"bind":"paper"}"#] {

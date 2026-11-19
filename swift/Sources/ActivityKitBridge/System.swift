@@ -12,7 +12,7 @@ struct AuthorizationReply: Codable, Equatable, Sendable {
     let supported: Bool
     /// Supported, and Live Activities are on for this app.
     let enabled: Bool
-    /// Supported, and iOS 17 or later, where buttons run their intent.
+    /// Supported, and iOS 17.2 or later, where buttons run their intent.
     let buttons: Bool
     /// Supported, and the person allows frequent pushes for the app (iOS 16.2).
     let frequentPushes: Bool

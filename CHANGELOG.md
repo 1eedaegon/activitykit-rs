@@ -10,6 +10,17 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
   names SwiftPM's own build system (`--build-system native`), the default up to Xcode 26. Reported from Xcode 27.2,
   which this repository's tests do not run on yet; on Xcode 26.3, Swift Build named by hand built the package for
   the Mac and left no library.
+- Buttons and toggles begin with iOS 17.2, not 17.0. On iOS 17.0 a button was drawn and a tap on it ran nothing, in
+  the app or in the widget (seen on the simulator; iOS 17.1 was not run). The cause is not the code but the metadata
+  Xcode writes for it: an App Intent that is newer than the iOS its module is built for (this package: 15) is
+  written as one that begins with iOS 17.2. Below 17.2 the widget now draws a button and a toggle as their labels,
+  as it does on iOS 16, and `Authorization::buttons` is false.
+- A button or a toggle in a layout that is narrower than the card can be tapped on iOS 17. There the system did not
+  find a control of such content under a tap, took the tap as one on the activity and opened the app: on the
+  simulators of iOS 17.2 and 17.4, for a text above a toggle or a button, and not for a layout that fills the card's
+  width. The widget now takes the card's whole width for the content on the Lock Screen; a narrower layout stands in
+  the middle of it as before. With it the same layouts were tapped on the simulators of iOS 17.2 and 17.4. iOS 18.0
+  and 26.3 found such controls before the change.
 
 ## 0.6.5 - 2026-11-18
 

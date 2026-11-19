@@ -3,10 +3,14 @@
 # product; the widget extension is templates/ios/Widget.swift linked against ActivityKitWidget, as in any app, with the
 # template's Info.plist and the small family on (run.sh writes Widget-Info.plist). A second app, Preview, draws a
 # layout for a family with the package's own views; it holds no Rust, so that it can link them.
+#
+# The app is built for the oldest iOS the crate builds for (15.0), as an app with users on old systems is, and the
+# widget extension and the preview app for the oldest that has Live Activities with content (16.2): so the same
+# products run on every simulator runtime that run.sh is pointed at.
 name: ActivityKitHost
 options:
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "15.0"
   createIntermediateGroups: true
 packages:
   activitykit:
@@ -54,6 +58,7 @@ targets:
   ActivityKitHostWidget:
     type: app-extension
     platform: iOS
+    deploymentTarget: "16.2"
     sources:
       - path: ../../templates/ios/Widget.swift
     dependencies:
@@ -68,6 +73,7 @@ targets:
   ActivityKitHostPreview:
     type: application
     platform: iOS
+    deploymentTarget: "16.2"
     sources:
       - path: Preview
     dependencies:

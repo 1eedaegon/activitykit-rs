@@ -53,9 +53,47 @@ bash tests/release/run.sh       # the release tool, in repositories of its own
     values ActivityKit shows after a relaunch; a start that asks for a push token, which ActivityKit refuses without
     the capability, and an update that does not come back as `Event::Updated`; a tap on the Lock Screen while the app is
     not running, which launches it, reaches Rust and is acknowledged after the handler.
+  - `PlacementTests`: layouts of boxes in pure colors on a card of one color, found in screenshots of the Lock
+    Screen and measured to the pixel: a box at each of a frame's nine alignments, at the card's edges, in its corners
+    and in its middle, on a card whose color the widget draws, the system tints or nobody sets; padding of four
+    lengths and of one; stacks, their alignments and a spacer; a card that grows and shrinks with one to five bars
+    over updates, and the 160 points at which the system cuts it; a minimum height; boxes with a corner radius, a
+    pill, and a box in a box; and, on a phone without a Dynamic Island (`DEVICE_TYPE`), the same card as the banner
+    of an alert.
   - `PolicyTests`, which runs last because it leaves ended activities on the Lock Screen: the reply of a dropped update
     reaching the handle, an end with the system's default keeping its score and its place, an end's relevance, a
     dismissal at a time eight seconds ahead and at once for a past time.
+
+### Older systems
+
+`RUNTIME` points `run.sh` at another simulator runtime, by its `simctl` identifier, and the script picks the newest
+iPhone Pro that the runtime knows:
+
+```sh
+RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-17-0 tests/ios-host/run.sh
+```
+
+The test host is built as an app with users on old systems is: the app for iOS 15.0, the oldest the crate builds for,
+and the widget extension for 16.2. The same products run on every runtime. The host tells its scenarios which iOS
+they run on, and a scenario and its UI test assert a feature from the iOS that has it and, below it, what the crate
+does instead:
+
+| From | What | Below it |
+| --- | --- | --- |
+| iOS 17.2 | a tap on a button or a toggle reaches Rust | their labels and nothing to tap; `Authorization::buttons` is false |
+| iOS 17.2 | content older than the shown one is dropped | it is shown |
+| iOS 18 | a transient start | `UnsupportedFeature` with `(18, 0)`, and no activity |
+| iOS 18 | the small family in the preview app | the test is skipped |
+| iOS 26 | a scheduled start | `UnsupportedFeature` with `(26, 0)`, and no activity |
+
+A test that taps first makes sure that the system runs the app's intent at all (`HostCase.awaitIntents`): the App
+Intents daemon of a new simulator starts with an empty database and reads the metadata of every system app before the
+tested app's, and a tap until then runs nothing, for minutes on a slow Mac.
+
+The runtimes worth a run are the oldest of each such iOS and the last one below it: 16.2, 17.0, 17.2, 18.0 and the
+newest; 17.4 was added for a defect that only iOS 17 has (AK-RENDER-19). CI runs the newest only, since one run takes 20 minutes of a hosted macOS runner; the others were run by hand
+(the record below), and what runs them from now on is an open question of
+[the compatibility plan](prd-compatibility.md).
 
 ## CI
 
@@ -134,5 +172,41 @@ showed its symbol, text, timer, bar, circular gauge, path, divider and button, a
 the background came back as `NotForeground` from ActivityKit's `visibility` error. After the process ended,
 `activities()` found the other activity at revision 1, and its handle sent revision 2.
 
-Not tested: a phone, iOS 16.2 to 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
+On 2026-11-19, on the same Mac, the suite ran on new simulators of older systems for the first time, each the newest
+iPhone Pro its runtime knows:
+
+| iOS | Of 16 tests | What it showed |
+| --- | --- | --- |
+| 16.2 | 13 passed, 3 skipped | Buttons and toggles as their labels, `buttons` false, older content shown, a scheduled and a transient start refused with their floors |
+| 17.0.1 | 13 passed, 3 skipped | The same. Before the widget drew labels there, five tests failed: a button was drawn and its tap ran nothing |
+| 17.2 | 14 passed, 1 failed, 1 skipped | A button's tap in Rust, older content dropped; the toggle's tap did not arrive (AK-RENDER-19, not yet fixed in that run) |
+| 18.0 | 12 passed, 3 failed, 1 skipped | The small family drawn, a transient start taken; the first three tests of a tap failed while the system had not read the app's intents, which the tests now wait for |
+| 26.3 | 14 passed, 1 failed, 1 skipped | The first activity of the new simulator was not drawn within 45 s; the wait is 120 s now |
+
+With the two fixes that those runs led to (AK-RENDER-10, AK-RENDER-19), the wait for the app's intents and the
+placement tests, the suite of 23 tests then ran again on a new simulator of each:
+
+| iOS | Phone | Of 23 tests |
+| --- | --- | --- |
+| 16.2 | iPhone 14 Pro | 19 passed, 4 skipped (two tests of a tap, the small family, the banner) |
+| 17.0.1 | iPhone 15 Pro | 19 passed, 4 skipped (the same) |
+| 17.2 | iPhone 15 Pro | 20 passed, 3 skipped, in two runs: four placement tests first measured a patch of that system's cyan wallpaper as part of a cyan box, and passed once a box was the largest patch of its color |
+| 17.4 | iPhone 15 Pro | 20 passed, 3 skipped (older content shown, the small family, the banner) |
+| 18.0 | iPhone 16 Pro | 21 passed, 2 skipped, in two runs: the placement test of the shapes first counted a square box's pixels, of which a row was mixed with the card's color, and passed once it read the box's four corners |
+| 26.3 | iPhone 17 Pro | 21 passed, 2 skipped (older content shown, the banner) |
+
+On iOS 17.2 and 17.4 the toggle under a text was tapped, which it had not been before AK-RENDER-19's fix. On iOS
+18.0 the system ran the app's intent at the seventh tap of the wait, twenty seconds apart, and every tap after it.
+
+What the placement tests measured was the same on every runtime but for two things. The card was 148 points high
+for a layout of 148; of a box of 44 points in a corner 93 % showed; with one to five bars of 40 points one activity's
+card was 40, 80, 120, 160 and 160 points high, the last without the upper half of its first bar and the lower half
+of its last; a card whose frame takes all the height it can get was 64 points high. What differed: the card was 14
+points from the screen's sides on the Pro phones from iOS 17.0 and 10 points on iOS 16.2, and 10 points on an iPhone
+SE (3rd generation) with iOS 26.3; and a hex color as the system's tint read as itself up to iOS 18.0 and as (251,
+251, 24) for `#FFFF00` on iOS 26.3. On the iPhone SE with iOS 26.3 the banner of an alert was the same card, 8
+points below the top of the screen, with its nine boxes in the same places; one test failed there for a start that
+answered `NATIVE_ERROR` on the loaded Mac, after the nine boxes of its first card had been found in their places.
+
+Not tested: a phone, iOS 16.0, 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.
