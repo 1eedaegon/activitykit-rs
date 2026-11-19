@@ -107,6 +107,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "stale-start" => stale_start(&reporter),
             "stale-check" => stale_check(&reporter),
             "appearance" => appearance(&reporter),
+            "old-update" => old_update(&reporter),
             "tile-none" => tile(&reporter, None),
             "tile-hex" => tile(&reporter, Some("#804000")),
             "tile-alpha" => tile(&reporter, Some("#FF000080")),
@@ -121,6 +122,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "push-start" => push_start(&reporter),
             "cold-tap-start" => cold_tap_start(&reporter),
             "cold-tap" => cold_tap(&reporter),
+            "intents" => intents(&reporter),
             other => Err(format!("no scenario {other}")),
         };
         match outcome {
@@ -160,6 +162,17 @@ fn layout() -> Layout {
     )
 }
 
+/// Whether the host runs on at least this iOS, which the app says in `AK_IOS` (App/Host.swift). A scenario asserts
+/// a feature from the iOS that has it, and below that what the crate does instead. Without the variable every
+/// feature reads as missing, which fails the scenarios on a new system.
+fn ios_at_least(major: u32, minor: u32) -> bool {
+    let version = std::env::var("AK_IOS").unwrap_or_default();
+    let mut parts = version
+        .split('.')
+        .map(|part| part.parse::<u32>().unwrap_or(0));
+    (parts.next().unwrap_or(0), parts.next().unwrap_or(0)) >= (major, minor)
+}
+
 /// The kit, with Live Activities on, and no activity left from an earlier run.
 fn prepared(reporter: &Reporter) -> Result<ActivityKit, String> {
     cleared(reporter, ActivityKit::new())
@@ -170,6 +183,11 @@ fn cleared(reporter: &Reporter, kit: ActivityKit) -> Result<ActivityKit, String>
     let authorization = kit.authorization();
     reporter.say(format!("authorization {authorization:?}"));
     check(authorization.enabled, "Live Activities are not enabled")?;
+    // AK-AUTH-1
+    check(
+        authorization.buttons == taps(),
+        format!("buttons is {} on this iOS", authorization.buttons),
+    )?;
     for activity in block_on(kit.activities()).map_err(|error| error.to_string())? {
         if matches!(activity.state(), State::Active | State::Stale) {
             block_on(activity.end(End::immediately())).map_err(|error| error.to_string())?;
@@ -269,8 +287,9 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let events = kit.events();
     let activity = start(&kit, reporter, "host:lockscreen")?;
-    // AK-UPDATE-16: content made an hour before the shown one. The call succeeds, ActivityKit (iOS 17.2) drops it: the
-    // UI test finds "Too loud" on the Lock Screen and no "Old news".
+    // AK-UPDATE-16: content made an hour before the shown one. The call succeeds, ActivityKit drops it: the UI test
+    // finds "Too loud" on the Lock Screen and no "Old news". ActivityKit takes the content's time from iOS 17.2, which
+    // is also where a tap can come, so this scenario runs from there; `old-update` is what happens below.
     let old = Update::new(values! { "status" => "Old news", "tone" => "green", "level" => 0.1 })
         .timestamp(SystemTime::now() - Duration::from_secs(3600));
     block_on(activity.update_with(old)).map_err(|error| format!("old update: {error}"))?;
@@ -694,6 +713,9 @@ fn surface(reporter: &Reporter) -> Outcome {
     let activity =
         block_on(kit.start(layout, values)).map_err(|error| format!("start: {error}"))?;
     reporter.say("shown: read the labels, touch Ack, follow the links");
+    if !taps() {
+        return Ok(());
+    }
     let tapped = next_event(&events, Duration::from_secs(180), |event| match event {
         Event::Action {
             activity, action, ..
@@ -738,6 +760,20 @@ fn scheduled_start(reporter: &Reporter) -> Outcome {
             .key(key)
             .scheduled(at, alert())
     };
+
+    // Below iOS 26 a start time would be ignored and the activity would start now: the crate refuses the request.
+    if !ios_at_least(26, 0) {
+        let hour = SystemTime::now() + Duration::from_secs(3600);
+        let refused = block_on(kit.start_with(scheduled("waiting", "Waiting", hour)));
+        check(
+            matches!(&refused, Err(Error::UnsupportedFeature { feature, minimum_ios }) if feature == "scheduledStart" && *minimum_ios == (26, 0)),
+            format!("below iOS 26 a scheduled start is refused as unsupported, not {refused:?}"),
+        )?;
+        let left = block_on(kit.activities()).map_err(|error| error.to_string())?;
+        check(left.is_empty(), "and it leaves no activity")?;
+        reporter.say("refused: a scheduled start needs iOS 26");
+        return Ok(());
+    }
 
     let passed = SystemTime::now() - Duration::from_secs(60);
     match block_on(kit.start_with(scheduled("passed", "Passed", passed))) {
@@ -823,9 +859,18 @@ fn start_options(reporter: &Reporter) -> Outcome {
     block_on(plain.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
     reporter.say("alerted with a named sound, ended");
 
-    let brief =
-        block_on(kit.start_with(Start::new(layout(), values()).key("transient").transient()))
-            .map_err(|error| format!("transient: {error}"))?;
+    let transient =
+        block_on(kit.start_with(Start::new(layout(), values()).key("transient").transient()));
+    // Below iOS 18 an activity cannot be transient: it would stay, so the crate refuses the request.
+    if !ios_at_least(18, 0) {
+        check(
+            matches!(&transient, Err(Error::UnsupportedFeature { feature, minimum_ios }) if feature == "transient" && *minimum_ios == (18, 0)),
+            format!("below iOS 18 a transient start is refused as unsupported, not {transient:?}"),
+        )?;
+        reporter.say("refused: a transient start needs iOS 18");
+        return Ok(());
+    }
+    let brief = transient.map_err(|error| format!("transient: {error}"))?;
     check(
         brief.state() == State::Active,
         "a transient activity starts active",
@@ -946,6 +991,45 @@ fn stale_check(reporter: &Reporter) -> Outcome {
     Ok(())
 }
 
+/// Whether this iOS runs the intent of a button or a toggle: from iOS 17.2 (AK-AUTH-1). Below it they are their
+/// labels (AK-RENDER-10, AK-TOGGLE-1): no tap can come there, and a scenario ends where it would wait for one.
+fn taps() -> bool {
+    ios_at_least(17, 2)
+}
+
+/// A button to tap until its tap arrives. On a new simulator the system runs no intent of a new app for minutes: its
+/// App Intents daemon reads the metadata of every system app first. The tests of a tap wait here until it has read
+/// this app's (HostCase.awaitIntents); the scenario proves nothing of the crate.
+fn intents(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let events = kit.events();
+    let layout =
+        Layout::new(vstack([text("Intents"), button("ready", text("Ready"))]).spacing(6.0));
+    let activity =
+        block_on(kit.start(layout, values! {})).map_err(|error| format!("start: {error}"))?;
+    reporter.say("shown: tap Ready until the tap arrives");
+    next_event(&events, Duration::from_secs(600), |event| {
+        matches!(event, Event::Action { .. }).then_some(())
+    })
+    .ok_or("no tap within 10 minutes")?;
+    block_on(activity.end(End::immediately())).map_err(|error| format!("end: {error}"))?;
+    Ok(())
+}
+
+// AK-UPDATE-16
+/// Content made an hour before the shown one, sent after it, below iOS 17.2: ActivityKit takes no time of the content
+/// there, nothing says which is older, and it is shown. The UI test reads the Lock Screen. (From 17.2 it is dropped:
+/// `lock_screen`.)
+fn old_update(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let activity = start(&kit, reporter, "host:old")?;
+    let old = Update::new(values! { "status" => "Old news", "tone" => "green", "level" => 0.1 })
+        .timestamp(SystemTime::now() - Duration::from_secs(3600));
+    block_on(activity.update_with(old)).map_err(|error| format!("old update: {error}"))?;
+    check(activity.revision() == Some(2), "the old update's revision")?;
+    Ok(())
+}
+
 /// Five chips colored in the ways a color can be written, as the Lock Screen tree and as the small region, on the
 /// background the scenario's name chooses: for a look at a paired watch by hand.
 fn tile(reporter: &Reporter, background: Option<&str>) -> Outcome {
@@ -1039,6 +1123,9 @@ fn toggle_flag(reporter: &Reporter) -> Outcome {
     let activity = block_on(kit.start(layout, values! { "muted" => false }))
         .map_err(|error| format!("start: {error}"))?;
     reporter.say("shown: flip Mute on the Lock Screen, twice");
+    if !taps() {
+        return Ok(());
+    }
     for asked in [true, false] {
         let tap = next_event(&events, Duration::from_secs(120), |event| match event {
             Event::Action {
@@ -1106,6 +1193,9 @@ fn every_node(reporter: &Reporter) -> Outcome {
     let activity =
         block_on(kit.start(layout, values)).map_err(|error| format!("start: {error}"))?;
     reporter.say("shown: tap Tap on the Lock Screen");
+    if !taps() {
+        return Ok(());
+    }
     let tapped = next_event(&events, Duration::from_secs(180), |event| match event {
         Event::Action {
             activity, action, ..

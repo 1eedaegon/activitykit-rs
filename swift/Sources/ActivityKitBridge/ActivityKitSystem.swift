@@ -21,8 +21,9 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
     }
 
     private static func reply(enabled: Bool) -> AuthorizationReply {
+        // The iOS from which the widget draws a button: where the system runs `ActivityKitActionIntent`.
         var buttons = false
-        if #available(iOS 17.0, *) { buttons = true }
+        if #available(iOS 17.2, *) { buttons = true }
         var frequentPushes = false
         if #available(iOS 16.2, *) { frequentPushes = ActivityAuthorizationInfo().frequentPushesEnabled }
         return AuthorizationReply(supported: true, enabled: enabled, buttons: buttons, frequentPushes: frequentPushes)

@@ -10,7 +10,7 @@ use activitykit::ActivityKit;
 let kit = ActivityKit::new();
 let authorization = kit.authorization();
 // supported: the device has Live Activities (iPhone with iOS 16.2, iPad with iPadOS 17).
-// enabled: and they are on for this app. buttons: iOS 17 or later, where the OS runs a button's intent.
+// enabled: and they are on for this app. buttons: iOS 17.2 or later, where the OS runs a button's intent.
 ```
 
 `authorization()` says what the device and the person allow. It does not check the app's setup: with `enabled` true a
@@ -63,9 +63,9 @@ let layout = Layout::new(vstack([
 | `path(d, [w, h])` | SVG path data, without arcs | `stroke(width)` |
 | `progress(key)`, `gauge(key)` | a number value | `kind`, `range` (gauge) |
 | `timer(start, end)` | between two times in epoch milliseconds | `counts_up` |
-| `button(action_id, label)` | a button; iOS 17 and later | |
+| `button(action_id, label)` | a button; iOS 17.2 and later, below it its label | |
 | `link(url, label)` | a link that opens the app with a URL | |
-| `toggle(action_id, key, label)` | a switch that shows the flag `key`; iOS 17 and later | |
+| `toggle(action_id, key, label)` | a switch that shows the flag `key`; iOS 17.2 and later, below it its label | |
 | `custom(name)` | a SwiftUI view the app registers | `prop(key, value)` |
 
 Every node takes `style(token)`, `when(key)` (drawn while the value is truthy), `unless(key)`, `when_stale()`,

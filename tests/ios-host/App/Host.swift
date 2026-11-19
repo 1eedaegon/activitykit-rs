@@ -36,6 +36,14 @@ enum TapWatch {
     }
 }
 
+/// Runs the scenario, after telling it which iOS this is (`AK_IOS`, such as 16.2): what a scenario asserts of a
+/// feature depends on whether the system has it.
+func runHost() {
+    let version = ProcessInfo.processInfo.operatingSystemVersion
+    setenv("AK_IOS", "\(version.majorVersion).\(version.minorVersion)", 1)
+    hostRun(reportLine)
+}
+
 final class Report: ObservableObject {
     static let shared = Report()
     @Published var lines: [String] = []
@@ -62,7 +70,7 @@ final class LaunchDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         if !CommandLine.arguments.contains("-scenario") {
             TapWatch.start()
-            hostRun(reportLine)
+            runHost()
         }
         return true
     }
@@ -100,7 +108,7 @@ struct HostApp: App {
         for _ in 0..<50 where UIApplication.shared.applicationState != .active {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
-        hostRun(reportLine)
+        runHost()
     }
 }
 

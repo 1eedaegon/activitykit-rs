@@ -182,9 +182,10 @@ private struct LayoutActivityHost {
         return false
     }
 
-    /// Buttons run `ActivityKitActionIntent` in the app process.
+    /// Buttons run `ActivityKitActionIntent` in the app process, from the iOS that runs it (17.2, see the intent);
+    /// below it a button is its label.
     var button: LayoutView.ButtonBuilder? {
-        guard #available(iOS 17.0, *) else { return nil }
+        guard #available(iOS 17.2, *) else { return nil }
         let activityId = context.attributes.instanceID
         return { actionId, label in
             AnyView(Button(intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId)) { label })
@@ -193,7 +194,7 @@ private struct LayoutActivityHost {
 
     /// Toggles run the same intent, with the state the person asks for: the opposite of the one shown.
     var toggle: LayoutView.ToggleBuilder? {
-        guard #available(iOS 17.0, *) else { return nil }
+        guard #available(iOS 17.2, *) else { return nil }
         let activityId = context.attributes.instanceID
         return { actionId, isOn, label in
             AnyView(Toggle(isOn: isOn, intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId, isOn: !isOn)) { label })

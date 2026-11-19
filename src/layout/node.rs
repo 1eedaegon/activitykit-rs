@@ -525,8 +525,8 @@ pub fn timer(start: impl Into<String>, end: impl Into<String>) -> Node {
     .into()
 }
 
-/// A button (iOS 17 and later) whose tap arrives as [`Event::Action`](crate::Event::Action) with `action_id`.
-/// Below iOS 17 only its label shows.
+/// A button (iOS 17.2 and later) whose tap arrives as [`Event::Action`](crate::Event::Action) with `action_id`.
+/// Below iOS 17.2 only its label shows.
 pub fn button(action_id: impl Into<String>, label: impl Into<Node>) -> Node {
     Element::Button {
         action_id: action_id.into(),
@@ -546,9 +546,10 @@ pub fn link(url: impl Into<Bindable<String>>, label: impl Into<Node>) -> Node {
     .into()
 }
 
-/// A toggle (iOS 17 and later) that shows the flag `key` beside `label`. A tap arrives as
-/// [`Event::Action`](crate::Event::Action) with `action_id` and the state the person asked for, the opposite of the
-/// flag; it does not change the activity, so update the value to move the switch. It stands where a [`button`] may.
+/// A toggle (iOS 17.2 and later; below it only its label shows) that shows the flag `key` beside `label`. A tap
+/// arrives as [`Event::Action`](crate::Event::Action) with `action_id` and the state the person asked for, the
+/// opposite of the flag; it does not change the activity, so update the value to move the switch. It stands where a
+/// [`button`] may.
 pub fn toggle(
     action_id: impl Into<String>,
     key: impl Into<String>,

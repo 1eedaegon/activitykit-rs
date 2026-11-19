@@ -57,6 +57,37 @@ bash tests/release/run.sh       # the release tool, in repositories of its own
     reaching the handle, an end with the system's default keeping its score and its place, an end's relevance, a
     dismissal at a time eight seconds ahead and at once for a past time.
 
+### Older systems
+
+`RUNTIME` points `run.sh` at another simulator runtime, by its `simctl` identifier, and the script picks the newest
+iPhone Pro that the runtime knows:
+
+```sh
+RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-17-0 tests/ios-host/run.sh
+```
+
+The test host is built as an app with users on old systems is: the app for iOS 15.0, the oldest the crate builds for,
+and the widget extension for 16.2. The same products run on every runtime. The host tells its scenarios which iOS
+they run on, and a scenario and its UI test assert a feature from the iOS that has it and, below it, what the crate
+does instead:
+
+| From | What | Below it |
+| --- | --- | --- |
+| iOS 17.2 | a tap on a button or a toggle reaches Rust | their labels and nothing to tap; `Authorization::buttons` is false |
+| iOS 17.2 | content older than the shown one is dropped | it is shown |
+| iOS 18 | a transient start | `UnsupportedFeature` with `(18, 0)`, and no activity |
+| iOS 18 | the small family in the preview app | the test is skipped |
+| iOS 26 | a scheduled start | `UnsupportedFeature` with `(26, 0)`, and no activity |
+
+A test that taps first makes sure that the system runs the app's intent at all (`HostCase.awaitIntents`): the App
+Intents daemon of a new simulator starts with an empty database and reads the metadata of every system app before the
+tested app's, and a tap until then runs nothing, for minutes on a slow Mac.
+
+The runtimes worth a run are the oldest of each such iOS and the last one below it: 16.2, 17.0, 17.2, 18.0 and the
+newest; 17.4 was added for a defect that only iOS 17 has (AK-RENDER-19). CI runs the newest only, since one run takes 20 minutes of a hosted macOS runner; the others were run by hand
+(the record below), and what runs them from now on is an open question of
+[the compatibility plan](prd-compatibility.md).
+
 ## CI
 
 `.github/workflows/ci.yml` decides from the changed paths what runs; `tests/ci/run.sh` checks those patterns. The
@@ -134,5 +165,20 @@ showed its symbol, text, timer, bar, circular gauge, path, divider and button, a
 the background came back as `NotForeground` from ActivityKit's `visibility` error. After the process ended,
 `activities()` found the other activity at revision 1, and its handle sent revision 2.
 
-Not tested: a phone, iOS 16.2 to 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
+On 2026-11-19, on the same Mac, the suite ran on new simulators of older systems for the first time, each the newest
+iPhone Pro its runtime knows:
+
+| iOS | Of 16 tests | What it showed |
+| --- | --- | --- |
+| 16.2 | 13 passed, 3 skipped | Buttons and toggles as their labels, `buttons` false, older content shown, a scheduled and a transient start refused with their floors |
+| 17.0.1 | 13 passed, 3 skipped | The same. Before the widget drew labels there, five tests failed: a button was drawn and its tap ran nothing |
+| 17.2 | 14 passed, 1 failed, 1 skipped | A button's tap in Rust, older content dropped; the toggle's tap did not arrive (AK-RENDER-19, not yet fixed in that run) |
+| 18.0 | 12 passed, 3 failed, 1 skipped | The small family drawn, a transient start taken; the first three tests of a tap failed while the system had not read the app's intents, which the tests now wait for |
+| 26.3 | 14 passed, 1 failed, 1 skipped | The first activity of the new simulator was not drawn within 45 s; the wait is 120 s now |
+
+After the two fixes that those runs led to (AK-RENDER-10, AK-RENDER-19) the toggle test passed on a simulator of iOS
+17.4, where a button under a text had not been tapped in eleven tries before. The whole suite has not run again on
+the six runtimes since: that run was started and stopped when the Mac ran out of memory.
+
+Not tested: a phone, iOS 16.0, 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.

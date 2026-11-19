@@ -149,7 +149,7 @@ once, `End::default()` leaves it on the Lock Screen for up to four hours, `End::
 use activitykit::Event;
 use activitykit::layout::{button, text};
 
-let stop = button("stop", text("Stop"));             // in the layout; iOS 17
+let stop = button("stop", text("Stop"));             // in the layout; iOS 17.2
 let events = kit.events();
 while let Ok(event) = events.recv().await {
     match event {
@@ -275,7 +275,7 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 
 ## Limits
 
-- iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons need iOS 17.
+- iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons and toggles need iOS 17.2; below it they show their labels.
 - A layout holds at most 40 nodes on the Lock Screen and 12 in the small region, 8 levels, 4 buttons, links and toggles per region, 24 styles and 32
   values, and layout, styles and values together weigh at most 3584 ([the contract](docs/request-contract.md)).
 - An activity starts only while the app is in the foreground, or a short while after it left it. The system ends it

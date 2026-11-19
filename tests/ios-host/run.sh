@@ -24,7 +24,14 @@ products=$derived/Build/Products
 stamp=$products/build-key
 case "$(uname -m)" in arm64) rust_target=aarch64-apple-ios-sim arch=arm64 ;; *) rust_target=x86_64-apple-ios arch=x86_64 ;; esac
 runtime=${RUNTIME:-$(xcrun simctl list runtimes | awk '/^iOS/ && !/unavailable/ { id = $NF } END { print id }')}
-device_type=${DEVICE_TYPE:-$(xcrun simctl list devicetypes | sed -n 's/^iPhone \([0-9]*\) Pro (\(.*\))$/\1 \2/p' | sort -n | tail -1 | cut -d' ' -f2)}
+# The newest iPhone Pro that the runtime simulates: an old runtime knows no new phone.
+device_type=${DEVICE_TYPE:-$(xcrun simctl list runtimes -j | python3 -I -c '
+import json, re, sys
+runtime = next(r for r in json.load(sys.stdin)["runtimes"] if r["identifier"] == sys.argv[1])
+pros = [(int(m.group(1)), d["identifier"]) for d in runtime["supportedDeviceTypes"] if (m := re.fullmatch(r"iPhone (\d+) Pro", d["name"]))]
+print(max(pros)[1])' "$runtime")}
+# The iOS the host's Rust code is built for: the oldest the crate builds for.
+deployment=15.0
 mkdir -p "$out"
 rm -f "$out"/*.png "$out/host.log" "$out/passed"
 
@@ -63,7 +70,13 @@ if built; then
 else
   if [ -n "${BUILD_KEY:-}" ]; then echo "no complete products built for $BUILD_KEY: building"; fi
   rm -f "$stamp" "$products"/*.xctestrun
-  IPHONEOS_DEPLOYMENT_TARGET=17.0 CARGO_TARGET_DIR="$target_dir" cargo build --manifest-path "$here/Cargo.toml" --target "$rust_target"
+  # Cargo keeps what it built for another deployment target, dependencies and all: the variable is none of its
+  # inputs. A target folder of another one, or of none that is written down, is built anew.
+  if [ "$(cat "$target_dir/deployment-target" 2>/dev/null)" != "$deployment" ]; then
+    CARGO_TARGET_DIR="$target_dir" cargo clean --manifest-path "$here/Cargo.toml" --target "$rust_target"
+    mkdir -p "$target_dir" && printf '%s\n' "$deployment" >"$target_dir/deployment-target"
+  fi
+  IPHONEOS_DEPLOYMENT_TARGET=$deployment CARGO_TARGET_DIR="$target_dir" cargo build --manifest-path "$here/Cargo.toml" --target "$rust_target"
   xcodegen generate --spec "$here/project.yml" --quiet
   xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost -destination "$destination" \
     -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" COMPILER_INDEX_STORE_ENABLE=NO build-for-testing -quiet

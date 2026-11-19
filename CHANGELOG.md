@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- Buttons and toggles begin with iOS 17.2, not 17.0. On iOS 17.0 a button was drawn and a tap on it ran nothing, in
+  the app or in the widget (seen on the simulator; iOS 17.1 was not run). The cause is not the code but the metadata
+  Xcode writes for it: an App Intent that is newer than the iOS its module is built for (this package: 15) is
+  written as one that begins with iOS 17.2. Below 17.2 the widget now draws a button and a toggle as their labels,
+  as it does on iOS 16, and `Authorization::buttons` is false.
+
 ## 0.6.5 - 2026-11-18
 
 - fix: a color pair behind a card is drawn with the content (`4c47152`)

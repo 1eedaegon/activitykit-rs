@@ -25,6 +25,51 @@ class HostCase: XCTestCase {
 
     var status: XCUIElement { app.staticTexts["status"] }
 
+    /// Whether the simulator runs at least this iOS. A test asserts a feature from the iOS that has it, and below
+    /// that what the crate does instead: the suite runs on the oldest runtime of each such iOS (docs/testing.md).
+    func iOS(_ major: Int, _ minor: Int = 0) -> Bool {
+        ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: major, minorVersion: minor, patchVersion: 0))
+    }
+
+    /// Whether the system runs the intent of a button or a toggle: from iOS 17.2 (AK-AUTH-1). Below it the widget
+    /// draws their labels.
+    var runsIntents: Bool { iOS(17, 2) }
+
+    /// Skips a test that is about nothing but a tap, and otherwise waits until a tap can arrive.
+    func needsIntents() throws {
+        if !runsIntents { throw XCTSkip("a button's intent needs iOS 17.2") }
+        awaitIntents()
+    }
+
+    /// Whether the system has run an intent of the app in this run of the tests.
+    private static var intentsRun = false
+
+    /// Makes sure, before a test relies on a tap, that the system runs the app's intent. A new simulator's App
+    /// Intents daemon starts with an empty database and reads the metadata of every system app before this app's;
+    /// until then a tap runs nothing ("There is no metadata for ActivityKitActionIntent"), which took more than four
+    /// minutes after the install on a slow Mac. The first test that taps therefore taps a button of the scenario
+    /// `intents` until its tap arrives. Below iOS 17.2 there is nothing to wait for.
+    func awaitIntents() {
+        guard runsIntents, !Self.intentsRun else { return }
+        launch("intents")
+        waitFor("shown")
+        let ready = springboard.buttons["Ready"].firstMatch
+        let deadline = Date().addingTimeInterval(480)
+        var taps = 0
+        repeat {
+            goHome()
+            showLockScreen(until: "Intents")
+            XCTAssertTrue(ready.waitForExistence(timeout: 10), "the Ready button shows on the Lock Screen")
+            ready.tap()
+            taps += 1
+            XCUIDevice.shared.press(.home)
+            app.activate()
+        } while !waitUntil(20, { status.exists && status.label.hasPrefix("PASS intents") }) && Date() < deadline
+        waitFor("PASS intents", timeout: 5)
+        print("the system ran the app's intent at tap \(taps)")
+        Self.intentsRun = true
+    }
+
     /// Waits until `condition` holds, checking every 0.25 s; false after `timeout`.
     @discardableResult
     func waitUntil(_ timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
@@ -92,8 +137,9 @@ class HostCase: XCTestCase {
     /// Pulls the Lock Screen down and waits until `text` shows on it.
     func pullLockScreenDown(until text: String) {
         pullLockScreenDown()
-        // A new simulator can take half a minute to draw its first activity.
-        let shown = springboard.staticTexts[text].waitForExistence(timeout: 45)
+        // A new simulator can take half a minute to draw its first activity, and on an Intel Mac under load it has
+        // taken more than 45 s, with the activity in the Dynamic Island all the while.
+        let shown = springboard.staticTexts[text].waitForExistence(timeout: 120)
         if !shown {
             // What the Lock Screen holds instead, for the log and the screenshots.
             try? capture("lock-screen-without-" + text.replacingOccurrences(of: " ", with: "-"))
@@ -125,6 +171,7 @@ final class HostTests: HostCase {
     /// the tap's event in Rust, end.
     // AK-CUSTOM-3, AK-EVENT-1, AK-EVENT-2, AK-EVENT-6, AK-EVENT-8, AK-EVENT-14, AK-KIT-1, AK-RENDER-3, AK-RENDER-10, AK-UPDATE-5, AK-UPDATE-16, AK-WIDGET-1
     func testLockScreenButtonReachesRust() throws {
+        try needsIntents()
         launch("lockscreen")
         waitFor("updated")
         goHome()
@@ -143,13 +190,28 @@ final class HostTests: HostCase {
         try capture("lockscreen-report")
     }
 
+    // AK-UPDATE-16
+    /// Content made before the shown one, sent after it, below iOS 17.2: ActivityKit takes no time of the content
+    /// there, so nothing tells the system which is older, and the Lock Screen shows it. From 17.2 it is dropped, which
+    /// testLockScreenButtonReachesRust asserts.
+    func testOlderContentShowsBelowIOS17_2() throws {
+        if iOS(17, 2) { throw XCTSkip("from iOS 17.2 ActivityKit drops older content: testLockScreenButtonReachesRust") }
+        launch("old-update")
+        waitFor("PASS old-update")
+        goHome()
+        showLockScreen(until: "Old news")
+        try capture("old-update")
+    }
+
     // AK-ACCESS-3, AK-LINK-5
     /// What the widget tells assistive technologies is on the Lock Screen, a touch still reaches a button inside a
     /// labelled stack, and a tap on a link, or beside it, opens the app with the URL, also one whose scheme is not
     /// the app's: the system hands every URL to the app that owns the activity.
     func testLabelsAndLinksOnTheLockScreen() throws {
+        awaitIntents()
         launch("surface")
-        waitFor("shown")
+        // Below iOS 17.2 a button is its label and no tap can come: the scenario is over once the layout shows.
+        waitFor(runsIntents ? "shown" : "PASS surface")
         goHome()
         showLockScreen(until: "Surface")
         func labelled(_ label: String) -> XCUIElement {
@@ -167,16 +229,21 @@ final class HostTests: HostCase {
         XCTAssertEqual(level.value as? String, "40 percent", "and by the value its accessibility binds")
         let row = labelled("Level row")
         XCTAssertTrue(row.waitForExistence(timeout: 10), "a stack with a label is an element of its own")
-        // The element took the trait of the button it holds: it stands for its children. (The tree a UI test sees
-        // lists what is inside an element too, as it lists the text inside a button.)
-        XCTAssertEqual(row.elementType, .button, "that stands for the button inside it")
         // A hidden node is not checked: a UI test lists hidden elements too, in an app as in an activity.
         try capture("surface")
-        // The button stands at the trailing end of the labelled stack: a touch there still reaches it.
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
-        XCUIDevice.shared.press(.home)
-        app.activate()
-        waitFor("PASS surface", timeout: 60)
+        if runsIntents {
+            // The element took the trait of the button it holds: it stands for its children. (The tree a UI test
+            // sees lists what is inside an element too, as it lists the text inside a button.)
+            XCTAssertEqual(row.elementType, .button, "that stands for the button inside it")
+            // The button stands at the trailing end of the labelled stack: a touch there still reaches it.
+            row.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+            XCUIDevice.shared.press(.home)
+            app.activate()
+            waitFor("PASS surface", timeout: 60)
+        } else {
+            XCTAssertNotEqual(row.elementType, .button, "below iOS 17.2 the stack holds a label and no button")
+            XCUIDevice.shared.press(.home)
+        }
         let taps = [("Open details", "activitykit-host://opened?from=link"), ("Surface", "activitykit-host://opened?from=activity"),
                     ("Open web", "https://example.com/activitykit")]
         for (label, url) in taps {
@@ -191,12 +258,20 @@ final class HostTests: HostCase {
     }
 
     // AK-RENDER-16, AK-WIDGET-1
-    /// A layout with every node type draws on the Lock Screen, and its button reaches Rust.
+    /// A layout with every node type draws on the Lock Screen, and its button reaches Rust. Below iOS 17.2 the
+    /// button is its label.
     func testEveryNodeTypeDraws() throws {
+        awaitIntents()
         launch("every-node")
-        waitFor("shown")
+        waitFor(runsIntents ? "shown" : "PASS every-node")
         goHome()
         showLockScreen(until: "Every node")
+        guard runsIntents else {
+            XCTAssertTrue(springboard.staticTexts["Tap"].waitForExistence(timeout: 10), "below iOS 17.2 the button's label shows")
+            XCTAssertFalse(springboard.buttons["Tap"].exists, "and nothing to tap")
+            try capture("every-node")
+            return
+        }
         let tap = springboard.buttons["Tap"].firstMatch
         XCTAssertTrue(tap.waitForExistence(timeout: 10), "its button shows")
         XCTAssertTrue(waitUntil(5) { tap.isHittable }, "its button can be tapped")
@@ -228,6 +303,8 @@ final class HostTests: HostCase {
     func testScheduledStart() throws {
         launch("scheduled-start")
         waitFor("PASS scheduled-start", timeout: 150)
+        // Below iOS 26 the scenario asserted the refusal, and nothing was started.
+        guard iOS(26) else { return }
         goHome()
         showLockScreen(until: "Soon")
         try capture("scheduled-start")
@@ -307,6 +384,8 @@ final class HostTests: HostCase {
     /// with that activity after the app left the foreground.
     func testStartOptions() throws {
         launch("start-options")
+        // Below iOS 18 the scenario asserted that a transient start is refused, after the alert.
+        guard iOS(18) else { return waitFor("PASS start-options", timeout: 120) }
         waitFor("transient", timeout: 120)
         listenForTheEnd()
         goHome()
@@ -321,10 +400,17 @@ final class HostTests: HostCase {
     /// A toggle on the Lock Screen shows its flag; a tap reaches Rust with the state asked for, and the app's update
     /// moves the switch.
     func testToggleAsksForTheOtherState() throws {
+        awaitIntents()
         launch("toggle")
-        waitFor("shown")
+        waitFor(runsIntents ? "shown" : "PASS toggle")
         goHome()
         showLockScreen(until: "Toggles")
+        guard runsIntents else {
+            XCTAssertTrue(springboard.staticTexts["Mute"].waitForExistence(timeout: 30), "below iOS 17.2 the toggle's label shows")
+            XCTAssertFalse(springboard.switches["Mute"].exists, "and no switch")
+            try capture("toggle-label")
+            return
+        }
         let toggle = springboard.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Mute")).firstMatch
         let shown = toggle.waitForExistence(timeout: 30)
         if !shown {
@@ -374,6 +460,7 @@ final class HostTests: HostCase {
     /// A tap on the Lock Screen while the app is not running launches it in the background; the tap reaches Rust,
     /// whose handler updates the activity, and the intent is acknowledged after the handler.
     func testATapLaunchesTheApp() throws {
+        try needsIntents()
         launch("cold-tap-start")
         waitFor("PASS cold-tap-start")
         // The widget draws the activity in its own process: give it a moment before the app dies.

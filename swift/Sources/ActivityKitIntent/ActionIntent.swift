@@ -6,7 +6,12 @@ import Foundation
 /// the app needs the type in its binary and its App Intents metadata, which Xcode extracts from a linked package
 /// product. It depends on nothing else of the package, so the app links it without a second copy of the Swift code
 /// that the Rust library holds. The app must not define another `ActivityKitActionIntent`.
-@available(iOS 17.0, *)
+///
+/// From iOS 17.2, though `LiveActivityIntent` is of iOS 17.0: Xcode writes an intent that is newer than the iOS its
+/// module is built for (this package: 15) into the app's App Intents metadata as one that begins with iOS 17.2, and
+/// without the name by which an older system finds the type. On iOS 17.0 and 17.1 a tap then runs nothing, in the app
+/// or in the widget. The widget draws a button there as its label, and `Authorization.buttons` is false.
+@available(iOS 17.2, *)
 public struct ActivityKitActionIntent: LiveActivityIntent {
     public static let title: LocalizedStringResource = "Live Activity action"
     public static let isDiscoverable = false

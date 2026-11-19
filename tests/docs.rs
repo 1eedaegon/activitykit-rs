@@ -162,6 +162,22 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     for phrase in ["push-to-start", "Left out"] {
         says(&later, phrase, "docs/not-yet-supported.md");
     }
+    // Where a button and a toggle begin (AK-RENDER-10), and why it is not the iOS of their intent's protocol.
+    says(
+        &usage,
+        "iOS 17.2 and later, below it its label",
+        "docs/usage.md",
+    );
+    says(&read("README.md"), "need iOS 17.2", "README.md");
+    says(
+        &rustdoc,
+        "a button or a toggle: iOS 17.2 and later",
+        "the rustdoc of src/kit.rs",
+    );
+    let setup = read("docs/ios-setup.md");
+    for phrase in ["iOS 17.2", "extract.actionsdata"] {
+        says(&setup, phrase, "docs/ios-setup.md");
+    }
 }
 
 // AK-DOCS-1
@@ -181,6 +197,7 @@ fn no_doc_says_what_is_no_longer_true() {
         "src/kit/options.rs",
         "src/kit/wire.rs",
         "src/events.rs",
+        "src/layout/node.rs",
     ];
     let stale = [
         "no timeout",
@@ -196,6 +213,9 @@ fn no_doc_says_what_is_no_longer_true() {
         "not one of the three below",
         "in the order they were called",
         "seven C functions",
+        "iOS 17 and later",
+        "iOS 17 or later, where",
+        "Buttons need iOS 17.",
     ];
     for file in files {
         let text = read(file);
