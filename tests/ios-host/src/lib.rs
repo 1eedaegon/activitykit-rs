@@ -85,8 +85,13 @@ pub extern "C" fn ak_host_run(report: Report) {
         .unwrap_or_default();
     thread::spawn(move || {
         let reporter = Reporter(report);
-        // A launch by the system for a tap has no scenario: the start of the cold-tap scenario left its mark.
-        let scenario = if scenario.is_empty() && cold_tap_pending() {
+        // A launch by the system for a tap has no scenario: the start of the cold-tap or the late-tap scenario left
+        // its mark.
+        let scenario = if !scenario.is_empty() {
+            scenario
+        } else if late_tap_mark().is_some_and(|mark| mark.exists()) {
+            "late-tap".to_owned()
+        } else if cold_tap_pending() {
             "cold-tap".to_owned()
         } else {
             scenario
@@ -124,6 +129,8 @@ pub extern "C" fn ak_host_run(report: Report) {
             "push-start" => push_start(&reporter),
             "cold-tap-start" => cold_tap_start(&reporter),
             "cold-tap" => cold_tap(&reporter),
+            "late-tap-start" => late_tap_start(&reporter),
+            "late-tap" => late_tap(&reporter),
             "intents" => intents(&reporter),
             "place-anchors" => placement::anchors(&reporter, placement::Card::Drawn),
             "place-anchors-tint" => placement::anchors(&reporter, placement::Card::Tint),
@@ -422,6 +429,76 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
 fn cold_tap_mark() -> Option<std::path::PathBuf> {
     std::env::var_os("HOME")
         .map(|home| std::path::Path::new(&home).join("Documents/activitykit-host-cold-tap"))
+}
+
+fn late_tap_mark() -> Option<std::path::PathBuf> {
+    std::env::var_os("HOME")
+        .map(|home| std::path::Path::new(&home).join("Documents/activitykit-host-late-tap"))
+}
+
+/// How long the launch for a late tap waits before it makes its kit: past the 5 s for which the intent posts the tap.
+const LATE_KIT: Duration = Duration::from_secs(8);
+
+// AK-EVENT-16
+/// An activity whose Stop the UI test taps while the app is not running; the launch the tap causes makes its kit only
+/// after its intent has given up (`late_tap`).
+fn late_tap_start(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let start = Start::new(
+        layout(),
+        values! { "status" => "Waiting", "tone" => "green", "level" => 0.2 },
+    )
+    .key("host:late-tap");
+    let activity = block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    let mark = late_tap_mark().ok_or("no HOME")?;
+    std::fs::write(&mark, activity.id()).map_err(|error| format!("mark: {error}"))?;
+    reporter.say(format!(
+        "running {}: terminate the app, then tap Stop",
+        activity.id()
+    ));
+    Ok(())
+}
+
+// AK-EVENT-16
+/// The launch the tap caused, which makes its kit 8 s late: the intent kept the tap after it was not taken at once and
+/// gave up after 5 s; the kit's first subscriber gets it, late, with its id, its time and the revision it was made on.
+/// The system may suspend the app in between, and the UI test brings it back.
+fn late_tap(reporter: &Reporter) -> Outcome {
+    let launched = Instant::now();
+    if let Some(mark) = late_tap_mark() {
+        let _ = std::fs::remove_file(mark);
+    }
+    reporter.say("launched without a scenario: the kit comes late");
+    thread::sleep(LATE_KIT);
+    let kit = ActivityKit::new();
+    let events = kit.events();
+    let tapped = next_event(&events, Duration::from_secs(20), |event| match event {
+        Event::Action {
+            activity,
+            action,
+            tap,
+            ..
+        } => Some((activity, action, tap)),
+        _ => None,
+    });
+    let (activity, action, tap) = tapped.ok_or("no tap after the late kit")?;
+    reporter.say(format!(
+        "action {action} from {}, {:?} after the launch: {tap:?}",
+        activity.id(),
+        launched.elapsed()
+    ));
+    check(
+        action == "stop" && activity.key() == "host:late-tap",
+        "the tap names its action and its activity",
+    )?;
+    check(tap.late, "the tap came from where the intent kept it")?;
+    check(
+        tap.id.is_some() && tap.at.is_some() && tap.revision == Some(0),
+        "it carries its id, its time and the revision it was made on",
+    )?;
+    block_on(activity.update(values! { "status" => "Late", "tone" => "gray", "level" => 1.0 }))
+        .map_err(|error| format!("update in the handler: {error}"))?;
+    Ok(())
 }
 
 fn cold_tap_pending() -> bool {

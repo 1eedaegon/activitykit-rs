@@ -3,7 +3,7 @@
 
 use super::tests::{at, kit, sketch, started};
 use super::*;
-use crate::{Error, State, values};
+use crate::{Error, State, Tap, values};
 use futures_lite::future::block_on;
 use serde_json::json;
 
@@ -161,4 +161,32 @@ fn a_tap_on_a_toggle_says_which_state_was_asked_for() {
     assert_eq!(tap(json!(false)), ("mute".into(), Some(false)));
     // A button asks for no state.
     assert_eq!(tap(json!(null)), ("mute".into(), None));
+}
+
+// AK-EVENT-16
+#[test]
+fn a_tap_says_which_tap_it_is_and_whether_it_was_kept() {
+    let (kit, fake) = kit();
+    let activity = started(&kit);
+    let events = kit.events();
+    fake.emit(json!({
+        "type": "action", "activityId": activity.id(), "actionId": "stop", "activityKey": activity.key(),
+        "tapId": "4F1C", "tappedAt": 1_790_000_000_250.0, "revision": 7, "late": true
+    }));
+    let Ok(Event::Action { tap, .. }) = events.try_recv() else {
+        panic!("an action")
+    };
+    assert_eq!(tap.id.as_deref(), Some("4F1C"));
+    assert_eq!(
+        tap.at,
+        Some(std::time::UNIX_EPOCH + std::time::Duration::from_millis(1_790_000_000_250))
+    );
+    assert_eq!(tap.revision, Some(7));
+    assert!(tap.late);
+    // A tap that says none of it: what the Swift layer of an intent without them hands on.
+    fake.emit(json!({"type": "action", "activityId": activity.id(), "actionId": "stop", "activityKey": activity.key()}));
+    let Ok(Event::Action { tap, .. }) = events.try_recv() else {
+        panic!("an action")
+    };
+    assert_eq!(tap, Tap::default());
 }

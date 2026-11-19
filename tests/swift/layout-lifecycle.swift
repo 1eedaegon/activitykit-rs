@@ -181,6 +181,7 @@ extension LifecycleTests {
         try await testBoundStyleUpdates()
         try testLayoutWidgetPreflight()
         try await testActionRelay()
+        try await testKeptTaps()
         try await testNativeSizeCheck()
     }
 

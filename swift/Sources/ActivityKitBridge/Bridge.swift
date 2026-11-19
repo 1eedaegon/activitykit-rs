@@ -167,9 +167,10 @@ public func ak_set_event_handler(_ handler: AKEventHandler?) {
     if first { Systems.current.observe(EventSink.shared) }
 }
 
-/// The relay of button taps, observing from the first call of the bridge.
+/// The relay of button taps, observing from the first call of the bridge, with the taps that the intent kept in the
+/// app's container.
 enum Relay {
-    static let shared = ActionRelay { Systems.current.activityKey(of: $0) }
+    static let shared = ActionRelay(keptIn: ActionRelay.keptTaps) { Systems.current.activityKey(of: $0) }
 }
 
 /// The C event handler and the events it gets.
@@ -211,7 +212,9 @@ enum BridgeEvent: Encodable {
     /// Content ActivityKit shows, from a push or from the app's own update reported back.
     case content(activityId: String, activityKey: String, snapshot: LayoutSnapshot, relevance: Double?)
 
-    private enum Keys: String, CodingKey { case type, activityId, actionId, activityKey, state, authorization, token, snapshot, relevance, on }
+    private enum Keys: String, CodingKey {
+        case type, activityId, actionId, activityKey, state, authorization, token, snapshot, relevance, on, tapId, tappedAt, revision, late
+    }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: Keys.self)
@@ -226,6 +229,10 @@ enum BridgeEvent: Encodable {
             try container.encode(action.actionId, forKey: .actionId)
             try container.encodeIfPresent(action.activityKey, forKey: .activityKey)
             try container.encodeIfPresent(action.isOn, forKey: .on)
+            try container.encodeIfPresent(action.tapId, forKey: .tapId)
+            try container.encodeIfPresent(action.tappedAt, forKey: .tappedAt)
+            try container.encodeIfPresent(action.revision, forKey: .revision)
+            if action.late { try container.encode(true, forKey: .late) }
         case let .state(activityId, activityKey, state):
             try container.encode("state", forKey: .type)
             try container.encode(activityId, forKey: .activityId)

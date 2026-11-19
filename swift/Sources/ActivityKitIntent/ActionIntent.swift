@@ -24,20 +24,30 @@ public struct ActivityKitActionIntent: LiveActivityIntent {
     @Parameter(title: "Toggle", default: false) public var isToggle: Bool
     /// The state the person asked a toggle for. A button's says nothing.
     @Parameter(title: "On", default: false) public var isOn: Bool
+    /// The activity's key, which stays with the tap when ActivityKit no longer lists the activity. Empty from a widget
+    /// that does not give it.
+    @Parameter(title: "Key", default: "") public var activityKey: String
+    /// The revision of the content shown when the button was drawn; -1 from a widget that does not give it.
+    @Parameter(title: "Revision", default: -1) public var revision: Int
 
     public init() {}
-    /// `isOn` is the state a toggle is asked for; a button gives none.
-    public init(activityId: String, actionId: String, isOn: Bool? = nil) {
+    /// `isOn` is the state a toggle is asked for; a button gives none. `activityKey` and `revision` say what was shown.
+    public init(activityId: String, actionId: String, isOn: Bool? = nil, activityKey: String = "", revision: Int64? = nil) {
         self.activityId = activityId
         self.actionId = actionId
         self.isToggle = isOn != nil
         self.isOn = isOn ?? false
+        self.activityKey = activityKey
+        self.revision = revision.map { Int($0) } ?? -1
     }
 
     /// Runs in the app process and hands the tap to activitykit's bridge (`ActionPost`): every 100 ms for up to 5 s
-    /// until the bridge acknowledges it, which it does once the app has taken the event.
+    /// until the bridge acknowledges it, which it does once the app has taken the event. A tap the app does not take
+    /// at once is kept on disk until it does.
     public func perform() async throws -> some IntentResult {
-        try await ActionPost.post(activityId: activityId, actionId: actionId, isOn: ActionPost.state(isToggle: isToggle, isOn: isOn))
+        let tap = ActionTap(activityId: activityId, actionId: actionId, isOn: ActionPost.state(isToggle: isToggle, isOn: isOn),
+                            activityKey: activityKey.isEmpty ? nil : activityKey, revision: revision < 0 ? nil : Int64(revision))
+        try await ActionPost.post(tap)
         return .result()
     }
 }
