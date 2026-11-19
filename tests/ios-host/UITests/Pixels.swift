@@ -106,57 +106,56 @@ struct Pixels {
     /// The pixels of the color at `seed` that hang together with it, side by side or one above the other: the part
     /// of the screen they span, and how many they are. A card of one color is such a region, whatever lies on it.
     func region(around seed: CGPoint) -> (frame: CGRect, pixels: Int)? {
-        guard let wanted = color(at: seed) else { return nil }
-        let screen = CGRect(x: 0, y: 0, width: CGFloat(width) / scale, height: CGFloat(height) / scale)
-        return regions(around: seed, of: [wanted], in: screen)[0]
+        guard let start = pixel(seed) else { return nil }
+        let wanted = color(start.column, start.row)
+        var visited = [Bool](repeating: false, count: width * height)
+        let patch = patch(at: start, in: (0..<width, 0..<height), visited: &visited) { color($0, $1).isNear(wanted) }
+        return (frame(patch.columns, patch.rows), patch.count)
     }
 
-    /// What hangs together with the pixel at `seed` through pixels of `colors`, side by side or one above the other,
-    /// and inside `part`: for each color, in their order, the part of the screen its pixels span and how many they
-    /// are, or nil without one. A box on a card of one of the colors is found so, and a pixel of the same color
-    /// elsewhere is not, such as the wallpaper beside a card's rounded corner: the mixed pixels of the corner's edge
-    /// lie between.
-    func regions(around seed: CGPoint, of colors: [RGB], in part: CGRect) -> [(frame: CGRect, pixels: Int)?] {
-        let left = max(0, Int((part.minX * scale).rounded())), right = min(width, Int((part.maxX * scale).rounded()))
-        let top = max(0, Int((part.minY * scale).rounded())), bottom = min(height, Int((part.maxY * scale).rounded()))
-        var spans = [(columns: ClosedRange<Int>, rows: ClosedRange<Int>, count: Int)?](repeating: nil, count: colors.count)
-        guard let start = pixel(seed), left < right, top < bottom else { return spans.map { _ in nil } }
-        // Which of the colors a pixel has: read once for each pixel. -2 is not read yet, -1 none of them.
-        var kinds = [Int8](repeating: -2, count: (right - left) * (bottom - top))
-        func kind(_ column: Int, _ row: Int) -> Int {
-            guard column >= left, column < right, row >= top, row < bottom else { return -1 }
-            let at = (row - top) * (right - left) + (column - left)
-            if kinds[at] == -2 {
+    /// For each of `colors`, in their order, the largest patch of it inside `part`: the part of the screen its
+    /// pixels span and how many they are, or nil without one. A patch is pixels of one color that hang together,
+    /// side by side or one above the other. A box of a layout is one patch; a wallpaper that happens to have a box's
+    /// color beside the card's rounded corner is another, smaller than any box the scenarios draw.
+    func largest(of colors: [RGB], in part: CGRect) -> [(frame: CGRect, pixels: Int)?] {
+        let columns = max(0, Int((part.minX * scale).rounded()))..<min(width, Int((part.maxX * scale).rounded()))
+        let rows = max(0, Int((part.minY * scale).rounded()))..<min(height, Int((part.maxY * scale).rounded()))
+        var found = [(columns: ClosedRange<Int>, rows: ClosedRange<Int>, count: Int)?](repeating: nil, count: colors.count)
+        guard !columns.isEmpty, !rows.isEmpty else { return found.map { _ in nil } }
+        var visited = [Bool](repeating: false, count: width * height)
+        for row in rows {
+            for column in columns where !visited[row * width + column] {
                 let seen = color(column, row)
-                kinds[at] = Int8(colors.firstIndex { seen.isNear($0) } ?? -1)
+                guard let index = colors.firstIndex(where: { seen.isNear($0) }) else { continue }
+                let patch = patch(at: (column, row), in: (columns, rows), visited: &visited) { color($0, $1).isNear(colors[index]) }
+                if patch.count > found[index]?.count ?? 0 { found[index] = patch }
             }
-            return Int(kinds[at])
         }
-        var visited = [Bool](repeating: false, count: kinds.count)
-        var open: [(Int, Int)] = []
+        return found.map { patch in patch.map { (frame($0.columns, $0.rows), $0.count) } }
+    }
+
+    /// The pixels inside `bounds` that hang together with the one at `start` and that `matches` takes: the columns
+    /// and rows they span and their number. Every pixel it reaches is marked in `visited`, one flag for each pixel
+    /// of the screenshot.
+    private func patch(at start: (column: Int, row: Int), in bounds: (columns: Range<Int>, rows: Range<Int>), visited: inout [Bool],
+                       matches: (Int, Int) -> Bool) -> (columns: ClosedRange<Int>, rows: ClosedRange<Int>, count: Int) {
+        var open = [start]
+        visited[start.row * width + start.column] = true
+        var left = start.column, right = start.column, top = start.row, bottom = start.row, count = 0
         func visit(_ column: Int, _ row: Int) {
-            guard kind(column, row) >= 0 else { return }
-            let at = (row - top) * (right - left) + (column - left)
-            if !visited[at] {
-                visited[at] = true
-                open.append((column, row))
-            }
+            guard bounds.columns.contains(column), bounds.rows.contains(row), !visited[row * width + column], matches(column, row) else { return }
+            visited[row * width + column] = true
+            open.append((column, row))
         }
-        visit(start.column, start.row)
         while let (column, row) = open.popLast() {
-            let index = kind(column, row)
-            if let span = spans[index] {
-                spans[index] = (min(span.columns.lowerBound, column)...max(span.columns.upperBound, column),
-                                min(span.rows.lowerBound, row)...max(span.rows.upperBound, row), span.count + 1)
-            } else {
-                spans[index] = (column...column, row...row, 1)
-            }
+            left = min(left, column); right = max(right, column); top = min(top, row); bottom = max(bottom, row)
+            count += 1
             visit(column + 1, row)
             visit(column - 1, row)
             visit(column, row + 1)
             visit(column, row - 1)
         }
-        return spans.map { span in span.map { (frame($0.columns, $0.rows), $0.count) } }
+        return (left...right, top...bottom, count)
     }
 
     /// From where to where the pixels above and below `point`, in its column, have one of `colors`. One pixel of

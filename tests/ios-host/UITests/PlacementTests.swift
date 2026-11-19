@@ -17,7 +17,8 @@ struct Reading {
 /// points, a screenshot has two or three pixels to a point, and the two agree to within a pixel.
 ///
 /// No box is black, white or gray, which a wallpaper may be beside the card, and none has the color halfway between
-/// the card's and another box's, which the pixels of a rounded edge have.
+/// the card's and another box's, which the pixels of a rounded edge have. A wallpaper can still have a box's color
+/// beside the card's rounded corner (iOS 17's is cyan there): a box is the largest patch of its color in the card.
 final class PlacementTests: HostCase {
     /// The card's color in the scenarios, and the boxes at the nine alignments of a frame: where each stands across
     /// and down the card (0 at the leading or top edge, 1 in the middle, 2 at the trailing or bottom edge).
@@ -80,15 +81,15 @@ final class PlacementTests: HostCase {
     }
 
     /// Reads a card of the card's color and its `boxes` from a screenshot. The card is the region of its color that
-    /// begins left of the title; a box is what hangs together with it in the box's color, within the card.
+    /// begins left of the title; a box is the largest patch of its color within the card.
     func read(_ shot: (pixels: Pixels, title: CGRect), _ boxes: [(name: String, color: RGB)] = []) throws -> Reading {
         let from = CGPoint(x: shot.title.minX, y: shot.title.midY)
         let seed = try XCTUnwrap(shot.pixels.nearest(Self.card, leftOf: from),
                                  "the card's color shows left of the title; at the title it is \(String(describing: shot.pixels.color(at: from)))")
         let card = try XCTUnwrap(shot.pixels.region(around: seed), "the card is a region of its color").frame
-        let found = shot.pixels.regions(around: seed, of: [Self.card] + boxes.map(\.color), in: card)
+        let found = shot.pixels.largest(of: boxes.map(\.color), in: card)
         var frames: [String: (frame: CGRect, pixels: Int)] = [:]
-        for (box, region) in zip(boxes, found.dropFirst()) {
+        for (box, region) in zip(boxes, found) {
             frames[box.name] = try XCTUnwrap(region, "the \(box.name) box \(box.color) shows in the card \(card)")
         }
         return Reading(pixels: shot.pixels, card: card, boxes: frames)
@@ -139,11 +140,11 @@ final class PlacementTests: HostCase {
         for (scenario, what) in [("place-anchors-tint", "on a tinted card"), ("place-anchors-plain", "on a card without a color")] {
             let other = try shot(scenario, title: "Anchors")
             print("placement: \(what) the card's color reads \(String(describing: other.pixels.color(at: CGPoint(x: first.title.minX - 3, y: first.title.midY))))")
-            for anchor in Self.anchors {
-                // The box is looked for where it was: nothing else on this card has a color the test knows.
+            // The boxes are looked for in the place of the drawn card: this card's own color is the system's.
+            let found = other.pixels.largest(of: Self.anchors.map(\.color), in: card)
+            for (anchor, region) in zip(Self.anchors, found) {
                 let was = try drawn.frame(anchor.name)
-                let found = other.pixels.regions(around: CGPoint(x: was.midX, y: was.midY), of: [anchor.color], in: card)[0]
-                let now = try XCTUnwrap(found, "the \(anchor.name) box \(what) is where it was on a drawn card, at \(was)").frame
+                let now = try XCTUnwrap(region, "the \(anchor.name) box shows \(what)").frame
                 for (edge, before, side) in [(now.minX, was.minX, "left"), (now.maxX, was.maxX, "right"),
                                              (now.minY, was.minY, "top"), (now.maxY, was.maxY, "bottom")] {
                     XCTAssertEqual(edge, before, accuracy: pixel, "the \(side) of the \(anchor.name) box \(what) is where it was on a drawn card")
