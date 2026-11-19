@@ -11,8 +11,8 @@ For an iOS target, the crate's build script runs SwiftPM on the `swift` package 
 library:
 
 ```text
-xcrun swift build --package-path swift --product ActivityKitBridge --build-path $OUT_DIR/swift -c release|debug \
-  --arch <host> --sdk <iOS SDK> -Xswiftc -sdk -Xswiftc <iOS SDK> \
+xcrun swift build --build-system native --package-path swift --product ActivityKitBridge \
+  --build-path $OUT_DIR/swift -c release|debug --arch <host> --sdk <iOS SDK> -Xswiftc -sdk -Xswiftc <iOS SDK> \
   -Xswiftc -target -Xswiftc <arch>-apple-ios<version>[-simulator] -Xcc --target=<same>
 ```
 
@@ -29,7 +29,9 @@ These are the flags SwiftPM needs to build for iOS, the same the `swift-rs` crat
 it builds every target of a package, here also the SwiftUI renderer and the widget, which the app's library must not
 contain, and it needs a static product named like the package. The version is `IPHONEOS_DEPLOYMENT_TARGET`, at least
 15.0; set it to the app's deployment target so the linker does not warn about newer objects. The build is `debug`
-when the Rust profile has `opt-level = 0`, `release` otherwise.
+when the Rust profile has `opt-level = 0`, `release` otherwise. The build system is SwiftPM's own, by name: from
+Xcode 27 `swift build` defaults to Swift Build, which does not build for iOS from these flags. Named on Xcode 26.3, it
+built the package for the Mac and left no `libActivityKitBridge.a`; on Xcode 27.2 the build is reported to fail.
 
 For a binary that rustc links, the script also adds the Swift runtime's search paths (`swift -print-target-info`) and
 compiler-rt (`clang_rt.ios` or `clang_rt.iossim`, for `#available`). `ACTIVITYKIT_SKIP_SWIFT=1` skips the Swift build,
