@@ -268,9 +268,9 @@ final class PlacementTests: HostCase {
         for corner in corners(round, 1) { XCTAssertTrue(try color(corner).isNear(Self.card), "a radius of 16 cuts the corner at \(corner)") }
         for corner in corners(round, 8) { XCTAssertTrue(try color(corner).isNear(magenta), "and leaves the box 8 points in, at \(corner)") }
 
-        let square = try XCTUnwrap(seen.boxes["square"])
-        expect(square.frame, is: 60, by: 48, "the square box")
-        XCTAssertEqual(CGFloat(square.pixels), 60 * 48 * pixels.scale * pixels.scale, accuracy: 60 * pixels.scale, "a box without a radius is a whole rectangle")
+        let cyan = RGB(0, 255, 255), square = try seen.frame("square")
+        expect(square, is: 60, by: 48, "the square box")
+        for corner in corners(square, 1) { XCTAssertTrue(try color(corner).isNear(cyan), "a box without a radius keeps its corner at \(corner)") }
 
         let pill = try seen.frame("pill")
         expect(pill, is: 100, by: 40, "the pill")
