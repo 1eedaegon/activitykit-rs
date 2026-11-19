@@ -126,7 +126,8 @@ and `tests/ios-host/run.sh` takes `RUNTIME` and picks a phone that the runtime k
 | 18.0 | 12 | 3 | 1 (older content shown) | The small family is drawn; a transient start is taken. The first three tests of a tap failed and the two later ones passed: see below |
 | 26.3 | 14 | 1 | 1 (the same) | As in CI, but that the first activity of the new simulator was not drawn within 45 s, in two runs of two; the wait is now 120 s |
 
-These are the runs that found what follows, before any of it was fixed but the labels on iOS 17.0. With the fixes, the toggle test passed on iOS 17.4 and the placement tests on iOS 26.3; the whole suite has not run on the six runtimes again, since that run was stopped when the Mac ran out of memory (docs/testing.md has the record).
+These are the runs that found what follows, before any of it was fixed but the labels on iOS 17.0. With the fixes
+the suite, by then 23 tests, ran again on 16.2, 17.0, 17.2, 17.4, 18.0 and 26.3: docs/testing.md has that record.
 
 **What the runs found:**
 

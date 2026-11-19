@@ -183,19 +183,30 @@ iPhone Pro its runtime knows:
 | 18.0 | 12 passed, 3 failed, 1 skipped | The small family drawn, a transient start taken; the first three tests of a tap failed while the system had not read the app's intents, which the tests now wait for |
 | 26.3 | 14 passed, 1 failed, 1 skipped | The first activity of the new simulator was not drawn within 45 s; the wait is 120 s now |
 
-After the two fixes that those runs led to (AK-RENDER-10, AK-RENDER-19) the toggle test passed on a simulator of iOS
-17.4, where a button under a text had not been tapped in eleven tries before. The whole suite has not run again on
-the six runtimes since: that run was started and stopped when the Mac ran out of memory.
+With the two fixes that those runs led to (AK-RENDER-10, AK-RENDER-19), the wait for the app's intents and the
+placement tests, the suite of 23 tests then ran again on a new simulator of each:
 
-The placement tests ran on iOS 26.3: on an iPhone 17 Pro, where all passed but the banner's, which that phone does
-not show, and on an iPhone SE (3rd generation), where the banner's passed too and one failed for a start that
+| iOS | Phone | Of 23 tests |
+| --- | --- | --- |
+| 16.2 | iPhone 14 Pro | 19 passed, 4 skipped (two tests of a tap, the small family, the banner) |
+| 17.0.1 | iPhone 15 Pro | 19 passed, 4 skipped (the same) |
+| 17.2 | iPhone 15 Pro | 20 passed, 3 skipped, in two runs: four placement tests first measured a patch of that system's cyan wallpaper as part of a cyan box, and passed once a box was the largest patch of its color |
+| 17.4 | iPhone 15 Pro | 20 passed, 3 skipped (older content shown, the small family, the banner) |
+| 18.0 | iPhone 16 Pro | 21 passed, 2 skipped, in two runs: the placement test of the shapes first counted a square box's pixels, of which a row was mixed with the card's color, and passed once it read the box's four corners |
+| 26.3 | iPhone 17 Pro | 21 passed, 2 skipped (older content shown, the banner) |
+
+On iOS 17.2 and 17.4 the toggle under a text was tapped, which it had not been before AK-RENDER-19's fix. On iOS
+18.0 the system ran the app's intent at the seventh tap of the wait, twenty seconds apart, and every tap after it.
+
+What the placement tests measured was the same on every runtime but for two things. The card was 148 points high
+for a layout of 148; of a box of 44 points in a corner 93 % showed; with one to five bars of 40 points one activity's
+card was 40, 80, 120, 160 and 160 points high, the last without the upper half of its first bar and the lower half
+of its last; a card whose frame takes all the height it can get was 64 points high. What differed: the card was 14
+points from the screen's sides on the Pro phones from iOS 17.0 and 10 points on iOS 16.2, and 10 points on an iPhone
+SE (3rd generation) with iOS 26.3; and a hex color as the system's tint read as itself up to iOS 18.0 and as (251,
+251, 24) for `#FFFF00` on iOS 26.3. On the iPhone SE with iOS 26.3 the banner of an alert was the same card, 8
+points below the top of the screen, with its nine boxes in the same places; one test failed there for a start that
 answered `NATIVE_ERROR` on the loaded Mac, after the nine boxes of its first card had been found in their places.
-The card was 14 points from the screen's sides on the Pro and 10 on the SE, and 148 points high for a layout of
-148; of a box of 44 points in a corner 93 % showed. With one to five bars of 40 points one activity's card was 40,
-80, 120, 160 and 160 points high, the last without the upper half of its first bar and the lower half of its last;
-a card whose frame takes all the height it can get was 64 points high. A hex color as the system's tint read (251,
-251, 24) for `#FFFF00`. The banner of an alert on the SE was the same card, 8 points below the top of the screen,
-with its nine boxes in the same places.
 
 Not tested: a phone, iOS 16.0, 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.

@@ -91,8 +91,8 @@ The [request contract](request-contract.md) has every rule and limit: at most 40
 ### Placement on the Lock Screen
 
 The system gives the card its place and its width, and makes it as high as the layout. The layout decides the rest,
-and the system helps with nothing inside the card. The numbers below were measured on simulators of iOS 26.3, an
-iPhone 17 Pro and an iPhone SE (3rd generation); no older system and no phone has been measured yet:
+and the system helps with nothing inside the card. The numbers below were measured on simulators of iOS 16.2 to
+26.3, and were the same on each; no phone has been measured yet:
 
 - **There is no margin.** A node at the edge of the layout touches the edge of the card, and the card's rounded
   corners cut what stands in them: a box of 44 points in a corner keeps 93 % of itself. Give the root a padding, as
