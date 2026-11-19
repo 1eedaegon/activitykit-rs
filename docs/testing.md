@@ -82,7 +82,9 @@ Versions follow the subjects of the commits on `main`, which are conventional co
 the last tag; the highest of them decides. For a release the workflow writes the version commit (`chore: release
 vX.Y.Z`: `Cargo.toml`, `Cargo.lock`, the test host's lock file, the README's dependency line for a new minor, and a
 changelog section with the commits' subjects, above whatever was written by hand under `## Unreleased`), pushes it to
-`main`, runs CI for that exact commit, tags it and starts `publish.yml`. A commit that breaks the API with `!` or
+`main`, runs CI for that exact commit, tags it and starts `publish.yml`. A CI run in which no hosted runner took a
+job ends as failed though nothing failed; the workflow runs such jobs again itself, up to three times, for `main`'s
+run and for the version commit's (`tools/settle-ci.sh`, tested by `tests/release/settle.sh`). A commit that breaks the API with `!` or
 a `BREAKING CHANGE:` footer stops the automatic release: run "Auto release" by hand with `major` checked. Before 1.0 a
 change that breaks callers is a `feat`: the minor moves, which is how Cargo reads a 0.x version. A subject that is
 not a conventional commit fails the plan; merge commits are passed over. `tests/release/run.sh` runs the tool in

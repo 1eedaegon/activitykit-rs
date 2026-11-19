@@ -107,6 +107,14 @@ pub extern "C" fn ak_host_run(report: Report) {
             "stale-start" => stale_start(&reporter),
             "stale-check" => stale_check(&reporter),
             "appearance" => appearance(&reporter),
+            "tile-none" => tile(&reporter, None),
+            "tile-hex" => tile(&reporter, Some("#804000")),
+            "tile-alpha" => tile(&reporter, Some("#FF000080")),
+            "tile-indigo" => tile(&reporter, Some("indigo")),
+            "tile-primary" => tile(&reporter, Some("primary")),
+            "tile-secondary" => tile(&reporter, Some("secondary")),
+            "tile-white" => tile(&reporter, Some("white")),
+            "tile-clear" => tile(&reporter, Some("clear")),
             "policies" => policies(&reporter),
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
@@ -935,6 +943,42 @@ fn stale_check(reporter: &Reporter) -> Outcome {
         "stale in the list; the update's reply says {replied:?}, and an event of Active came within 15 s: {}",
         active.is_some()
     ));
+    Ok(())
+}
+
+/// Five chips colored in the ways a color can be written, as the Lock Screen tree and as the small region, on the
+/// background the scenario's name chooses: for a look at a paired watch by hand.
+fn tile(reporter: &Reporter, background: Option<&str>) -> Outcome {
+    let kit = prepared(reporter)?;
+    let chips = || {
+        hstack([
+            text("Hx").style("hex"),
+            text("Rd").style("red"),
+            text("Ac").style("accent"),
+            text("Pr").style("pair"),
+            text("Se").style("secondary"),
+        ])
+        .spacing(4.0)
+    };
+    let chip = || Style::new().frame(Frame::new().width(34.0).height(24.0));
+    let pair = Color::Adaptive {
+        light: "#00FF00".to_owned(),
+        dark: "#FF00FF".to_owned(),
+    };
+    let layout = Layout::new(vstack([text("Colors"), chips()]).spacing(6.0))
+        .small(chips())
+        .style("hex", chip().background("#FF8000").color("#000000"))
+        .style("red", chip().background("red"))
+        .style("accent", chip().background("accent"))
+        .style("pair", chip().background(pair))
+        .style("secondary", chip().color("secondary"));
+    let layout = match background {
+        Some(color) => layout.background(color),
+        None => layout,
+    };
+    let start = Start::new(layout, values! {}).key("host:tile");
+    block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    reporter.say(format!("started a tile on {background:?}"));
     Ok(())
 }
 

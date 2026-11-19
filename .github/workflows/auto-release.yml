@@ -9,6 +9,10 @@ name: Auto release
 # version. Pushes made by GITHUB_TOKEN start no workflows, and the CI run dispatched for the version commit does not
 # start this workflow again, so the run that prepares a release sees it through. A run by hand tags a version commit
 # that was left untagged. The push of the version commit needs main to accept pushes from GitHub Actions.
+#
+# A CI run in which no hosted runner took a job ends as a failure though nothing failed (tools/settle-ci.sh). This
+# workflow runs such jobs again itself, for main's run and for the version commit's, since a rerun started with
+# GITHUB_TOKEN starts no workflow: twice in a row a release had stopped there until somebody ran the job by hand.
 on:
   workflow_run:
     workflows: [CI]
@@ -30,14 +34,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Plan, prepare or tag
+  ci:
+    name: CI of the commit
     if: >-
       github.repository == '1eedaegon/activitykit-rs' &&
       ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-       (github.event.workflow_run.conclusion == 'success' &&
+       ((github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure') &&
         (github.event.workflow_run.event == 'push' ||
          github.event.workflow_run.event == 'workflow_dispatch')))
+    runs-on: ubuntu-latest
+    outputs:
+      passed: ${{ steps.settle.outputs.passed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+          persist-credentials: false
+      - name: Run again the jobs that no runner took
+        id: settle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || [ "$CONCLUSION" = success ]; then
+            echo passed=true >> "$GITHUB_OUTPUT"
+          elif tools/settle-ci.sh settle "$RUN"; then
+            echo passed=true >> "$GITHUB_OUTPUT"
+          else
+            echo passed=false >> "$GITHUB_OUTPUT"
+            echo "::notice::CI did not pass for this commit: nothing is released"
+          fi
+
+  release:
+    name: Plan, prepare or tag
+    needs: ci
+    if: needs.ci.outputs.passed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,7 +141,7 @@ jobs:
             sleep 4
           done
           [ -n "$run_id" ] || { echo "the CI run of $release_sha did not start"; exit 1; }
-          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 15
+          tools/settle-ci.sh settle "$run_id"
           git tag -a "v$VERSION" -m "v$VERSION"
           git push origin "v$VERSION"
           gh workflow run publish.yml --ref main -f tag="v$VERSION" -f publish=true
