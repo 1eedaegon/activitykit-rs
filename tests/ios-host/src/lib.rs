@@ -1112,9 +1112,10 @@ fn appearance(reporter: &Reporter) -> Outcome {
     Ok(())
 }
 
-// AK-TOGGLE-1
+// AK-TOGGLE-1, AK-RENDER-19
 /// A toggle shows a flag. Each tap arrives with the state the person asked for, the opposite of the flag, and the
-/// app's update moves the switch: the UI test flips it on and off again.
+/// app's update moves the switch: the UI test flips it on and off again. The layout is a text above the toggle,
+/// narrower than the card: iOS 17 finds the toggle under a tap only because the widget takes the card's width.
 fn toggle_flag(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
     let events = kit.events();

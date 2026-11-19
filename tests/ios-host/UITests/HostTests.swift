@@ -396,9 +396,10 @@ final class HostTests: HostCase {
         try capture("start-options-report")
     }
 
-    // AK-TOGGLE-1
+    // AK-TOGGLE-1, AK-RENDER-19
     /// A toggle on the Lock Screen shows its flag; a tap reaches Rust with the state asked for, and the app's update
-    /// moves the switch.
+    /// moves the switch. Its layout is narrower than the card, where iOS 17 found no control under a tap until the
+    /// widget took the card's width for the content.
     func testToggleAsksForTheOtherState() throws {
         awaitIntents()
         launch("toggle")

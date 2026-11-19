@@ -10,6 +10,11 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
   Xcode writes for it: an App Intent that is newer than the iOS its module is built for (this package: 15) is
   written as one that begins with iOS 17.2. Below 17.2 the widget now draws a button and a toggle as their labels,
   as it does on iOS 16, and `Authorization::buttons` is false.
+- A button or a toggle in a layout that is narrower than the card can be tapped on iOS 17. There the system did not
+  find a control of such content under a tap, took the tap as one on the activity and opened the app: on the
+  simulators of iOS 17.2 and 17.4, for a text above a toggle or a button, and not for a layout that fills the card's
+  width. The widget now takes the card's whole width for the content on the Lock Screen; a narrower layout stands in
+  the middle of it as before. iOS 18 and later were not affected.
 
 ## 0.6.5 - 2026-11-18
 
