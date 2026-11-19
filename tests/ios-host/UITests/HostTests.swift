@@ -67,7 +67,7 @@ class HostCase: XCTestCase {
         } while !waitUntil(20, { status.exists && status.label.hasPrefix("PASS intents") }) && Date() < deadline
         waitFor("PASS intents", timeout: 5)
         print("the system ran the app's intent at tap \(taps)")
-        Self.intentsRun = true
+        Self.intentsRun = status.exists && status.label.hasPrefix("PASS intents")
     }
 
     /// Waits until `condition` holds, checking every 0.25 s; false after `timeout`.

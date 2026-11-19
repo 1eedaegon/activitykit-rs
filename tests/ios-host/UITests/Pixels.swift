@@ -52,7 +52,7 @@ struct Pixels {
 
     /// The pixel that holds a point of the screen, if the screenshot has it.
     private func pixel(_ point: CGPoint) -> (column: Int, row: Int)? {
-        let column = Int(point.x * scale), row = Int(point.y * scale)
+        let column = Int((point.x * scale).rounded(.down)), row = Int((point.y * scale).rounded(.down))
         return column >= 0 && row >= 0 && column < width && row < height ? (column, row) : nil
     }
 
@@ -106,26 +106,9 @@ struct Pixels {
     /// The pixels of the color at `seed` that hang together with it, side by side or one above the other: the part
     /// of the screen they span, and how many they are. A card of one color is such a region, whatever lies on it.
     func region(around seed: CGPoint) -> (frame: CGRect, pixels: Int)? {
-        guard let start = pixel(seed) else { return nil }
-        let wanted = color(start.column, start.row)
-        var seen = [Bool](repeating: false, count: width * height)
-        var open = [start]
-        seen[start.row * width + start.column] = true
-        var columns = start.column...start.column, rows = start.row...start.row, count = 0
-        while let (column, row) = open.popLast() {
-            columns = min(columns.lowerBound, column)...max(columns.upperBound, column)
-            rows = min(rows.lowerBound, row)...max(rows.upperBound, row)
-            count += 1
-            for (nextColumn, nextRow) in [(column + 1, row), (column - 1, row), (column, row + 1), (column, row - 1)]
-            where nextColumn >= 0 && nextRow >= 0 && nextColumn < width && nextRow < height {
-                let at = nextRow * width + nextColumn
-                if !seen[at], color(nextColumn, nextRow).isNear(wanted) {
-                    seen[at] = true
-                    open.append((nextColumn, nextRow))
-                }
-            }
-        }
-        return (frame(columns, rows), count)
+        guard let wanted = color(at: seed) else { return nil }
+        let screen = CGRect(x: 0, y: 0, width: CGFloat(width) / scale, height: CGFloat(height) / scale)
+        return regions(around: seed, of: [wanted], in: screen)[0]
     }
 
     /// What hangs together with the pixel at `seed` through pixels of `colors`, side by side or one above the other,
@@ -168,7 +151,10 @@ struct Pixels {
             } else {
                 spans[index] = (column...column, row...row, 1)
             }
-            for (across, down) in [(1, 0), (-1, 0), (0, 1), (0, -1)] { visit(column + across, row + down) }
+            visit(column + 1, row)
+            visit(column - 1, row)
+            visit(column, row + 1)
+            visit(column, row - 1)
         }
         return spans.map { span in span.map { (frame($0.columns, $0.rows), $0.count) } }
     }

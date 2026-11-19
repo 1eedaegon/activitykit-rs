@@ -27,8 +27,12 @@ runtime=${RUNTIME:-$(xcrun simctl list runtimes | awk '/^iOS/ && !/unavailable/ 
 # The newest iPhone Pro that the runtime simulates: an old runtime knows no new phone.
 device_type=${DEVICE_TYPE:-$(xcrun simctl list runtimes -j | python3 -I -c '
 import json, re, sys
-runtime = next(r for r in json.load(sys.stdin)["runtimes"] if r["identifier"] == sys.argv[1])
+runtime = next((r for r in json.load(sys.stdin)["runtimes"] if r["identifier"] == sys.argv[1]), None)
+if runtime is None:
+    sys.exit(f"no simulator runtime {sys.argv[1]}: xcrun simctl list runtimes has the identifiers")
 pros = [(int(m.group(1)), d["identifier"]) for d in runtime["supportedDeviceTypes"] if (m := re.fullmatch(r"iPhone (\d+) Pro", d["name"]))]
+if not pros:
+    sys.exit(f"{sys.argv[1]} simulates no iPhone Pro: name a phone in DEVICE_TYPE")
 print(max(pros)[1])' "$runtime")}
 # The iOS the host's Rust code is built for: the oldest the crate builds for.
 deployment=15.0
