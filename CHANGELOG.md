@@ -5,6 +5,21 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.6.6 - 2026-11-19
+
+- ci: a release runs again the jobs that no runner took (`f38bbb9`)
+- test: scenarios that show every kind of color in the small tile (`32df44f`)
+- fix: the bridge builds with Xcode 27 (`35ede8c`)
+- fix: buttons and toggles begin with iOS 17.2 (`6d94f0c`)
+- fix: a control of a narrow layout is tapped on iOS 17 (`369723a`)
+- test: where a layout's options put its nodes on the Lock Screen (`9ee3913`)
+- docs: placement on the Lock Screen (`4b8bd88`)
+- test: one flood reads a card, and the runner says what is missing (`8693ebc`)
+- docs: where the placement was measured and what ran of the toggle (`6d6484f`)
+- test: a box is the largest patch of its color in the card (`975facd`)
+- test: a square box is known by its four corners (`972f258`)
+- docs: the suite's runs on six systems (`27512fb`)
+
 - The crate builds for iOS with Xcode 27. There `swift build` defaults to Swift Build, which does not build for iOS
   from the flags build.rs passes, and the build of the bridge failed; an app had to patch the crate. build.rs now
   names SwiftPM's own build system (`--build-system native`), the default up to Xcode 26. Reported from Xcode 27.2,
