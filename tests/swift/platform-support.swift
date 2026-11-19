@@ -1,6 +1,31 @@
 import Foundation
 
 extension LifecycleTests {
+    // AK-AUTH-8
+    /// Each feature that came after Live Activities from the first iOS that runs it; the small family also only with
+    /// a widget extension that draws it.
+    @MainActor static func testLaterFeatures() {
+        func features(_ major: Int, _ minor: Int, widget: Bool = true) -> LiveActivityFeatures {
+            LiveActivityFeatures(version: OperatingSystemVersion(majorVersion: major, minorVersion: minor, patchVersion: 0), widgetDrawsSmallFamily: widget)
+        }
+        func on(_ found: LiveActivityFeatures) -> [String] {
+            [("buttons", found.buttons), ("pushToStart", found.pushToStart), ("pushChannels", found.pushChannels),
+             ("transient", found.transient), ("scheduledStart", found.scheduledStart), ("smallFamily", found.smallFamily)].filter(\.1).map(\.0)
+        }
+        let all = ["buttons", "pushToStart", "pushChannels", "transient", "scheduledStart", "smallFamily"]
+        let cases: [(Int, Int, [String])] = [
+            (16, 2, []), (17, 0, []), (17, 1, []), (17, 2, Array(all.prefix(2))), (17, 4, Array(all.prefix(2))),
+            (18, 0, ["buttons", "pushToStart", "pushChannels", "transient", "smallFamily"]), (25, 9, ["buttons", "pushToStart", "pushChannels", "transient", "smallFamily"]),
+            (26, 0, all), (27, 2, all)
+        ]
+        for (major, minor, expected) in cases {
+            expect(on(features(major, minor)) == expected, "iOS \(major).\(minor) runs \(expected), got \(on(features(major, minor)))")
+        }
+        expect(!features(26, 0, widget: false).smallFamily && features(26, 0, widget: false).scheduledStart,
+               "without a widget that draws it there is no small family")
+        expect(on(LiveActivityFeatures()) == [], "a device without Live Activities runs none of them")
+    }
+
     // AK-PLATFORM-1, AK-START-7
     @MainActor static func testPlatformSupport() {
         let cases: [(LiveActivityPlatformSupport.DeviceFamily, Int, Int, Bool)] = [

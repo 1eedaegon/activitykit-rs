@@ -22,6 +22,7 @@ Errors are variants of `activitykit::Error`. iOS versions are where ActivityKit 
 | AK-AUTH-4 | An answer of the Swift layer that cannot be read counts as nothing supported. | A malformed answer → all false. | — | all |
 | AK-AUTH-6 | `authorization()` does not check the app's setup: with `enabled` true a start can still fail for a missing `NSSupportsLiveActivities` or widget extension, and `buttons` does not check that the app links `ActivityKitIntent`. | Enabled, no widget extension → the start fails. | `ConfigurationRequired` | all |
 | AK-AUTH-7 | `Authorization` leaves room for more members: a pattern needs `..`. | A pattern without `..` does not compile. | — | all |
+| AK-AUTH-8 | `Authorization` says what a supported device runs of the later features, each from the iOS where the crate begins it: `push_to_start` (17.2), `push_channels` and `transient` (18), `scheduled_start` (26), and `small_family` (18, and the embedded widget extension sets `ActivityKitSmallFamily`). They are the floors of the refusals before ActivityKit (`UnsupportedFeature`) and of the small family's degraded feature. The Swift layer reads the iOS and the extension once per process. A member the Swift layer does not report reads false. | iOS 18.0 with the host's widget → all but `scheduled_start`; iOS 17.0 → none of them. | — | iOS 16.2+ |
 
 ## Start
 
@@ -329,6 +330,7 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 | AK-AUTH-4 | `src/kit/tests.rs::authorization_reads_the_bridge` (unit) |
 | AK-AUTH-6 | `src/kit/event_tests.rs::authorization_does_not_check_the_apps_setup` (unit) |
 | AK-AUTH-7 | `src/kit.rs::Authorization` (doc) |
+| AK-AUTH-8 | `src/kit/tests.rs::authorization_says_which_later_features_the_device_runs` (unit)<br>`tests/swift/platform-support.swift::testLaterFeatures` (Swift host)<br>`tests/swift/bridge-abi.swift::testBridgeAuthorizationAndImages` (Swift host)<br>`tests/ios-host/src/lib.rs::cleared` (simulator) |
 | AK-START-1 | `src/kit/tests.rs::start_sends_the_contract_request_and_returns_a_handle` (unit)<br>`tests/swift/bridge-abi.swift::testBridgeLifecycle` (Swift host)<br>`tests/ios-host/src/lib.rs::lock_screen` (simulator) |
 | AK-START-2 | `src/kit/tests.rs::start_sends_the_contract_request_and_returns_a_handle` (unit) |
 | AK-START-3 | `src/kit/tests.rs::start_options_reach_the_request` (unit)<br>`tests/swift/bridge-abi.swift::testBridgeKeyedStart` (Swift host)<br>`tests/swift/layout-lifecycle.swift::testLayoutLifecycle` (Swift host)<br>`tests/ios-host/src/lib.rs::relaunch_start` (simulator)<br>`tests/ios-host/src/lib.rs::relaunch_check` (simulator)<br>`tests/ios-host/src/lib.rs::redacted_check` (simulator)<br>`tests/ios-host/UITests/HostTests.swift::testActivitiesAfterRelaunch` (simulator) |

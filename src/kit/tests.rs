@@ -654,7 +654,7 @@ fn authorization_reads_the_bridge() {
             supported: true,
             enabled: true,
             buttons: true,
-            frequent_pushes: false,
+            ..Authorization::default()
         }
     );
     fake.lock().authorization =
@@ -663,20 +663,39 @@ fn authorization_reads_the_bridge() {
         kit.authorization(),
         Authorization {
             supported: true,
-            enabled: false,
-            buttons: false,
-            frequent_pushes: false
+            ..Authorization::default()
         }
     );
     fake.lock().authorization = Some(json!("broken"));
-    assert_eq!(
-        kit.authorization(),
-        Authorization {
-            supported: false,
-            enabled: false,
-            buttons: false,
-            frequent_pushes: false
-        }
+    assert_eq!(kit.authorization(), Authorization::default());
+}
+
+// AK-AUTH-8
+#[test]
+fn authorization_says_which_later_features_the_device_runs() {
+    let (kit, fake) = kit();
+    fake.lock().authorization = Some(json!({
+        "supported": true, "enabled": true, "buttons": true, "pushToStart": true, "pushChannels": true,
+        "transient": true, "scheduledStart": false, "smallFamily": true
+    }));
+    let authorization = kit.authorization();
+    assert!(
+        authorization.push_to_start
+            && authorization.push_channels
+            && authorization.transient
+            && authorization.small_family
+            && !authorization.scheduled_start
+    );
+    // What the Swift layer does not say, the device is taken not to run.
+    fake.lock().authorization = Some(json!({"supported":true,"enabled":true,"buttons":true}));
+    let authorization = kit.authorization();
+    assert!(
+        authorization.buttons
+            && !authorization.push_to_start
+            && !authorization.push_channels
+            && !authorization.transient
+            && !authorization.scheduled_start
+            && !authorization.small_family
     );
 }
 
@@ -724,15 +743,7 @@ fn debug_output_names_the_activity_without_its_values() {
 #[test]
 fn off_ios_every_call_is_unsupported_after_the_contract_check() {
     let kit = ActivityKit::default();
-    assert_eq!(
-        kit.authorization(),
-        Authorization {
-            supported: false,
-            enabled: false,
-            buttons: false,
-            frequent_pushes: false
-        }
-    );
+    assert_eq!(kit.authorization(), Authorization::default());
     assert_eq!(
         block_on(kit.start(sketch(), values! { "tone" => "green", "level" => 0.2 })).unwrap_err(),
         Error::Unsupported

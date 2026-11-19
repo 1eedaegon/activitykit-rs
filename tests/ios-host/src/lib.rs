@@ -198,11 +198,34 @@ fn cleared(reporter: &Reporter, kit: ActivityKit) -> Result<ActivityKit, String>
     let authorization = kit.authorization();
     reporter.say(format!("authorization {authorization:?}"));
     check(authorization.enabled, "Live Activities are not enabled")?;
-    // AK-AUTH-1
-    check(
-        authorization.buttons == taps(),
-        format!("buttons is {} on this iOS", authorization.buttons),
-    )?;
+    // AK-AUTH-1, AK-AUTH-8: what this iOS runs, as the scenarios below find it; the host's widget draws the small family.
+    let later = [
+        ("buttons", authorization.buttons, taps()),
+        (
+            "push_to_start",
+            authorization.push_to_start,
+            ios_at_least(17, 2),
+        ),
+        (
+            "push_channels",
+            authorization.push_channels,
+            ios_at_least(18, 0),
+        ),
+        ("transient", authorization.transient, ios_at_least(18, 0)),
+        (
+            "small_family",
+            authorization.small_family,
+            ios_at_least(18, 0),
+        ),
+        (
+            "scheduled_start",
+            authorization.scheduled_start,
+            ios_at_least(26, 0),
+        ),
+    ];
+    for (name, said, runs) in later {
+        check(said == runs, format!("{name} is {said} on this iOS"))?;
+    }
     for activity in block_on(kit.activities()).map_err(|error| error.to_string())? {
         if matches!(activity.state(), State::Active | State::Stale) {
             block_on(activity.end(End::immediately())).map_err(|error| error.to_string())?;

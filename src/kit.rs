@@ -72,7 +72,7 @@ pub(crate) struct Inner {
 /// let activitykit::Authorization { supported, enabled, buttons, .. } = activitykit::ActivityKit::new().authorization();
 /// assert!(!supported && !enabled && !buttons);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Authorization {
@@ -87,6 +87,25 @@ pub struct Authorization {
     /// `NSSupportsLiveActivitiesFrequentUpdates` in its Info.plist (iOS 16.2); false where that is unknown.
     #[serde(default)]
     pub frequent_pushes: bool,
+    /// Supported, and the OS gives the app a push-to-start token: iOS 17.2 and later. Below it
+    /// [`Builder::push_to_start`] watches nothing.
+    #[serde(default)]
+    pub push_to_start: bool,
+    /// Supported, and a start may subscribe to a broadcast channel ([`Push::Channel`](crate::Push::Channel)): iOS 18
+    /// and later. Below it such a start fails with [`Error::UnsupportedFeature`] before ActivityKit is asked.
+    #[serde(default)]
+    pub push_channels: bool,
+    /// Supported, and a start may be transient ([`Start::transient`]): iOS 18 and later; below it as a channel.
+    #[serde(default)]
+    pub transient: bool,
+    /// Supported, and a start may be scheduled ([`Start::scheduled`]): iOS 26 and later; below it as a channel.
+    #[serde(default)]
+    pub scheduled_start: bool,
+    /// Supported, iOS 18 or later, and the app's widget extension draws the small family (its Info.plist sets
+    /// `ActivityKitSmallFamily`): Apple Watch and CarPlay show a layout's [`small`](crate::Layout::small) region.
+    /// Without it they show the island's compact parts, and the start reports `layout.small` as degraded.
+    #[serde(default)]
+    pub small_family: bool,
 }
 
 /// What the Swift layer keeps of each accepted content between launches, so that an update that ActivityKit reports
@@ -221,12 +240,7 @@ impl ActivityKit {
 
     /// Whether activities can show, read now. [`Event::Authorization`] reports changes.
     pub fn authorization(&self) -> Authorization {
-        bridge::decode(&self.inner.bridge.authorization()).unwrap_or(Authorization {
-            supported: false,
-            enabled: false,
-            buttons: false,
-            frequent_pushes: false,
-        })
+        bridge::decode(&self.inner.bridge.authorization()).unwrap_or_default()
     }
 
     /// Starts an activity with `layout` and its first `values`, while the app is in the foreground. Each start is a new

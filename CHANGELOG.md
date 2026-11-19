@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- `Authorization` says what the device runs of the features that came after the first Live Activities:
+  `push_to_start` (iOS 17.2), `push_channels` and `transient` (18), `scheduled_start` (26), and `small_family` (18,
+  with a widget extension that draws it). An app no longer has to try a request and read
+  `Error::UnsupportedFeature` to learn it. A pattern on `Authorization` already needed `..`, so code that compiled
+  goes on compiling.
+
 ## 0.6.6 - 2026-11-19
 
 - ci: a release runs again the jobs that no runner took (`f38bbb9`)
