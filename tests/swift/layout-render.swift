@@ -28,6 +28,7 @@ extension LifecycleTests {
         try testRenderStaleness()
         try testRenderSmall()
         try testCardBackground()
+        try testStylesOncePerRender()
     }
 
     // AK-RENDER-1, AK-RENDER-2, AK-RENDER-3, AK-RENDER-4, AK-RENDER-5, AK-RENDER-7, AK-RENDER-8, AK-RENDER-9, AK-RENDER-10, AK-RENDER-12
@@ -470,6 +471,24 @@ extension LifecycleTests {
         }
         let node = try layoutDocument(#"{"type":"divider","ifStale":true}"#).layout.lockScreen
         expect(document.render(node, values: [:]) == nil && document.render(node, values: [:], isStale: true)?.content == .divider, "one node renders the same way")
+    }
+
+    // AK-RENDER-13
+    /// A render resolves each style token once, however many nodes name it, and gives every node the style that the
+    /// token resolves to with these values.
+    @MainActor private static func testStylesOncePerRender() throws {
+        let texts = ["a", "a", "b", "a", nil, "b"].map { token in
+            #"{"type":"text","value":"x""# + (token.map { #","style":"\#($0)""# } ?? "") + "}"
+        }
+        let document = try layoutDocument(#"{"type":"vstack","children":[\#(texts.joined(separator: ","))]}"#,
+                                          styles: ##"{"a":{"color":"#FF0000","padding":4},"b":{"color":{"bind":"tone"}}}"##)
+        let values: [String: LayoutValue] = ["tone": .string("green")]
+        let table = LayoutDocument.StyleTable(document, values: values)
+        let rendered = children(document.node(for: .lockScreen).flatMap { document.render($0, isStale: false, styles: table) })
+        expect(table.resolutions == 2, "two tokens resolved for six nodes, got \(table.resolutions)")
+        let expected = ["a", "a", "b", "a", nil, "b"].map { document.style($0, values: values) }
+        expect(rendered.map(\.style) == expected, "each node has its token's style")
+        expect(children(document.render(.lockScreen, values: values)).map(\.style) == expected, "and so has a render without a table of its own")
     }
 
     // AK-RENDER-17

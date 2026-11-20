@@ -183,6 +183,7 @@ extension LifecycleTests {
         try await testActionRelay()
         try await testKeptTaps()
         try await testNativeSizeCheck()
+        try await testAttributesMeasuredOnce()
     }
 
     // AK-UPDATE-10, AK-UPDATE-18
@@ -289,6 +290,44 @@ extension LifecycleTests {
         _ = try await controller.start(letters)
         expect(controls.weight == 747 && slashes.weight == 3063 && letters.weight == 3063 && backend.starts == 1,
                "the same weight without escapes fits the encoded limit")
+    }
+
+    // AK-START-6, AK-UPDATE-6
+    /// The weight of an activity's layout and the size of its encoded attributes are measured at its first update and
+    /// not again: the attributes never change. The size so measured is the size of the whole payload encoded, and an
+    /// update that it does not fit is refused as before.
+    @MainActor private static func testAttributesMeasuredOnce() async throws {
+        let backend = FakeLayoutBackend()
+        let controller = LayoutActivityController(backend: backend)
+        func text(_ letter: String) -> String { String(repeating: letter, count: 1000) }
+        func values(_ letter: String) -> [String: LayoutValue] { ["v0": .string(text(letter)), "v1": .string(text(letter)), "v2": .string(text(letter))] }
+        let letters = (0..<3).map { #""v\#($0)":"\#(text("a"))""# }.joined(separator: ",")
+        let request = try layoutRequest(layoutJSON(key: "measured", lockScreen: #"{"type":"divider"}"#, values: "{\(letters)}"))
+        let started = try await controller.start(request)
+        expect(controller.measuredActivities == 0, "a start measures nothing for later")
+        for revision in 1...3 {
+            _ = try await controller.update(layoutUpdate(started.id, LayoutSnapshot(revision: Int64(revision), values: values(revision % 2 == 0 ? "a" : "b"))))
+        }
+        expect(controller.measurements == 1 && controller.measuredActivities == 1 && backend.updates == 3, "three updates measure the attributes once")
+        // Slashes weigh as letters but take two bytes each when encoded: the measured size refuses them.
+        await expectError("PAYLOAD_TOO_LARGE") {
+            _ = try await controller.update(layoutUpdate(started.id, LayoutSnapshot(revision: 4, values: values("/"))))
+        }
+        expect(backend.updates == 3 && controller.measurements == 1, "an update that is too large never reaches the backend, and is checked with the same measure")
+
+        let attributes = try LiveActivityLayoutAttributes(request: request, instanceID: started.id)
+        let measure = try LayoutAttributesMeasure(attributes)
+        struct Payload: Encodable { let attributes: LiveActivityLayoutAttributes; let contentState: LayoutSnapshot }
+        for snapshot in [request.snapshot, LayoutSnapshot(revision: 9, values: values("/"), staleAt: 1_800_000_000_000, timestamp: 1_790_000_000_000)] {
+            let whole = try JSONEncoder().encode(Payload(attributes: attributes, contentState: snapshot)).count
+            let measured = try PayloadLimit.size(measure, snapshot: snapshot)
+            expect(measured == whole, "the measured size is the encoded payload's: \(measured), \(whole) bytes")
+        }
+        expect(measure.documentWeight == attributes.document.weight, "and the measured weight the document's")
+
+        _ = try await controller.end(LayoutEndRequest(id: started.id, policy: EndPolicy(kind: "immediate", at: nil),
+                                                     snapshot: LayoutSnapshot(revision: 5, values: values("c"))))
+        expect(controller.measuredActivities == 0, "an end lets the measure go")
     }
 
     // AK-START-9, AK-WIDGET-2, AK-SMALL-2

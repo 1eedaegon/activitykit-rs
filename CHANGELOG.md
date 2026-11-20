@@ -5,6 +5,16 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- An update costs the Swift layer less. Its checks measured the activity's fixed attributes again each time, the
+  weight of the layout and the size of the attributes encoded, which was most of their time: now each activity's
+  are measured once, at its first update. On an Intel Mac the checks of an update of a layout of 40 nodes took
+  616 µs before and 39 µs after. A widget's render resolves each style once, not once for each node that names it:
+  a Lock Screen of 40 nodes rendered in 47 µs instead of about 100.
+- `Authorization` says what the device runs of the features that came after the first Live Activities:
+  `push_to_start` (iOS 17.2), `push_channels` and `transient` (18), `scheduled_start` (26), and `small_family` (18,
+  with a widget extension that draws it). An app no longer has to try a request and read
+  `Error::UnsupportedFeature` to learn it. A pattern on `Authorization` already needed `..`, so code that compiled
+  goes on compiling.
 - A tap that the app does not take at once is no longer lost. An app that the system launched for a tap had to make
   its kit within the 5 s for which the intent posts the tap, and a process that ended took its waiting taps with it.
   Now the intent keeps a tap that its first two posts (200 ms) do not get acknowledged in a small file in the app's

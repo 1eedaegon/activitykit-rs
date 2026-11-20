@@ -400,6 +400,28 @@ extension LayoutDocument {
         node(for: region).flatMap { render($0, values: values, isStale: isStale) }
     }
 
+    /// The styles of one render, each token resolved once: nodes share their tokens, and resolving a style (its bound
+    /// members, its colors) was most of a render's time when every node did it again.
+    final class StyleTable {
+        private let document: LayoutDocument
+        /// The values of the render, which every style of it reads.
+        let values: [String: LayoutValue]
+        private var resolved: [String: LayoutRenderStyle] = [:]
+        /// How many tokens were resolved, for the tests.
+        private(set) var resolutions = 0
+
+        init(_ document: LayoutDocument, values: [String: LayoutValue]) { self.document = document; self.values = values }
+
+        func style(_ token: String?) -> LayoutRenderStyle {
+            guard let token else { return .plain }
+            if let known = resolved[token] { return known }
+            let style = document.style(token, values: values)
+            resolved[token] = style
+            resolutions += 1
+            return style
+        }
+    }
+
     /// The priority of an expanded region, 0 unless the layout states one.
     public func priority(of region: LayoutRegion) -> Double {
         region.expandedName.flatMap { layout.island?.expanded?.priority?[$0] } ?? 0
@@ -421,11 +443,17 @@ extension LayoutDocument {
 
     /// A node resolved against the values, or nil when its condition hides it or a value it needs is missing.
     public func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool = false) -> LayoutRenderNode? {
-        render(node, values: values, isStale: isStale, slot: 0, held: false)
+        render(node, isStale: isStale, styles: StyleTable(self, values: values))
+    }
+
+    /// A render with the values of a table of styles, which the tests read.
+    func render(_ node: LayoutNode, isStale: Bool, styles: StyleTable) -> LayoutRenderNode? {
+        render(node, values: styles.values, isStale: isStale, slot: 0, held: false, styles: styles)
     }
 
     /// `held` says that a node holding this one is marked sensitive.
-    private func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool, slot: Int, held: Bool) -> LayoutRenderNode? {
+    private func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool, slot: Int, held: Bool,
+                        styles: StyleTable) -> LayoutRenderNode? {
         switch node.condition {
         case .when(let key)?: guard values[key]?.isTruthy == true else { return nil }
         case .unless(let key)?: guard values[key]?.isTruthy != true else { return nil }
@@ -433,22 +461,23 @@ extension LayoutDocument {
         }
         if let wanted = node.ifStale, wanted != isStale { return nil }
         let sensitive = held || node.privacy == .sensitive
-        guard let content = content(of: node.content, values, isStale: isStale, held: sensitive) else { return nil }
+        guard let content = content(of: node.content, values, isStale: isStale, held: sensitive, styles: styles) else { return nil }
         let combining: Bool
         switch content {
         case .vstack, .hstack, .zstack, .custom, .link(url: nil, label: _): combining = true
         default: combining = false
         }
-        return LayoutRenderNode(content: content, style: style(node.style, values: values),
+        return LayoutRenderNode(content: content, style: styles.style(node.style),
                                 accessibility: node.accessibility?.resolve(values, combining: combining, sensitive: sensitive),
                                 transition: node.transition, isSensitive: node.privacy == .sensitive, slot: slot)
     }
 
-    private func content(of content: LayoutContent, _ values: [String: LayoutValue], isStale: Bool, held: Bool) -> LayoutRenderContent? {
+    private func content(of content: LayoutContent, _ values: [String: LayoutValue], isStale: Bool, held: Bool,
+                         styles: StyleTable) -> LayoutRenderContent? {
         func visible(_ children: [LayoutNode]) -> [LayoutRenderNode] {
-            children.enumerated().compactMap { slot, child in render(child, values: values, isStale: isStale, slot: slot, held: held) }
+            children.enumerated().compactMap { slot, child in render(child, values: values, isStale: isStale, slot: slot, held: held, styles: styles) }
         }
-        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, isStale: isStale, slot: 0, held: held) }
+        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, isStale: isStale, slot: 0, held: held, styles: styles) }
         func unit(_ value: Double) -> Double { min(max(value, 0), 1) }
         switch content {
         case let .vstack(children, spacing, alignment): return .vstack(children: visible(children), spacing: spacing, alignment: alignment ?? .center)
