@@ -148,9 +148,37 @@ private struct LayoutPayload: Encodable {
 }
 extension PayloadLimit {
     public static func check(attributes: LiveActivityLayoutAttributes, snapshot: LayoutSnapshot) throws {
-        let data = try JSONEncoder().encode(LayoutPayload(attributes: attributes, contentState: snapshot))
-        guard data.count <= bytes else {
+        try check(size: try JSONEncoder().encode(LayoutPayload(attributes: attributes, contentState: snapshot)).count)
+    }
+
+    /// The same check with the size of the attributes measured before: the payload is the two members and the bytes
+    /// of the object around them, whatever the order of its keys.
+    public static func check(_ measure: LayoutAttributesMeasure, snapshot: LayoutSnapshot) throws {
+        try check(size: size(measure, snapshot: snapshot))
+    }
+
+    static func size(_ measure: LayoutAttributesMeasure, snapshot: LayoutSnapshot) throws -> Int {
+        measure.attributeBytes + (try JSONEncoder().encode(snapshot).count) + wrapperBytes
+    }
+
+    /// What `{"attributes":…,"contentState":…}` adds to its two members.
+    static let wrapperBytes = #"{"attributes":,"contentState":}"#.utf8.count
+
+    private static func check(size: Int) throws {
+        guard size <= bytes else {
             throw ActivityFailure("PAYLOAD_TOO_LARGE", "Activity attributes and state exceed 4 KB.")
         }
+    }
+}
+
+/// What the checks of an update need of an activity's attributes, which never change: the weight of the layout and
+/// its styles, and the size of the attributes encoded. Measured once for each activity: when every update measured
+/// them again they were most of its checks (an encoding of up to 4 KB and a walk of every node).
+public struct LayoutAttributesMeasure: Equatable, Sendable {
+    public let documentWeight: Int
+    public let attributeBytes: Int
+    public init(_ attributes: LiveActivityLayoutAttributes) throws {
+        documentWeight = attributes.document.weight
+        attributeBytes = try JSONEncoder().encode(attributes).count
     }
 }

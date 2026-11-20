@@ -157,6 +157,11 @@ extension LifecycleBackend where Activity == LayoutActivity {
 @MainActor
 public final class LayoutActivityController {
     private let lifecycle: ActivityLifecycle<LayoutActivity>
+    /// The measure of each activity's attributes that an update or an end with content needed in this process.
+    private var measures: [String: LayoutAttributesMeasure] = [:]
+    /// How many activities' attributes are kept measured, and how often any were measured: for the tests.
+    var measuredActivities: Int { measures.count }
+    private(set) var measurements = 0
     public init(backend: LayoutActivityBackend, store: FileReceiptStore? = nil) {
         lifecycle = ActivityLifecycle(backend: LifecycleBackend(backend), storage: store.map { .file($0) } ?? .memory())
     }
@@ -174,8 +179,8 @@ public final class LayoutActivityController {
     public func update(_ request: LayoutUpdateRequest) async throws -> LayoutActivityRecord {
         try request.validate()
         return try await lifecycle.update(id: request.id, snapshot: request.snapshot,
-            validate: { try request.snapshot.validate(replacing: $0.snapshot, in: $0.attributes.document) },
-            check: { try PayloadLimit.check(attributes: $0.attributes, snapshot: request.snapshot) })
+            validate: { try request.snapshot.validate(replacing: $0.snapshot, in: $0.attributes.document, documentWeight: try self.measure($0).documentWeight) },
+            check: { try PayloadLimit.check(try self.measure($0), snapshot: request.snapshot) })
     }
 
     /// Final content must keep the keys and types accepted at start and satisfy the stored layout, as an update does.
@@ -183,10 +188,22 @@ public final class LayoutActivityController {
         try request.validate()
         let content = request.snapshot.map { snapshot in
             ActivityLifecycle<LayoutActivity>.FinalContent(snapshot: snapshot,
-                validate: { try snapshot.validate(replacing: $0.snapshot, in: $0.attributes.document) },
-                check: { try PayloadLimit.check(attributes: $0.attributes, snapshot: snapshot) })
+                validate: { try snapshot.validate(replacing: $0.snapshot, in: $0.attributes.document, documentWeight: try self.measure($0).documentWeight) },
+                check: { try PayloadLimit.check(try self.measure($0), snapshot: snapshot) })
         }
+        // Also when the end fails after the system ended the activity. An activity that the system or the person
+        // ends keeps its few bytes here until the process ends.
+        defer { measures[request.id] = nil }
         return try await lifecycle.end(id: request.id, policy: request.policy, content: content)
+    }
+
+    /// The measure of an activity's attributes, taken at the first update or end with content that needs it.
+    private func measure(_ activity: LayoutActivity) throws -> LayoutAttributesMeasure {
+        if let known = measures[activity.id] { return known }
+        let measure = try LayoutAttributesMeasure(activity.attributes)
+        measures[activity.id] = measure
+        measurements += 1
+        return measure
     }
 
     public func list() async throws -> [LayoutActivityRecord] {
