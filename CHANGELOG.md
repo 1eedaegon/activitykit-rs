@@ -5,6 +5,18 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.7.0 - 2026-11-20
+
+- perf: an update and a render do their fixed work once (`bce4362`)
+- feat: the authorization says what the device runs (`753a2c5`)
+- feat: a scheduled start is said only where the app can make one (`aae9950`)
+- test: what assistive technologies read, and a system without ActivityKit (`d531968`)
+- docs: what two phones showed of 0.6.6 (`1bfbbf5`)
+- feat: a tap that the app does not take at once is kept (`6c4b791`)
+- test: how much of a trailing value the expanded island shows (`bc1258a`)
+- fix: the expanded island keeps a short trailing value whole (`7239bca`)
+- docs: the expanded island's value shows whole on iOS 16.2 and 17.2 too (`f3490f3`)
+
 - An update costs the Swift layer less. Its checks measured the activity's fixed attributes again each time, the
   weight of the layout and the size of the attributes encoded, which was most of their time: now each activity's
   are measured once, at its first update. On an Intel Mac the checks of an update of a layout of 40 nodes took
