@@ -5,6 +5,14 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.8.0 - 2026-11-20
+
+- ci: a release run of an older commit ends without failing (`c4387a7`)
+- feat: a widget draws an activity of a later crate or server (`1a57726`)
+- feat: every public enum, variant and open struct leaves room for later (`96449a4`)
+- style: rustfmt the timed end policy (`2a00230`)
+- feat: Live Activities from iOS 16.1 (`3a91779`)
+
 - A widget draws an activity of a later crate or a later server: it passes over the members of the layout, the styles
   and the content state that it does not know, and draws a node of a type it does not know as nothing, where it
   refused the whole layout and drew the activity empty. The app's requests stay strict, in Rust and in the bridge
