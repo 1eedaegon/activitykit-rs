@@ -14,6 +14,7 @@ struct LifecycleTests {
     }
     @MainActor static func main() async throws {
         testPlatformSupport()
+        testLaterFeatures()
         try testLayoutFixtures()
         try await testLayoutModels()
         try testLayoutRender()

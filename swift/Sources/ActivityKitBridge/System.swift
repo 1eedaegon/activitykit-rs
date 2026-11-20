@@ -16,16 +16,38 @@ struct AuthorizationReply: Codable, Equatable, Sendable {
     let buttons: Bool
     /// Supported, and the person allows frequent pushes for the app (iOS 16.2).
     let frequentPushes: Bool
-    private enum CodingKeys: String, CodingKey { case supported, enabled, buttons, frequentPushes }
+    /// What the device runs of the later features; `buttons` is its first.
+    let features: LiveActivityFeatures
+    private enum CodingKeys: String, CodingKey {
+        case supported, enabled, buttons, frequentPushes, pushToStart, pushChannels, transient, scheduledStart, smallFamily
+    }
     init(supported: Bool, enabled: Bool, buttons: Bool, frequentPushes: Bool = false) {
-        self.supported = supported; self.enabled = enabled; self.buttons = buttons; self.frequentPushes = frequentPushes
+        self.init(supported: supported, enabled: enabled, frequentPushes: frequentPushes, features: LiveActivityFeatures(buttons: buttons))
+    }
+    init(supported: Bool, enabled: Bool, frequentPushes: Bool, features: LiveActivityFeatures) {
+        self.supported = supported; self.enabled = enabled; self.buttons = features.buttons
+        self.frequentPushes = frequentPushes; self.features = features
     }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        func flag(_ key: CodingKeys) throws -> Bool { try container.decodeIfPresent(Bool.self, forKey: key) ?? false }
         supported = try container.decode(Bool.self, forKey: .supported)
         enabled = try container.decode(Bool.self, forKey: .enabled)
         buttons = try container.decode(Bool.self, forKey: .buttons)
-        frequentPushes = try container.decodeIfPresent(Bool.self, forKey: .frequentPushes) ?? false
+        frequentPushes = try flag(.frequentPushes)
+        var features = LiveActivityFeatures(buttons: buttons)
+        features.pushToStart = try flag(.pushToStart); features.pushChannels = try flag(.pushChannels)
+        features.transient = try flag(.transient); features.scheduledStart = try flag(.scheduledStart)
+        features.smallFamily = try flag(.smallFamily)
+        self.features = features
+    }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(supported, forKey: .supported); try container.encode(enabled, forKey: .enabled)
+        try container.encode(buttons, forKey: .buttons); try container.encode(frequentPushes, forKey: .frequentPushes)
+        try container.encode(features.pushToStart, forKey: .pushToStart); try container.encode(features.pushChannels, forKey: .pushChannels)
+        try container.encode(features.transient, forKey: .transient); try container.encode(features.scheduledStart, forKey: .scheduledStart)
+        try container.encode(features.smallFamily, forKey: .smallFamily)
     }
 }
 
