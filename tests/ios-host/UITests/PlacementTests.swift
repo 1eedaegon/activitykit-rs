@@ -287,6 +287,36 @@ final class PlacementTests: HostCase {
         print("placement: shapes: the card \(seen.card); round \(round), pill \(pill), outer \(outer), inner \(inner)")
     }
 
+    // AK-ISLAND-3
+    /// The expanded Dynamic Island draws its trailing value whole: as wide as the same value in the bottom region,
+    /// where it has room. The island's regions cut it before. The island is expanded by a long press on its compact
+    /// form, over the Home Screen; each variant of the scenario is one way a layout might keep the value whole.
+    func testTheExpandedIslandKeepsItsTrailingValueWhole() throws {
+        if showsBanners { throw XCTSkip("a phone without a Dynamic Island") }
+        var widths: [String] = []
+        for variant in [0, 2, 3, 4] {
+            launch("place-island-\(variant)")
+            waitFor("PASS place-island-\(variant)")
+            goHome()
+            // The compact island shows the value once the system has drawn the activity, which takes a while on a new
+            // simulator; a long press on it expands the island.
+            let compact = springboard.staticTexts["9 min"].firstMatch
+            let drawn = compact.waitForExistence(timeout: 120)
+            if !drawn { try? capture("island-\(variant)-compact-missing") }
+            XCTAssertTrue(drawn, "the compact island shows the value")
+            compact.press(forDuration: 1.2)
+            XCTAssertTrue(springboard.staticTexts["Island title"].firstMatch.waitForExistence(timeout: 10), "a long press expands the island")
+            let pixels = try look(as: "island-\(variant)")
+            let top = CGRect(x: 0, y: 0, width: springboard.frame.width, height: 200)
+            // What of the value shows: its pixels against those of the same value drawn whole in the bottom region.
+            let value = pixels.span(of: RGB(0, 255, 0), in: top), reference = pixels.span(of: RGB(0, 255, 255), in: top)
+            let shown = Double(pixels.count(of: RGB(0, 255, 0), in: top)) / Double(max(1, pixels.count(of: RGB(0, 255, 255), in: top)))
+            widths.append("variant \(variant): the value \(String(describing: value)), \(Int((shown * 100).rounded())) % of it shows; whole in the bottom region \(String(describing: reference))")
+            print("placement: island \(widths.last ?? "")")
+            XCUIDevice.shared.press(.home)
+        }
+    }
+
     /// Whether the simulated phone has no Dynamic Island: such a phone shows an alert as a banner. By its model:
     /// every iPhone up to the 14 (`iPhone14,8`) and the 16e (`iPhone17,5`); the 14 Pro (`iPhone15,2`) began the island.
     var showsBanners: Bool {

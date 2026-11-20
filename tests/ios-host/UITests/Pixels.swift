@@ -103,6 +103,27 @@ struct Pixels {
             .map { CGPoint(x: (CGFloat($0) + 0.5) / scale, y: point.y) }
     }
 
+    /// How many pixels of `wanted` there are inside `part`.
+    func count(of wanted: RGB, in part: CGRect) -> Int {
+        let columns = max(0, Int(part.minX * scale))..<min(width, Int(part.maxX * scale))
+        let rows = max(0, Int(part.minY * scale))..<min(height, Int(part.maxY * scale))
+        return rows.reduce(0) { sum, row in sum + columns.filter { color($0, row).isNear(wanted) }.count }
+    }
+
+    /// The part of the screen that every pixel of `wanted` inside `part` spans, whether they hang together or not: the
+    /// letters of a word; nil without one.
+    func span(of wanted: RGB, in part: CGRect) -> CGRect? {
+        let columns = max(0, Int(part.minX * scale))..<min(width, Int(part.maxX * scale))
+        let rows = max(0, Int(part.minY * scale))..<min(height, Int(part.maxY * scale))
+        var left = Int.max, right = Int.min, top = Int.max, bottom = Int.min
+        for row in rows {
+            for column in columns where color(column, row).isNear(wanted) {
+                left = min(left, column); right = max(right, column); top = min(top, row); bottom = max(bottom, row)
+            }
+        }
+        return left <= right ? frame(left...right, top...bottom) : nil
+    }
+
     /// The pixels of the color at `seed` that hang together with it, side by side or one above the other: the part
     /// of the screen they span, and how many they are. A card of one color is such a region, whatever lies on it.
     func region(around seed: CGPoint) -> (frame: CGRect, pixels: Int)? {
