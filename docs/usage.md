@@ -235,7 +235,8 @@ the system's.
 
 The widget keeps the expanded leading and trailing regions 6 points from the top and from their outer side, on top of
 the margins and the padding a layout states: without them the top outer corner cut the last letter of a short trailing
-value on the iOS 26.3 simulator, and margins around the expanded island cut more of it, not less.
+value on the iOS 26.3 simulator, and margins around the expanded island cut more of it, not less. With them the value
+showed whole there and on the iOS 16.2 and 17.2 simulators.
 
 ### Accessibility
 

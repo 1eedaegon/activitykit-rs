@@ -78,8 +78,8 @@ public struct ActivityKitLayoutWidget: Widget {
     /// What stands in the top outer corner of the expanded island's leading or trailing region is cut there: on the
     /// iOS 26.3 simulator the last letter of a short trailing value lost a tenth of its pixels, a fifth with margins
     /// of 12 and 20 points around the expanded island, and the star of the leading region its top with those margins.
-    /// 6 points from the top and from the outer side kept the value whole; on other systems they were not measured,
-    /// and they add to the margins and padding a layout states.
+    /// 6 points from the top and from the outer side kept the value whole there and on the iOS 16.2 and 17.2
+    /// simulators, where the cut itself was not measured; they add to the margins and padding a layout states.
     private static let expandedCornerClearance: CGFloat = 6
 
     private static func clear(_ view: some View, of side: Edge.Set) -> some View {
