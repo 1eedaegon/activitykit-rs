@@ -125,6 +125,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "cold-tap-start" => cold_tap_start(&reporter),
             "cold-tap" => cold_tap(&reporter),
             "intents" => intents(&reporter),
+            "unsupported" => unsupported(&reporter),
             "place-anchors" => placement::anchors(&reporter, placement::Card::Drawn),
             "place-anchors-tint" => placement::anchors(&reporter, placement::Card::Tint),
             "place-anchors-plain" => placement::anchors(&reporter, placement::Card::Plain),
@@ -1033,6 +1034,34 @@ fn stale_check(reporter: &Reporter) -> Outcome {
 /// labels (AK-RENDER-10, AK-TOGGLE-1): no tap can come there, and a scenario ends where it would wait for one.
 fn taps() -> bool {
     ios_at_least(17, 2)
+}
+
+// AK-PLATFORM-1, AK-START-7
+/// Below iOS 16.2, where the crate starts no activity (iOS 16.0 has no ActivityKit at all, and the bridge links it
+/// weakly): the app runs, the authorization says that nothing is supported, and every call answers `Unsupported`.
+fn unsupported(reporter: &Reporter) -> Outcome {
+    let kit = ActivityKit::new();
+    let authorization = kit.authorization();
+    reporter.say(format!("authorization {authorization:?}"));
+    check(
+        !authorization.supported && !authorization.enabled && !authorization.buttons,
+        "nothing is supported",
+    )?;
+    let started = block_on(kit.start(
+        layout(),
+        values! { "status" => "Here", "tone" => "green", "level" => 0.1 },
+    ));
+    check(
+        matches!(started, Err(Error::Unsupported)),
+        format!("a start answers Unsupported, not {started:?}"),
+    )?;
+    let listed = block_on(kit.activities());
+    check(
+        matches!(listed, Err(Error::Unsupported)),
+        format!("the list answers Unsupported, not {listed:?}"),
+    )?;
+    reporter.say("every call answers Unsupported");
+    Ok(())
 }
 
 /// A button to tap until its tap arrives. On a new simulator the system runs no intent of a new app for minutes: its

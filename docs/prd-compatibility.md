@@ -155,8 +155,11 @@ the suite, by then 23 tests, ran again on 16.2, 17.0, 17.2, 17.4, 18.0 and 26.3:
   built for another `IPHONEOS_DEPLOYMENT_TARGET`: the variable is none of its inputs. The linker said so 365 times
   and linked; `run.sh` now builds the Rust side anew when the deployment target is another than last time.
 - Built for iOS 15.0, the bridge's 120 references to ActivityKit's symbols are all weak (`nm -m` on the objects of
-  `libActivityKitBridge.a`), which is what makes a linker load the framework weakly. No test starts an app on a
-  system without the framework yet.
+  `libActivityKitBridge.a`), which is what makes a linker load the framework weakly. On 2026-11-20 the test host,
+  built for iOS 15.0, ran on the iOS 16.0 simulator, which has no ActivityKit: the authorization said nothing is
+  supported and a start and the list answered `Unsupported` (`testOlderSystemsAnswerUnsupported`). The widget
+  extension, built for 16.2, did not keep the app from installing.
+- iOS 17.1 cannot be run here: Xcode 26.3 offers no simulator runtime of it.
 
 ## Rollout
 
@@ -170,8 +173,6 @@ the suite, by then 23 tests, ran again on 16.2, 17.0, 17.2, 17.4, 18.0 and 26.3:
 
 ## Open questions
 
-- Whether an iOS 16.0 runtime (the last without ActivityKit) is worth its 6 GB for the one test of a start without
-  the framework, or whether the linker's load command is read from the test host instead.
 - Which of the widget's members an activity depends on, so that they need a capability and not only a lenient read.
   `small` already has one. A candidate: none of the others changes what happens, only what is shown.
 - Whether the schedule that runs the old runtimes is a workflow of this repository or a script somebody runs before

@@ -257,6 +257,54 @@ final class HostTests: HostCase {
         try capture("surface-report")
     }
 
+    // AK-PLATFORM-1, AK-START-7
+    /// On a system below iOS 16.2 the app, built for iOS 15.0, runs, and the crate answers `Unsupported`: iOS 16.0
+    /// has no ActivityKit, which the bridge links weakly. From 16.2 every other test shows what the crate does.
+    func testOlderSystemsAnswerUnsupported() throws {
+        if iOS(16, 2) { throw XCTSkip("from iOS 16.2 the crate runs activities") }
+        launch("unsupported")
+        waitFor("PASS unsupported")
+        try capture("unsupported")
+    }
+
+    // AK-ACCESS-3
+    /// What a layout tells assistive technologies, read in an app through UIKit's accessibility protocols, where a UI
+    /// test's own tree would list hidden elements too (the preview app draws the Lock Screen tree with the package's
+    /// view): a hidden node and everything inside it is not there, a node with a label is read by it, and a stack
+    /// with a label is one element.
+    func testHiddenNodesAreNotRead() throws {
+        let preview = XCUIApplication(bundleIdentifier: "io.github.1eedaegon.activitykit.host.preview")
+        let lockScreen = #"{"type":"vstack","children":["#
+            + #"{"type":"symbol","name":"star.fill","accessibility":{"label":"Favorite"}},"#
+            + #"{"type":"symbol","name":"circle.fill","accessibility":{"hidden":true}},"#
+            + #"{"type":"text","value":"Shown"},"#
+            + #"{"type":"hstack","accessibility":{"hidden":true},"children":[{"type":"text","value":"Secret"},{"type":"symbol","name":"bolt.fill"}]},"#
+            + #"{"type":"hstack","accessibility":{"label":"Level row"},"children":[{"type":"text","value":"Inside"},{"type":"text","value":"Also inside"}]},"#
+            // The hidden symbol again, not hidden: it is read, by the name the system gives it.
+            + #"{"type":"symbol","name":"circle.fill"}"#
+            + #"]}"#
+        let layout = #"{"activityKey":"preview:spoken","schemaVersion":2,"fallback":"none","layout":{"lockScreen":\#(lockScreen)},"snapshot":{"revision":0,"values":{}}}"#
+        preview.terminate()
+        preview.launchEnvironment = ["AK_LAYOUT": layout, "AK_MODE": "spoken"]
+        preview.launch()
+        let read = preview.buttons["read"]
+        XCTAssertTrue(read.waitForExistence(timeout: 30), "the preview draws the layout")
+        // The system builds the tree of a SwiftUI view for assistive technologies when one asks, which a UI test does.
+        let report = preview.staticTexts["spoken"]
+        XCTAssertTrue(waitUntil(20) {
+            read.tap()
+            return report.label.contains("Shown")
+        }, "the preview reads the elements: \(report.label)")
+        let labels = report.label.replacingOccurrences(of: "spoken: ", with: "").components(separatedBy: "|")
+        print("the elements read: \(labels)")
+        try capture("spoken")
+        let circle = labels.last ?? ""
+        XCTAssertEqual(labels, ["Favorite", "Shown", "Level row", circle],
+                       "the hidden symbol, the hidden stack and its children are not read; the labelled stack is one element")
+        XCTAssertFalse(circle.isEmpty || ["Favorite", "Shown", "Level row"].contains(circle), "and the same symbol shown is read, as \(circle)")
+        preview.terminate()
+    }
+
     // AK-RENDER-16, AK-WIDGET-1
     /// A layout with every node type draws on the Lock Screen, and its button reaches Rust. Below iOS 17.2 the
     /// button is its label.
