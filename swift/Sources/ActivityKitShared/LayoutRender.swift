@@ -514,6 +514,7 @@ extension LayoutDocument {
                 }
             }
             return .custom(name: name, props: resolved)
+        case .unknown: return nil
         }
     }
 

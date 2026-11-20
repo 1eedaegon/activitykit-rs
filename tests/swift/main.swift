@@ -21,6 +21,7 @@ struct LifecycleTests {
         try testLayoutCustomizations()
         try await testLayoutLifecycle()
         try await testReceipts()
+        try testLaterVersions()
         try await testActivityKitMapping()
         try await testBridge()
         try await testPushes()

@@ -131,6 +131,10 @@ struct Widgets: WidgetBundle {
 }
 ```
 
+The package may be of another version than the crate. From 0.8.0 a widget draws an activity of a later crate or
+server without what it does not know (AK-COMPAT-1); a widget up to 0.7.0 refuses a layout with a member it does not
+know, and the activity is drawn empty, so update the widget with the crate.
+
 Its Info.plist ([`templates/ios/Widget-Info.plist`](../templates/ios/Widget-Info.plist)) sets `ActivityKitLayout` to
 the integer `2`: before a start, the app checks that an embedded extension carries it, and answers
 `CONFIGURATION_REQUIRED` otherwise. Give the extension an identifier under the app's and the same signing team. A
