@@ -74,12 +74,14 @@ RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-17-0 tests/ios-host/run.sh
 ```
 
 The test host is built as an app with users on old systems is: the app for iOS 15.0, the oldest the crate builds for,
-and the widget extension for 16.2. The same products run on every runtime. The host tells its scenarios which iOS
+and the widget extension for 16.1. The same products run on every runtime. The host tells its scenarios which iOS
 they run on, and a scenario and its UI test assert a feature from the iOS that has it and, below it, what the crate
 does instead:
 
 | From | What | Below it |
 | --- | --- | --- |
+| iOS 16.1 | an activity starts, updates, ends and is listed | `Unsupported` for every call |
+| iOS 16.2 | a stale date and a relevance score | the content never goes stale, and the handle's relevance is 0 |
 | iOS 17.2 | a tap on a button or a toggle reaches Rust | their labels and nothing to tap; `Authorization::buttons` is false |
 | iOS 17.2 | content older than the shown one is dropped | it is shown |
 | iOS 18 | a transient start | `UnsupportedFeature` with `(18, 0)`, and no activity |
@@ -90,8 +92,8 @@ A test that taps first makes sure that the system runs the app's intent at all (
 Intents daemon of a new simulator starts with an empty database and reads the metadata of every system app before the
 tested app's, and a tap until then runs nothing, for minutes on a slow Mac.
 
-The runtimes worth a run are the oldest of each such iOS and the last one below it: 16.2, 17.0, 17.2, 18.0 and the
-newest; 17.4 was added for a defect that only iOS 17 has (AK-RENDER-19). CI runs the newest only, since one run takes 20 minutes of a hosted macOS runner; the others were run by hand
+The runtimes worth a run are the oldest of each such iOS and the last one below it: 16.1, 16.2, 17.0, 17.2, 18.0 and
+the newest; 17.4 was added for a defect that only iOS 17 has (AK-RENDER-19). CI runs the newest only, since one run takes 20 minutes of a hosted macOS runner; the others were run by hand
 (the record below), and what runs them from now on is an open question of
 [the compatibility plan](prd-compatibility.md).
 
@@ -215,11 +217,20 @@ only below 16.2; its runtime was deleted afterwards for its 6 GB and is download
 among the elements that UIKit's accessibility protocols give assistive technologies (`testHiddenNodesAreNotRead`).
 iOS 17.1 has no simulator runtime that Xcode 26.3 downloads.
 
+Later that day the whole suite ran on iOS 16.1 (an iPhone 14 Pro; the runtime is downloaded with `xcodebuild
+-downloadPlatform iOS -buildVersion 16.1`), with the bridge on ActivityKit's calls of that release: 20 tests passed and
+7 were skipped (the taps and the small family, which need 17.2 and 18; staleness, which needs 16.2; the banner of a
+phone without an island; the test of a system without ActivityKit). Two failed first and pass now: a start from the
+background answered `NATIVE_ERROR`, since iOS 16.1 wraps ActivityKit's `visibility` refusal in an error of its own, and
+the relevance a test expected is none there. The expanded island showed its trailing value whole on iOS 16.1 too; on
+iOS 18.0 its test could not run twice for a runner killed on a Mac short of memory, and a third time the compact
+island showed nothing within 120 s of the start on a new simulator.
+
 On phones, by the liveactivity-rs session with the plugin's demo on activitykit 0.6.6 (2026-11-20): the built app's
 App Intents metadata began `ActivityKitActionIntent` with iOS 17.2; on an iPhone XS (iOS 18.7.12) and an iPhone 16
 (iOS 27.2) a bound style, a tap on the Lock Screen's button and on its switch reached the app, and the cards were 355
 points wide on the XS's screen of 375 and 365 on the iPhone 16's of 393: 10 and 14 points from the sides, as on the
 simulators. The demo's layouts fill the card's width, so a control of a narrower layout was not tapped on a phone.
 
-Not tested: a phone, iOS 16.1 and 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
+Not tested: a phone, iOS 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.

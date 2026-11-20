@@ -76,7 +76,7 @@ pub(crate) struct Inner {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Authorization {
-    /// The device and the OS have Live Activities: an iPhone with iOS 16.2 or later, or an iPad with iPadOS 17.
+    /// The device and the OS have Live Activities: an iPhone with iOS 16.1 or later, or an iPad with iPadOS 17.
     pub supported: bool,
     /// Supported, and turned on for this app in Settings.
     pub enabled: bool,

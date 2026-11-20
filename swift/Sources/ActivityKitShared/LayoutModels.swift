@@ -333,9 +333,12 @@ public indirect enum LayoutContent: Sendable {
     case toggle(actionId: String, bind: String, child: LayoutNode)
     /// A view the app registers under `name` in its widget extension. Each prop is a literal or bound to a value.
     case custom(name: String, props: [String: LayoutBindable<LayoutValue>]?)
+    /// A node of a type that this version does not know, in an activity that a later crate or server made: it is drawn
+    /// as nothing, and only its type is kept. A request never has one.
+    case unknown(type: String)
 }
 
-private enum LayoutNodeType: String, Decodable {
+private enum LayoutNodeType: String {
     case vstack, hstack, zstack, spacer, divider, text, symbol, image, path, progress, gauge, timerText, button, link, toggle, custom
 }
 
@@ -388,7 +391,14 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
 
     public init(from decoder: Decoder) throws {
         var object = try LayoutReader(decoder)
-        let type: LayoutNodeType = try object.need("type")
+        let name: String = try object.need("type")
+        // A node of a later version is read for its type alone: its other members may have shapes this one does not know.
+        guard let type = LayoutNodeType(rawValue: name) else {
+            guard !object.isStrict else { throw LayoutReader.mismatch }
+            (style, condition, ifStale, accessibility, transition, privacy) = (nil, nil, nil, nil, nil, nil)
+            content = .unknown(type: name)
+            return
+        }
         style = try object.take("style")
         let when: String? = try object.take("if"), unless: String? = try object.take("unless")
         guard when == nil || unless == nil else { throw LayoutReader.mismatch }
@@ -456,6 +466,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case let .link(url, child): return ("link", [("url", url), ("child", child)])
         case let .toggle(actionId, bind, child): return ("toggle", [("actionId", actionId), ("bind", bind), ("child", child)])
         case let .custom(name, props): return ("custom", [("name", name), ("props", props)])
+        case .unknown(let type): return (type, [])
         }
     }
 }

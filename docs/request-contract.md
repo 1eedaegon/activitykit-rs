@@ -115,6 +115,20 @@ of 0.1, which had `backend`, `visibility`, `promotionRequested` and `promotionSt
 `ended`, `dismissed` or `unknown`; a reader takes a state it does not know as `unknown`. `relevance` is the content's
 relevance score, absent when only a receipt knows the activity.
 
+## Readers of what was stored
+
+The rules above are for requests, which the app writes and the bridge reads as strictly as Rust does
+(`JSONDecoder.layoutRequests()` in Swift). What ActivityKit stored is read by others: the widget reads the attributes
+(the layout and its styles) and the content state each time it draws, and the app reads them again when it lists its
+activities or a push arrives. A later crate or a later server may have written them, so these readers pass over a
+member they do not know, and draw a node of a type they do not know as nothing: left out of its stack, or an empty
+region; such a node's other members are not read. A value they do not know of a member they know (a font, an
+alignment, a transition, a length word, an image source with neither `asset` nor `file`), `null` or a wrong type
+still refuses the layout, since nothing says what to show instead. A binding with members besides `bind` is read as
+the binding. Encoded again, such a layout keeps the unknown node's `type` and nothing else that this version does not
+know, so the size the app measures of attributes a later version wrote, for the 4 KB check of an update, is less than
+what ActivityKit holds. The receipts the app keeps are read the same way (AK-COMPAT-3).
+
 ## Errors
 
 A failed request answers `{ "code", "message" }`; the message is constant text. The codes are `INVALID_INPUT`,

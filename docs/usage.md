@@ -9,7 +9,7 @@ use activitykit::ActivityKit;
 
 let kit = ActivityKit::new();
 let authorization = kit.authorization();
-// supported: the device has Live Activities (iPhone with iOS 16.2, iPad with iPadOS 17).
+// supported: the device has Live Activities (iPhone with iOS 16.1, iPad with iPadOS 17).
 // enabled: and they are on for this app. buttons: iOS 17.2 or later, where the OS runs a button's intent.
 ```
 

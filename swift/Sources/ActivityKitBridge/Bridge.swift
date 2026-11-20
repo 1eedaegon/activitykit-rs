@@ -319,7 +319,7 @@ private struct ImageFolderReply: Encodable {
 @MainActor
 final class Bridge {
     static let shared = Bridge()
-    nonisolated static let unsupported = ActivityFailure("UNSUPPORTED_PLATFORM", "Live Activities require iPhone with iOS 16.2 or iPad with iPadOS 17 or later.")
+    nonisolated static let unsupported = ActivityFailure("UNSUPPORTED_PLATFORM", "Live Activities require iPhone with iOS 16.1 or iPad with iPadOS 17 or later.")
 
     let presentations = Presentations()
     private var controller: LayoutActivityController?
@@ -329,7 +329,7 @@ final class Bridge {
 
     func start(_ data: Data) async -> Data {
         await reply {
-            let call = try JSONDecoder().decode(StartCall.self, from: data)
+            let call = try JSONDecoder.layoutRequests().decode(StartCall.self, from: data)
             try call.validate()
             let key = call.request.activityKey
             self.presentations.expectStart(key: key, relevance: call.relevance, push: call.request.push, transient: call.style == "transient",
@@ -341,7 +341,7 @@ final class Bridge {
 
     func update(_ data: Data) async -> Data {
         await reply {
-            let call = try JSONDecoder().decode(UpdateCall.self, from: data)
+            let call = try JSONDecoder.layoutRequests().decode(UpdateCall.self, from: data)
             try call.alert?.validate()
             let (id, revision) = (call.request.id, call.request.snapshot.revision)
             self.presentations.expectUpdate(id: id, revision: revision, relevance: call.relevance, alert: call.alert)
@@ -352,7 +352,7 @@ final class Bridge {
 
     func end(_ data: Data) async -> Data {
         await reply {
-            let call = try JSONDecoder().decode(EndCall.self, from: data)
+            let call = try JSONDecoder.layoutRequests().decode(EndCall.self, from: data)
             let id = call.request.id
             self.presentations.expectEnd(id: id, relevance: call.relevance)
             defer { self.presentations.forgetEnd(id: id) }

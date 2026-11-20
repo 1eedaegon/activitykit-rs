@@ -16,7 +16,8 @@ xcrun swift build --build-system native --package-path swift --product ActivityK
   -Xswiftc -target -Xswiftc <arch>-apple-ios<version>[-simulator] -Xcc --target=<same>
 ```
 
-The crate needs iOS 16.2 at run time (iPadOS 17 on an iPad); below it every call answers `Error::Unsupported`. The
+The crate needs iOS 16.1 at run time (iPadOS 17 on an iPad); below it every call answers `Error::Unsupported`. On
+16.1, ActivityKit's first release, an activity has no stale date and no relevance score (AK-PLATFORM-2). The
 Swift code is built for iOS 15.0 or later so that apps with a lower deployment target still link.
 
 | Rust target | Swift target | SDK |
@@ -116,7 +117,7 @@ the app.
 
 ## The widget extension
 
-Add a Widget Extension target (iOS 16.2 or later), link the `ActivityKitWidget` product of the `swift` package (as a
+Add a Widget Extension target (iOS 16.1 or later), link the `ActivityKitWidget` product of the `swift` package (as a
 local package, or from this repository), and replace its Swift files with
 [`templates/ios/Widget.swift`](../templates/ios/Widget.swift):
 
@@ -130,6 +131,10 @@ struct Widgets: WidgetBundle {
     var body: some Widget { ActivityKitLayoutWidget() }
 }
 ```
+
+The package may be of another version than the crate. From 0.8.0 a widget draws an activity of a later crate or
+server without what it does not know (AK-COMPAT-1); a widget up to 0.7.0 refuses a layout with a member it does not
+know, and the activity is drawn empty, so update the widget with the crate.
 
 Its Info.plist ([`templates/ios/Widget-Info.plist`](../templates/ios/Widget-Info.plist)) sets `ActivityKitLayout` to
 the integer `2`: before a start, the app checks that an embedded extension carries it, and answers

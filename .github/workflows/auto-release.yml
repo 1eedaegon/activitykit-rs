@@ -78,21 +78,28 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
           fetch-depth: 0
           persist-credentials: true
+      # A run of an older commit ends here and passes: the newer commit's run plans the release. Merging pull requests
+      # one after another leaves one such run for each but the last, and none of them is a failure.
       - name: Require the current tip of main
+        id: tip
         run: |
           set -euo pipefail
           git fetch --quiet origin main --tags
           head=$(git rev-parse HEAD)
           main=$(git rev-parse origin/main)
-          [ "$head" = "$main" ] || {
-            echo "$head passed CI, but main has advanced to $main; the newer run owns release planning"
-            exit 1
-          }
+          if [ "$head" = "$main" ]; then
+            echo current=true >> "$GITHUB_OUTPUT"
+          else
+            echo current=false >> "$GITHUB_OUTPUT"
+            echo "::notice::$head passed CI, but main has advanced to $main; the newer run owns release planning"
+          fi
       - name: Configure the release actor
+        if: steps.tip.outputs.current == 'true'
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
       - name: Plan the release
+        if: steps.tip.outputs.current == 'true'
         id: plan
         env:
           MANUAL_MAJOR: ${{ github.event_name == 'workflow_dispatch' && inputs.major || false }}

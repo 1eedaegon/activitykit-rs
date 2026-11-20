@@ -78,28 +78,28 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 
 | Feature | Call | iOS | More |
 | --- | --- | --- | --- |
-| Is it allowed? | `kit.authorization()` → `supported`, `enabled`, `buttons`, `frequent_pushes` | 16.2 | [usage](docs/usage.md) |
-| Start | `kit.start(layout, values)`, `kit.start_with(Start::new(..).key(..).relevance(..).stale_at(..))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
+| Is it allowed? | `kit.authorization()` → `supported`, `enabled`, `buttons`, `frequent_pushes` | 16.1; `frequent_pushes` 16.2 | [usage](docs/usage.md) |
+| Start | `kit.start(layout, values)`, `kit.start_with(Start::new(..).key(..).relevance(..).stale_at(..))` | 16.1; relevance and stale date 16.2 | [start, update, end](docs/usage.md#start-update-end) |
 | Start later, or only while the app is in use | `Start::scheduled(at, alert)`, `Start::transient()` | 26; 18 | [start, update, end](docs/usage.md#start-update-end) |
-| Update | `activity.update(values)`, `activity.update_with(Update::new(..).alert(Alert::new(..).sound(..)))` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
-| End | `activity.end(End::immediately())`, `End::default()`, `End::after(time)`, `.values(..)` | 16.2 | [start, update, end](docs/usage.md#start-update-end) |
-| Find again | `kit.activities()`, `kit.activity(id)` | 16.2 | [after a relaunch](docs/usage.md#after-a-relaunch) |
-| Layout | `Layout::new(node)`, `vstack`, `hstack`, `zstack`, `text`, `symbol`, `image`, `path`, `progress`, `gauge`, `timer`, `spacer`, `divider` | 16.2 | [layouts](docs/usage.md#layouts) |
-| Styles and bindings | `Style::new().color(..)`, `Bound::key("value")`, `node.when(key)`, `node.unless(key)` | 16.2 | [layouts](docs/usage.md#layouts) |
-| Dynamic Island | `Layout::island(Island::new()..)`, `Layout::keyline(..)`, `Layout::background(..)` | 16.2 | [layouts](docs/usage.md#layouts) |
-| Island priorities, placement, margins | `IslandExpanded::priority(..)`, `.below_if_too_wide(..)`, `Island::margins(..)` | 16.2 | [the island's options](docs/usage.md#the-dynamic-islands-options) |
-| Motion | `Style::content_transition(..)`, `node.transition(..)` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
-| Private content | `node.sensitive()` | 16.2 | [motion and privacy](docs/usage.md#motion-and-privacy) |
+| Update | `activity.update(values)`, `activity.update_with(Update::new(..).alert(Alert::new(..).sound(..)))` | 16.1 | [start, update, end](docs/usage.md#start-update-end) |
+| End | `activity.end(End::immediately())`, `End::default()`, `End::after(time)`, `.values(..)` | 16.1 | [start, update, end](docs/usage.md#start-update-end) |
+| Find again | `kit.activities()`, `kit.activity(id)` | 16.1 | [after a relaunch](docs/usage.md#after-a-relaunch) |
+| Layout | `Layout::new(node)`, `vstack`, `hstack`, `zstack`, `text`, `symbol`, `image`, `path`, `progress`, `gauge`, `timer`, `spacer`, `divider` | 16.1 | [layouts](docs/usage.md#layouts) |
+| Styles and bindings | `Style::new().color(..)`, `Bound::key("value")`, `node.when(key)`, `node.unless(key)` | 16.1 | [layouts](docs/usage.md#layouts) |
+| Dynamic Island | `Layout::island(Island::new()..)`, `Layout::keyline(..)`, `Layout::background(..)` | 16.1 | [layouts](docs/usage.md#layouts) |
+| Island priorities, placement, margins | `IslandExpanded::priority(..)`, `.below_if_too_wide(..)`, `Island::margins(..)` | 16.1 | [the island's options](docs/usage.md#the-dynamic-islands-options) |
+| Motion | `Style::content_transition(..)`, `node.transition(..)` | 16.1 | [motion and privacy](docs/usage.md#motion-and-privacy) |
+| Private content | `node.sensitive()` | 16.1 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Stale content | `node.when_stale()`, `node.unless_stale()`, with `Start::stale_at(..)` | 16.2 | [stale content](docs/usage.md#stale-content) |
 | Apple Watch and CarPlay | `Layout::small(node)`, with `ActivityKitSmallFamily` in the widget extension | 18 | [Apple Watch and CarPlay](docs/usage.md#apple-watch-and-carplay) |
-| Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17 | [events](docs/usage.md#events) |
-| Toggles | `toggle(action_id, key, label)`, `Event::Action { on, .. }` | 17 | [toggles](docs/usage.md#toggles) |
-| Links | `link(url, label)`, `Layout::url(..)` | 16.2 | [links](docs/usage.md#links) |
-| Accessibility | `node.accessibility(Accessibility::new().label(..))` | 16.2 | [accessibility](docs/usage.md#accessibility) |
-| Images the app draws | `kit.write_image(name, &png)`, `image(ImageSource::file(name))` | 16.2 | [drawn images](docs/usage.md#drawn-images) |
-| Your own SwiftUI | `custom(name).prop(key, value)` | 16.2 | [custom views](docs/usage.md#custom-views) |
-| Pushes | `Start::push(Push::Token)`, `Event::PushToken`, `push::Payload` | 16.2; start 17.2; channels 18 | [pushes](docs/usage.md#pushes) |
-| Receipts without values | `ActivityKit::builder().receipts(Receipts::Redacted).build()` | 16.2 | [after a relaunch](docs/usage.md#after-a-relaunch) |
+| Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17.2 | [events](docs/usage.md#events) |
+| Toggles | `toggle(action_id, key, label)`, `Event::Action { on, .. }` | 17.2 | [toggles](docs/usage.md#toggles) |
+| Links | `link(url, label)`, `Layout::url(..)` | 16.1 | [links](docs/usage.md#links) |
+| Accessibility | `node.accessibility(Accessibility::new().label(..))` | 16.1 | [accessibility](docs/usage.md#accessibility) |
+| Images the app draws | `kit.write_image(name, &png)`, `image(ImageSource::file(name))` | 16.1 | [drawn images](docs/usage.md#drawn-images) |
+| Your own SwiftUI | `custom(name).prop(key, value)` | 16.1 | [custom views](docs/usage.md#custom-views) |
+| Pushes | `Start::push(Push::Token)`, `Event::PushToken`, `push::Payload` | 16.1; start 17.2; channels 18 | [pushes](docs/usage.md#pushes) |
+| Receipts without values | `ActivityKit::builder().receipts(Receipts::Redacted).build()` | 16.1 | [after a relaunch](docs/usage.md#after-a-relaunch) |
 
 ### Describe what to draw
 
@@ -277,7 +277,8 @@ process, which posts it to the bridge, and Rust delivers it as `Event::Action`.
 
 ## Limits
 
-- iOS 16.2 or later on an iPhone, iPadOS 17 on an iPad. Buttons and toggles need iOS 17.2; below it they show their labels.
+- iOS 16.1 or later on an iPhone, iPadOS 17 on an iPad. iOS 16.1 has no stale date and no relevance score; buttons and
+  toggles need iOS 17.2, and below it they show their labels.
 - A layout holds at most 40 nodes on the Lock Screen and 12 in the small region, 8 levels, 4 buttons, links and toggles per region, 24 styles and 32
   values, and layout, styles and values together weigh at most 3584 ([the contract](docs/request-contract.md)).
 - An activity starts only while the app is in the foreground, or a short while after it left it. The system ends it

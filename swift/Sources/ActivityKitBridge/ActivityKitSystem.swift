@@ -16,7 +16,7 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
     private var watchers: [AuthorizationWatcher] = []
 
     func authorization() -> AuthorizationReply {
-        guard #available(iOS 16.2, *), Platform.supported else { return AuthorizationReply(supported: false, enabled: false, buttons: false) }
+        guard #available(iOS 16.1, *), Platform.supported else { return AuthorizationReply(supported: false, enabled: false, buttons: false) }
         return Self.reply(enabled: ActivityAuthorizationInfo().areActivitiesEnabled)
     }
 
@@ -49,33 +49,35 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
     }
 
     func activityKey(of id: String) -> String? {
-        guard #available(iOS 16.2, *) else { return nil }
+        guard #available(iOS 16.1, *) else { return nil }
         return Activity<LiveActivityLayoutAttributes>.activities.first { $0.attributes.instanceID == id }?.attributes.activityKey
     }
 
     @MainActor func makeController(presentations: Presentations, events: EventSink, receipts: ReceiptMode) throws -> LayoutActivityController {
-        guard #available(iOS 16.2, *), Platform.supported else { throw Bridge.unsupported }
+        guard #available(iOS 16.1, *), Platform.supported else { throw Bridge.unsupported }
         let store = try FileReceiptStore.applicationStore(mode: receipts)
         let backend = LayoutActivityKitBackend(presentations: presentations, observer: observer.value)
         return LayoutActivityController(backend: backend, store: store)
     }
 
     func observe(_ events: EventSink) {
-        guard #available(iOS 16.2, *), Platform.supported else { return }
+        guard #available(iOS 16.1, *), Platform.supported else { return }
         let enablement = AuthorizationWatcher(source: EnablementSource(), read: { Self.reply(enabled: $0) },
                                               emit: { events.emit(.authorization($0)) })
-        // A change of the frequent-pushes setting is the whole authorization again, read fresh.
-        let frequency = AuthorizationWatcher(source: FrequentPushesSource(),
-                                             read: { _ in Self.reply(enabled: ActivityAuthorizationInfo().areActivitiesEnabled) },
-                                             emit: { events.emit(.authorization($0)) })
-        lock.lock(); watchers = [enablement, frequency]; lock.unlock()
-        enablement.start()
-        frequency.start()
+        var started = [enablement]
+        // A change of the frequent-pushes setting is the whole authorization again, read fresh; the setting is of 16.2.
+        if #available(iOS 16.2, *) {
+            started.append(AuthorizationWatcher(source: FrequentPushesSource(),
+                                                read: { _ in Self.reply(enabled: ActivityAuthorizationInfo().areActivitiesEnabled) },
+                                                emit: { events.emit(.authorization($0)) }))
+        }
+        lock.lock(); watchers = started; lock.unlock()
+        started.forEach { $0.start() }
         Task { @MainActor in self.observer.value.start(events) }
     }
 
     func watchPushToStart() {
-        guard #available(iOS 16.2, *), Platform.supported else { return }
+        guard #available(iOS 16.1, *), Platform.supported else { return }
         Task { @MainActor in self.observer.value.watchPushToStart() }
     }
 }
@@ -100,7 +102,7 @@ private final class FrequentPushesSource: AuthorizationSource, @unchecked Sendab
 }
 
 /// ActivityKit's changes of the setting. It holds its `ActivityAuthorizationInfo` for the life of the stream.
-@available(iOS 16.2, *)
+@available(iOS 16.1, *)
 private final class EnablementSource: AuthorizationSource, @unchecked Sendable {
     private let info: ActivityAuthorizationInfo
     let updates: AsyncStream<Bool>
@@ -138,7 +140,7 @@ final class ActivityObserver {
     private var watchingPushToStart = false
 
     func start(_ events: EventSink) {
-        guard self.events == nil, #available(iOS 16.2, *) else { return }
+        guard self.events == nil, #available(iOS 16.1, *) else { return }
         self.events = events
         if pushToStartWanted { watchPushToStart() }
         // Those that run already are no news; those that appear later, started by the app, a push or the system, are.
@@ -149,7 +151,7 @@ final class ActivityObserver {
     }
 
     /// Reports the states of `activity` from now on, once per activity, and with `announce` that it began.
-    @available(iOS 16.2, *)
+    @available(iOS 16.1, *)
     func watch(_ activity: Activity<LiveActivityLayoutAttributes>, announce: Bool) {
         let (id, key) = (activity.attributes.instanceID, activity.attributes.activityKey)
         guard let events, activity.attributes.schemaVersion == 2, watched.insert(id).inserted else { return }
@@ -167,13 +169,19 @@ final class ActivityObserver {
             }
         }
         // The content shown when the watch begins is not news: the list gives it. Only content above it is reported.
-        let shown = activity.content.state.revision
+        let shown = ActivityKitAdapter<LiveActivityLayoutAttributes>.state(of: activity).revision
         Task.detached {
             var reported = shown
-            for await content in activity.contentUpdates where content.state.revision > reported {
-                reported = content.state.revision
-                events.emit(.content(activityId: id, activityKey: key, snapshot: content.state, relevance: content.relevanceScore))
+            func report(_ state: LayoutSnapshot, relevance: Double?) {
+                guard state.revision > reported else { return }
+                reported = state.revision
+                events.emit(.content(activityId: id, activityKey: key, snapshot: state, relevance: relevance))
             }
+            guard #available(iOS 16.2, *) else {
+                for await state in activity.contentStateUpdates { report(state, relevance: nil) }
+                return
+            }
+            for await content in activity.contentUpdates { report(content.state, relevance: content.relevanceScore) }
         }
     }
 
