@@ -39,10 +39,7 @@ pub(crate) enum Card {
 
 fn on(layout: Layout, card: Card) -> Layout {
     match card {
-        Card::Drawn => layout.background(Color::Adaptive {
-            light: CARD.to_owned(),
-            dark: CARD.to_owned(),
-        }),
+        Card::Drawn => layout.background(Color::adaptive(CARD, CARD)),
         Card::Tint => layout.background(CARD),
         Card::Plain => layout,
     }

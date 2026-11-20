@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 /// One node of a layout tree: an element and the members every node may carry.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct Node {
     #[serde(flatten)]
     pub element: Element,
@@ -95,6 +96,7 @@ fn member<T: serde::de::DeserializeOwned, E: serde::de::Error>(
 /// the transitions the system runs in a Live Activity. Without one the node fades.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum Transition {
     Opacity,
     /// In from the leading edge, out to the trailing one.
@@ -113,6 +115,7 @@ pub enum Transition {
 /// Whether a node shows something private, the wire member `privacy`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum Privacy {
     /// The system hides the node's content on a locked device and in the always-on display, when the person has
     /// asked for that.
@@ -134,6 +137,7 @@ pub enum Privacy {
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Accessibility {
     /// What the node is, in a few words.
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -179,7 +183,9 @@ impl Accessibility {
 /// What a node shows. The wire member `type` selects the variant.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Element {
+    #[non_exhaustive]
     Vstack {
         children: Vec<Node>,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -187,6 +193,7 @@ pub enum Element {
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
         alignment: Option<HorizontalAlignment>,
     },
+    #[non_exhaustive]
     Hstack {
         children: Vec<Node>,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -194,18 +201,22 @@ pub enum Element {
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
         alignment: Option<VerticalAlignment>,
     },
+    #[non_exhaustive]
     Zstack {
         children: Vec<Node>,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
         alignment: Option<Alignment>,
     },
     #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
     Spacer {
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
         min_length: Option<f64>,
     },
+    #[non_exhaustive]
     Divider {},
     /// Exactly one of the literal `value` and `bind`, the key of a value.
+    #[non_exhaustive]
     Text {
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
         value: Option<String>,
@@ -214,6 +225,7 @@ pub enum Element {
     },
     /// An SF Symbol; `variable_bind` names a number value.
     #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
     Symbol {
         name: String,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -222,6 +234,7 @@ pub enum Element {
         variable_bind: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
     Image {
         source: ImageSource,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -230,17 +243,20 @@ pub enum Element {
         content_mode: Option<ContentMode>,
     },
     /// SVG path data in a `[width, height]` box; stroked when `stroke` is present.
+    #[non_exhaustive]
     Path {
         d: String,
         r#box: [f64; 2],
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
         stroke: Option<f64>,
     },
+    #[non_exhaustive]
     Progress {
         bind: String,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
         kind: Option<IndicatorKind>,
     },
+    #[non_exhaustive]
     Gauge {
         bind: String,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -252,6 +268,7 @@ pub enum Element {
     },
     /// `start` and `end` name number values in epoch milliseconds.
     #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
     TimerText {
         start: String,
         end: String,
@@ -259,17 +276,17 @@ pub enum Element {
         counts_down: Option<bool>,
     },
     #[serde(rename_all = "camelCase")]
-    Button {
-        action_id: String,
-        child: Box<Node>,
-    },
+    #[non_exhaustive]
+    Button { action_id: String, child: Box<Node> },
     /// A tap on `child` opens the app with `url`: a URL, or [`Bound`](super::Bound) to a text value that is one.
+    #[non_exhaustive]
     Link {
         url: Bindable<String>,
         child: Box<Node>,
     },
     /// A switch that shows the flag `bind` beside `child`, and whose tap arrives as an action under `action_id`.
     #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
     Toggle {
         action_id: String,
         bind: String,
@@ -278,6 +295,7 @@ pub enum Element {
     /// A SwiftUI view that the app registers under `name` in its widget extension. Each prop is a
     /// literal or [`Bound`](super::Bound) to a value, which the view reads on every render. Android
     /// shows no custom view.
+    #[non_exhaustive]
     Custom {
         name: String,
         #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -288,11 +306,14 @@ pub enum Element {
 /// Where an image comes from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum ImageSource {
     /// An image in the widget extension's asset catalog: `{ "asset": name }`.
+    #[non_exhaustive]
     Asset { asset: String },
     /// A PNG that the app wrote with [`ActivityKit::write_image`](crate::ActivityKit::write_image), which the widget reads from the App Group
     /// container: `{ "file": name }`.
+    #[non_exhaustive]
     File { file: String },
 }
 
@@ -318,6 +339,7 @@ impl ImageSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum HorizontalAlignment {
     Leading,
     Center,
@@ -326,6 +348,7 @@ pub enum HorizontalAlignment {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum VerticalAlignment {
     Top,
     Center,
@@ -335,6 +358,7 @@ pub enum VerticalAlignment {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum Alignment {
     Center,
     Leading,
@@ -349,6 +373,7 @@ pub enum Alignment {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum SymbolRendering {
     Monochrome,
     Hierarchical,
@@ -358,6 +383,7 @@ pub enum SymbolRendering {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ContentMode {
     Fit,
     Fill,
@@ -366,6 +392,7 @@ pub enum ContentMode {
 /// Shape of a progress view or a gauge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum IndicatorKind {
     Linear,
     Circular,
@@ -373,6 +400,7 @@ pub enum IndicatorKind {
 
 /// The text of a [`text`] node: a literal, or [`Bound`] to a value that every update can change.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TextContent {
     Literal(String),
     Bound(String),

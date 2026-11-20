@@ -15,6 +15,13 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
   16.2. On 16.1 the bridge starts, updates and ends an activity with ActivityKit's calls of that release, which take the
   content state alone: there is no stale date, no relevance score (a record has none, and the handle's is 0) and no
   frequent-pushes setting. The widget extension can be built for 16.1.
+- Breaking, once, so that later releases are not: every public enum, every variant with named members and every public
+  struct whose members are all public is `#[non_exhaustive]` (27 enums, 24 variants and 18 structs that were not). A
+  `match` on such an enum needs a `_` arm and a pattern of such a variant `..`, as in `Error::UnsupportedFeature {
+  feature, .. }`; such a struct or variant is built with its constructor or builder (`Layout::new`, `Style::new`,
+  `Island::new`, `text(..)`, `ImageSource::asset(..)`, the new `Color::adaptive(light, dark)` and
+  `ImageInput::new(name, png)`) or read from JSON, not with a literal. After that a new variant or member breaks no
+  code.
 
 ## 0.7.0 - 2026-11-20
 

@@ -295,6 +295,13 @@ What an activity made by a later crate, a later server or a later widget does wh
 | AK-COMPAT-2 | The widget and the app read a content state, and the attributes, that have members they do not know: the push of a later server is shown with what this version knows. | `{"revision":3,"values":{…},"later":1}` → revision 3 and its values. | — | iOS 16.1+ |
 | AK-COMPAT-3 | A receipt that cannot be read costs that receipt, not the list, and a file that is no list of receipts, or larger than 2 MB, holds none; a load keeps the newest 256 and leaves the file as it is, and the next save writes what was read, so a downgrade loses the receipts it cannot read. A receipt with members this version does not know is read. | — | `Native` only for a file that cannot be opened or written | iOS |
 
+## The Rust API
+
+| ID | Behavior | Input → result | Errors | Platform |
+| --- | --- | --- | --- | --- |
+| AK-API-1 | Every public enum is `#[non_exhaustive]`, and so is every variant with named members: a variant or a member that a later version adds breaks no `match` with a `_` arm and no pattern with `..`. | — | — | all |
+| AK-API-2 | Every public struct whose members are all public is `#[non_exhaustive]`: a member that a later version adds breaks no code. What an app builds it builds on constructors and builders (`Layout::new`, `Style::new`, `Island::new`, `Color::adaptive`, `ImageInput::new`, ...); the contract's requests and records come from JSON, so a Rust caller checks one of them (`LayoutStartInput::validate_update`) on what it read. | — | — | all |
+
 ## Planned
 
 Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requirement with its tests when it is.
@@ -528,3 +535,5 @@ Not built yet ([Not yet supported](not-yet-supported.md)); each becomes a requir
 | AK-COMPAT-1 | `tests/swift/compatibility.swift::testLaterVersions` (Swift host) |
 | AK-COMPAT-2 | `tests/swift/compatibility.swift::testLaterVersions` (Swift host) |
 | AK-COMPAT-3 | `tests/swift/receipts.swift::testReceiptFileRules` (Swift host) |
+| AK-API-1 | `tests/open_api.rs::every_public_enum_and_every_open_struct_leaves_room` (unit) |
+| AK-API-2 | `tests/open_api.rs::every_public_enum_and_every_open_struct_leaves_room` (unit)<br>`tests/open_api.rs::an_app_builds_on_constructors_and_matches_with_a_wildcard` (unit) |

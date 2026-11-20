@@ -52,6 +52,7 @@ pub(crate) fn none<T>(member: &Option<T>) -> bool {
 /// The values a layout shows and the revision they carry. An update replaces the whole map.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct LayoutSnapshot {
     pub revision: u64,
     pub values: Values,
@@ -68,6 +69,7 @@ pub struct LayoutSnapshot {
 /// the activity starts; only a bound `background`, `keyline` or `url` follows the values.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct LayoutRegions {
     pub lock_screen: Node,
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
@@ -89,6 +91,7 @@ pub struct LayoutRegions {
 /// Lock screen visibility of the Android notification. iOS checks it and then ignores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum AndroidVisibility {
     Public,
     Private,
@@ -98,6 +101,7 @@ pub enum AndroidVisibility {
 /// Options of the contract that only an Android backend reads; iOS checks and ignores them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct AndroidOptions {
     pub visibility: AndroidVisibility,
 }
@@ -105,6 +109,7 @@ pub struct AndroidOptions {
 /// What an Android backend does when it cannot promote the notification. iOS ignores it; this crate sends `none`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum Fallback {
     None,
     Notification,
@@ -113,6 +118,7 @@ pub enum Fallback {
 /// The request `start_layout`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct LayoutStartInput {
     /// The app's key: an active activity with the same key and the same request is the same activity.
     pub activity_key: String,
@@ -132,6 +138,7 @@ pub struct LayoutStartInput {
 
 /// What a start asks for: a push token of the activity's own, or a broadcast channel.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PushWire {
     Token,
     Channel(String),
@@ -180,6 +187,7 @@ impl<'de> Deserialize<'de> for PushWire {
 /// The request `update_layout`: every value again, with a higher revision.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct LayoutUpdateInput {
     pub id: String,
     pub snapshot: LayoutSnapshot,
@@ -188,18 +196,21 @@ pub struct LayoutUpdateInput {
 /// When the system removes an ended activity.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub enum EndPolicy {
+    #[non_exhaustive]
     Immediate {},
+    #[non_exhaustive]
     Default {},
     /// At this time in epoch milliseconds, or four hours after the end, whichever comes first.
-    After {
-        at: u64,
-    },
+    #[non_exhaustive]
+    After { at: u64 },
 }
 
 /// The request `end_layout`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct EndInput {
     pub id: String,
     pub policy: EndPolicy,
@@ -253,6 +264,7 @@ pub enum State {
 /// A layout activity as the Swift layer reports it. It does not repeat the layout.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct LayoutActivityRecord {
     pub id: String,
     pub activity_key: String,

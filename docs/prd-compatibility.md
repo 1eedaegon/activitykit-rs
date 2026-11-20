@@ -1,6 +1,6 @@
 # PRD: compatibility
 
-Status: phases 1 to 4 are built (see "Rollout"); "Where it stands" has what was measured. It follows the
+Status: phases 1 to 5 are built (see "Rollout"); "Where it stands" has what was measured. It follows the
 compatibility plan of `liveupdate-rs` (its `docs/design/compatibility`), which asks the same three questions of an
 AAR and an Android version, and it keeps the crate's Rust version as it is.
 
@@ -182,7 +182,7 @@ changes what is shown, and only `small` changes where, which `small_family` alre
 | 2 | Capabilities: what the device and the embedded widget do (`Authorization`'s members, AK-AUTH-8), and a refusal before ActivityKit is asked (as before, `UnsupportedFeature`) | minor: 0.7.0 |
 | 3 | The widget and the content state read what they do not know; receipts one by one | minor: built for 0.8.0 |
 | 4 | iOS 16.1 in the bridge | minor: built for 0.8.0 |
-| 5 | Open enums and constructors: one breaking release, so that later ones are not | minor (0.x), with `!` |
+| 5 | Open enums and constructors: one breaking release, so that later ones are not | minor (0.x), built for 0.8.0: a `feat` commit, since `tools/release.sh` stops at `!` until a major release by hand |
 
 ## Open questions
 
