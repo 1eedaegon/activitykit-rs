@@ -204,9 +204,7 @@ pub enum EndPolicy {
     Default {},
     /// At this time in epoch milliseconds, or four hours after the end, whichever comes first.
     #[non_exhaustive]
-    After {
-        at: u64,
-    },
+    After { at: u64 },
 }
 
 /// The request `end_layout`.
