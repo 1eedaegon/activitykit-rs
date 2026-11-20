@@ -330,7 +330,7 @@ impl Payload {
                 };
                 let input = LayoutStartInput {
                     activity_key: key.clone(),
-                    schema_version: 2,
+                    schema_version: crate::contract::SCHEMA_VERSION,
                     fallback: Fallback::None,
                     layout: layout.clone(),
                     styles: styles.clone(),

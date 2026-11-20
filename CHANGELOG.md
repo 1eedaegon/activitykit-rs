@@ -5,6 +5,15 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- The contract's requests and records, `#[non_exhaustive]` since 0.8.0, have constructors and builders, so a crate
+  outside this one builds them without JSON: `LayoutRegions::new(lock_screen)` with `.island`, `.background`,
+  `.keyline`, `.url` and `.small`; `LayoutSnapshot::new(revision, values)` with `.stale_at` and `.timestamp`;
+  `LayoutStartInput::new(key, layout, snapshot)` (schema 2, fallback `none`) with `.styles`, `.fallback`, `.android`
+  and `.push`; `AndroidOptions::new`, `LayoutUpdateInput::new(id, snapshot)`, `EndInput::new(id, policy)` with
+  `.snapshot`; `EndPolicy::immediate()`, `EndPolicy::default()` and `EndPolicy::after(at)`;
+  `LayoutActivityRecord::new(id, key, snapshot, state)` with `.degraded_features` and `.relevance`; and
+  `Error::unsupported_feature(feature, (major, minor))` and `Error::system_limit(scope)`. The JSON is unchanged.
+
 ## 0.8.0 - 2026-11-20
 
 - ci: a release run of an older commit ends without failing (`c4387a7`)

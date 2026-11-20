@@ -254,7 +254,7 @@ impl ActivityKit {
         let (layout, styles) = start.layout.into_wire();
         let input = LayoutStartInput {
             activity_key: start.key.unwrap_or_else(new_key),
-            schema_version: 2,
+            schema_version: crate::contract::SCHEMA_VERSION,
             fallback: Fallback::None,
             layout,
             styles,

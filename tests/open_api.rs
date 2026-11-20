@@ -124,3 +124,75 @@ fn an_app_builds_on_constructors_and_matches_with_a_wildcard() {
     let image = ImageInput::new("logo", vec![0_u8; 4]);
     assert!(image.name == "logo" && image.validate().is_err());
 }
+
+// AK-API-2
+/// The contract's requests and records, and the errors, are built on constructors too: a crate that sends its own
+/// requests to the checks, or fakes the Swift layer, writes no literal.
+#[test]
+fn the_contracts_types_and_the_errors_are_built_on_constructors() {
+    use activitykit::LimitScope;
+    use activitykit::contract::{
+        AndroidOptions, AndroidVisibility, EndInput, EndPolicy, Fallback, LayoutActivityRecord,
+        LayoutRegions, LayoutSnapshot, LayoutStartInput, LayoutUpdateInput, PushWire,
+        validate_request,
+    };
+    use activitykit::{Values, values};
+    use std::collections::BTreeMap;
+
+    let regions = LayoutRegions::new(text(Bound::key("eta")))
+        .island(Island::new().compact_trailing(text(Bound::key("eta"))))
+        .background("#000000")
+        .keyline("accent")
+        .url("demo://open")
+        .small(text("Small"));
+    assert!(regions.island.is_some() && regions.small.is_some() && regions.url.is_some());
+    let snapshot = LayoutSnapshot::new(0, values! { "eta" => "9 min" })
+        .stale_at(1_790_000_900_000)
+        .timestamp(1_790_000_000_000);
+    assert_eq!(
+        (snapshot.stale_at, snapshot.timestamp),
+        (Some(1_790_000_900_000), Some(1_790_000_000_000))
+    );
+    let start = LayoutStartInput::new("demo:1", regions, snapshot.clone())
+        .styles(BTreeMap::from([(
+            "title".to_owned(),
+            Style::new().font(Font::Headline),
+        )]))
+        .fallback(Fallback::Notification)
+        .android(AndroidOptions::new(AndroidVisibility::Private))
+        .push(PushWire::Token);
+    assert_eq!(start.schema_version, 2);
+    let json = serde_json::to_value(&start).unwrap();
+    assert_eq!(
+        json["fallback"], "notification",
+        "the constructor writes the contract's JSON"
+    );
+    validate_request("start_layout", json).unwrap();
+
+    let update = LayoutUpdateInput::new("handle", LayoutSnapshot::new(1, Values::new()));
+    let end = EndInput::new("handle", EndPolicy::after(1_790_000_000_000)).snapshot(snapshot);
+    assert!(update.snapshot.revision == 1 && end.snapshot.is_some());
+    assert_eq!(
+        [EndPolicy::immediate(), EndPolicy::default()]
+            .map(|policy| serde_json::to_value(policy).unwrap()["kind"].clone()),
+        ["immediate", "default"]
+    );
+    let record = LayoutActivityRecord::new(
+        "handle",
+        "demo:1",
+        LayoutSnapshot::new(0, Values::new()),
+        State::Active,
+    )
+    .degraded_features(vec!["layout.small".to_owned()])
+    .relevance(50.0);
+    assert!(record.schema_version == 2 && record.relevance == Some(50.0));
+
+    let unsupported = Error::unsupported_feature("transient", (18, 0));
+    assert!(
+        matches!(&unsupported, Error::UnsupportedFeature { feature, minimum_ios, .. } if feature == "transient" && *minimum_ios == (18, 0))
+    );
+    assert!(matches!(
+        Error::system_limit(LimitScope::App),
+        Error::SystemLimit { .. }
+    ));
+}

@@ -357,7 +357,7 @@ impl Validate for LayoutUpdateInput {
 impl Validate for LayoutStartInput {
     fn validate(&self) -> Result<()> {
         let key = word(&self.activity_key, 128, u8::is_ascii_alphanumeric, b"._:-");
-        require(key && self.schema_version == 2)?;
+        require(key && self.schema_version == super::SCHEMA_VERSION)?;
         if let Some(PushWire::Channel(id)) = &self.push {
             // The contract's one error text; `ChannelId::new` says more to the app.
             require(crate::push::ChannelId::new(id.clone()).is_ok())?;
