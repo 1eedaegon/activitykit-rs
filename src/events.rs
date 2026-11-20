@@ -11,8 +11,26 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
+
+/// What a tap says of itself, beside the activity and the action of [`Event::Action`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct Tap {
+    /// The same for a tap however often it is handed on: an app that keeps what it handled can tell a tap it saw in
+    /// an earlier launch. None from a Swift layer that gives no id.
+    pub id: Option<String>,
+    /// When the person tapped.
+    pub at: Option<SystemTime>,
+    /// The revision of the content that the activity showed; an update of that revision or a later one had been
+    /// accepted. A tap made on content older than the activity's current revision acts on what the person saw.
+    pub revision: Option<u64>,
+    /// The app did not take the tap while its intent posted it (5 s), for example because the system launched the
+    /// app for the tap and the app made its kit later, or ended it first: the tap was kept in the app's container and
+    /// comes when the app next subscribes, at most 12 hours later. The activity may have ended since.
+    pub late: bool,
+}
 
 /// What the system reports about the app's activities. More kinds, and more members of these, may come: match with
 /// `..`.
@@ -46,13 +64,16 @@ pub enum Event {
     /// its action id, and `on` the state the person asked a toggle for, `None` for a button. The tap
     /// does not change the activity: update it if the button or the switch should change. The tap holds its intent, and so an app
     /// that the system launched for it, until this event and its clones are dropped or `acknowledgement` says the tap
-    /// is handled: keep the event, or the acknowledgement, while the app acts on the tap.
+    /// is handled: keep the event, or the acknowledgement, while the app acts on the tap. `tap` says which tap it is
+    /// and when it was made: a tap that the app did not take while its intent posted it comes later, also in a later
+    /// launch, with `tap.late`.
     #[non_exhaustive]
     Action {
         activity: Activity,
         action: String,
         acknowledgement: Acknowledgement,
         on: Option<bool>,
+        tap: Tap,
     },
     /// ActivityKit reports a new lifecycle state of `activity`. Changes while the app was not running are not
     /// replayed; [`ActivityKit::activities`](crate::ActivityKit::activities) gives the current state.

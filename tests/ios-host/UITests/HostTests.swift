@@ -531,6 +531,29 @@ final class HostTests: HostCase {
         waitFor("PASS cold-tap", timeout: 30)
     }
 
+    // AK-EVENT-16
+    /// A tap on the Lock Screen while the app is not running, in a launch that makes its kit only after the tap's
+    /// intent has given up: the tap was kept, and the kit's first subscriber gets it late.
+    func testATapTheAppDidNotTakeComesLate() throws {
+        try needsIntents()
+        launch("late-tap-start")
+        waitFor("PASS late-tap-start")
+        RunLoop.current.run(until: Date().addingTimeInterval(3))
+        app.terminate()
+        XCTAssertTrue(waitUntil(10) { app.state == .notRunning }, "the app is killed")
+        showLockScreen(until: "Waiting")
+        let stop = springboard.buttons["Stop"].firstMatch
+        XCTAssertTrue(stop.waitForExistence(timeout: 10), "the Stop button shows on the Lock Screen")
+        XCTAssertTrue(waitUntil(5) { stop.isHittable }, "the Stop button can be tapped")
+        stop.tap()
+        // The launch makes its kit 8 s late; the system may suspend the app before that, and this brings it back.
+        RunLoop.current.run(until: Date().addingTimeInterval(12))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        waitFor("PASS late-tap", timeout: 60)
+        try capture("late-tap")
+    }
+
     /// After the process ends, `activities()` finds the activity at its accepted revision, and its handle continues.
     // AK-HANDLE-1, AK-LIST-1, AK-START-3
     func testActivitiesAfterRelaunch() throws {

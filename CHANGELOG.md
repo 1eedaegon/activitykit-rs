@@ -15,6 +15,13 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
   with a widget extension that draws it). An app no longer has to try a request and read
   `Error::UnsupportedFeature` to learn it. A pattern on `Authorization` already needed `..`, so code that compiled
   goes on compiling.
+- A tap that the app does not take at once is no longer lost. An app that the system launched for a tap had to make
+  its kit within the 5 s for which the intent posts the tap, and a process that ended took its waiting taps with it.
+  Now the intent keeps a tap that its first two posts (200 ms) do not get acknowledged in a small file in the app's
+  container, and the first receiver of a later kit gets it, in this launch or the next, with `tap.late`.
+  `Event::Action` has a `tap` member with the tap's `id`, its time and the revision of the content shown; a pattern on
+  the variant already needed `..`. A tap for an activity that ActivityKit no longer lists comes with the key the
+  button was drawn with, where its handle's `key()` was empty.
 
 ## 0.6.6 - 2026-11-19
 
