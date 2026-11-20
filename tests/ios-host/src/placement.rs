@@ -7,8 +7,9 @@ use super::{IN_BACKGROUND, Outcome, Reporter, check, prepared};
 use activitykit::{
     ActivityKit, Alert, Bound, Layout, Start, State, Style, Update,
     layout::{
-        Alignment, Color, Dimension, Font, Frame, HorizontalAlignment, Node, VerticalAlignment,
-        hstack, spacer, text, vstack, zstack,
+        Alignment, Color, Dimension, Font, FontWeight, Frame, HorizontalAlignment, Island,
+        IslandExpanded, Node, VerticalAlignment, hstack, progress, spacer, symbol, text, vstack,
+        zstack,
     },
     values,
 };
@@ -327,6 +328,60 @@ pub(crate) fn height(reporter: &Reporter, fills: bool) -> Outcome {
     let layout =
         Layout::new(zstack([title(words)]).style("card")).style("card", Style::new().frame(frame));
     begin(reporter, "host:height", on(titled(layout), Card::Drawn))
+}
+
+// AK-ISLAND-3
+/// The expanded Dynamic Island of the plugin's demo, in pure colors: a symbol leading, a title in the middle, a short
+/// value trailing, and a status with a bar below. The bottom region shows the same value in cyan, where it has room:
+/// the measure of the value whole. The UI test expands the island and compares the two.
+pub(crate) fn island(reporter: &Reporter) -> Outcome {
+    let expanded = IslandExpanded::new()
+        .leading(symbol("star.fill").style("lead"))
+        .center(text("Island title").style("center"))
+        .trailing(text(Bound::key("eta")).style("value"))
+        .bottom(
+            vstack([
+                hstack([
+                    text("Packing a tiny treat").style("status"),
+                    text(Bound::key("eta")).style("reference"),
+                ])
+                .spacing(8.0),
+                progress("done").style("bar"),
+            ])
+            .spacing(4.0)
+            .alignment(HorizontalAlignment::Leading),
+        );
+    let island = Island::new()
+        .expanded(expanded)
+        .compact_leading(symbol("star.fill").style("lead"))
+        .compact_trailing(text(Bound::key("eta")).style("value"))
+        .minimal(symbol("star.fill").style("lead"));
+    let value = || {
+        Style::new()
+            .font(Font::Caption)
+            .weight(FontWeight::Semibold)
+            .monospaced_digit()
+    };
+    let layout = Layout::new(text("Island").style("title"))
+        .island(island)
+        .style("lead", Style::new().color("#FFFF00"))
+        .style(
+            "center",
+            Style::new()
+                .font(Font::Headline)
+                .color("#FFFFFF")
+                .line_limit(1),
+        )
+        .style("value", value().color("#00FF00"))
+        .style("reference", value().color("#00FFFF"))
+        .style("status", Style::new().font(Font::Caption).color("#FFFFFF"))
+        .style("bar", Style::new().tint("#FF00FF"));
+    let kit = prepared(reporter)?;
+    let values = values! { "eta" => "9 min", "done" => 0.15 };
+    let start = Start::new(titled(layout), values).key("host:island");
+    block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    reporter.say("started host:island");
+    Ok(())
 }
 
 // AK-RENDER-18

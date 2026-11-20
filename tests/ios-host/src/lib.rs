@@ -142,6 +142,7 @@ pub extern "C" fn ak_host_run(report: Report) {
             "place-minimum" => placement::height(&reporter, false),
             "place-fill" => placement::height(&reporter, true),
             "place-shapes" => placement::shapes(&reporter),
+            "place-island" => placement::island(&reporter),
             // `size-1` to `size-5`: that many bars in the card.
             other => match other.strip_prefix("size-").map(str::parse::<usize>) {
                 Some(Ok(rows @ 1..=5)) => placement::size(&reporter, rows),
