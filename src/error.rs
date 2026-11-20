@@ -138,6 +138,20 @@ pub(crate) struct WireError {
 }
 
 impl Error {
+    /// `UNSUPPORTED_FEATURE` for `feature`, which needs iOS `minimum_ios` (major, minor): for a crate that stands in
+    /// for this one, since the variant is `#[non_exhaustive]`.
+    pub fn unsupported_feature(feature: impl Into<String>, minimum_ios: (u16, u16)) -> Self {
+        Self::UnsupportedFeature {
+            feature: feature.into(),
+            minimum_ios,
+        }
+    }
+
+    /// `SYSTEM_LIMIT` of `scope`.
+    pub fn system_limit(scope: LimitScope) -> Self {
+        Self::SystemLimit { scope }
+    }
+
     /// The contract's code, such as `INVALID_INPUT`.
     pub fn code(&self) -> &'static str {
         match self {

@@ -3,6 +3,7 @@
 //! check or send requests that come as JSON. `contracts/request.schema.json` and `tests/fixtures/layout-requests.json`
 //! hold the same rules; `docs/request-contract.md` describes them.
 
+mod build;
 mod path;
 mod validation;
 mod weight;
@@ -37,6 +38,9 @@ use crate::{
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
+
+/// The contract's version, which every request and record carries.
+pub(crate) const SCHEMA_VERSION: u8 = 2;
 
 /// Reads a member that may be absent but never `null`.
 pub(crate) fn non_null<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
