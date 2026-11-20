@@ -19,31 +19,13 @@ public struct ReceiptSummary: Hashable, Sendable {
     }
 }
 
-private struct ReceiptMemberKey: CodingKey {
-    let stringValue: String
-    var intValue: Int? { nil }
-    init?(stringValue: String) { self.stringValue = stringValue }
-    init?(intValue: Int) { nil }
-}
-
-private func memberCount(_ decoder: Decoder) throws -> Int { try decoder.container(keyedBy: ReceiptMemberKey.self).allKeys.count }
-private func invalidReceipt(_ decoder: Decoder) -> DecodingError {
-    .dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid activity receipt."))
-}
-
 private struct DigestContent: Codable {
     let digest: String
-    private enum CodingKeys: String, CodingKey { case digest }
-    init(digest: String) { self.digest = digest }
-    init(from decoder: Decoder) throws {
-        digest = try decoder.container(keyedBy: CodingKeys.self).decode(String.self, forKey: .digest)
-        guard try memberCount(decoder) == 1 else { throw invalidReceipt(decoder) }
-    }
 }
 
 /// One entry of the receipt file: `{ id, activityKey, schemaVersion, state, revision, fingerprint, content }`.
 /// `content` is the accepted snapshot, values in plain text, or `{ "digest": … }` when redacted. Layouts are never
-/// stored.
+/// stored. A member that this version does not know, of a receipt that a later one wrote, is passed over.
 public struct StoredReceipt: Codable, Sendable {
     public enum Content: Sendable {
         case layout(LayoutSnapshot)
@@ -73,7 +55,6 @@ public struct StoredReceipt: Codable, Sendable {
         revision = try container.decode(Int64.self, forKey: .revision)
         if let digest = try? container.decode(DigestContent.self, forKey: .content) { content = .digest(digest.digest) }
         else { content = .layout(try container.decode(LayoutSnapshot.self, forKey: .content)) }
-        guard try memberCount(decoder) == 7 else { throw invalidReceipt(decoder) }
     }
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
@@ -113,6 +94,12 @@ public struct StoredReceipt: Codable, Sendable {
     }
 }
 
+/// An entry of the receipt file, or nil when it is no receipt that this version can read.
+private struct ReadableReceipt: Decodable {
+    let receipt: StoredReceipt?
+    init(from decoder: Decoder) throws { receipt = try? StoredReceipt(from: decoder) }
+}
+
 /// SHA-256 of a value's sorted-keys JSON, in lower-case hex; a snapshot's digest covers its content, not its timestamp.
 enum ReceiptDigest {
     static func of<Value: Encodable>(_ value: Value) throws -> String {
@@ -128,8 +115,8 @@ enum ReceiptDigest {
 public struct FileReceiptStore {
     public let mode: ReceiptMode
     private let url: URL
-    private let maxBytes = 2_097_152
-    private let maxReceipts = 256
+    private static let maxBytes = 2_097_152
+    private static let maxReceipts = 256
     /// The data protection of the receipt file on iOS.
     public static let protection: Data.WritingOptions = .completeFileProtectionUntilFirstUserAuthentication
     public init(url: URL, mode: ReceiptMode = .full) { self.url = url; self.mode = mode }
@@ -143,16 +130,24 @@ public struct FileReceiptStore {
         return store(in: directory.appendingPathComponent("activitykit"), mode: mode)
     }
 
-    /// Every entry. In redacted mode stored snapshots are replaced by their digests, in memory and on disk.
+    /// Every entry that can be read, the newest 256. A receipt that cannot be read costs that receipt, not the list,
+    /// and a file that is no list of receipts holds none; the file stays as it is until the next save, which writes
+    /// what was read. In redacted mode stored snapshots are replaced by their digests, in memory and on disk. A file
+    /// that cannot be opened is an error.
     public func load() throws -> [StoredReceipt] {
         do {
-            let entries = try read(url, limit: maxBytes).map { try JSONDecoder().decode([StoredReceipt].self, from: $0) } ?? []
-            for entry in entries { try entry.validate() }
-            guard entries.count <= maxReceipts else { throw ActivityFailure("NATIVE_ERROR", "Too many activity receipts.") }
+            guard let data = try read(url) else { return [] }
+            let entries = Self.receipts(in: data)
             let kept = mode == .redacted ? try entries.map { try $0.redacted() } : entries
             if kept.map(\.isDigest) != entries.map(\.isDigest) { try write(kept) }
             return kept
         } catch { throw ActivityFailure("NATIVE_ERROR", "Unable to read local activity receipts.") }
+    }
+
+    /// The valid receipts of a file, oldest first as they are kept, at most the newest 256.
+    private static func receipts(in data: Data) -> [StoredReceipt] {
+        guard data.count <= maxBytes, let list = try? JSONDecoder().decode([ReadableReceipt].self, from: data) else { return [] }
+        return Array(list.compactMap(\.receipt).filter { (try? $0.validate()) != nil }.suffix(maxReceipts))
     }
 
     /// Writes every entry, as digests in redacted mode.
@@ -161,20 +156,19 @@ public struct FileReceiptStore {
         catch { throw ActivityFailure("NATIVE_ERROR", "Unable to save local activity receipts.") }
     }
 
-    private func read(_ file: URL, limit: Int) throws -> Data? {
+    /// The file's bytes, one more than a file may have when it has more; nil without a file.
+    private func read(_ file: URL) throws -> Data? {
         guard FileManager.default.fileExists(atPath: file.path) else { return nil }
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
-        let data = try handle.read(upToCount: limit + 1) ?? Data()
-        guard data.count <= limit else { throw ActivityFailure("NATIVE_ERROR", "Activity receipt storage is too large.") }
-        return data
+        return try handle.read(upToCount: Self.maxBytes + 1) ?? Data()
     }
 
     private func write(_ entries: [StoredReceipt]) throws {
         let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let data = try JSONEncoder().encode(entries)
-        guard data.count <= maxBytes else { throw ActivityFailure("NATIVE_ERROR", "Activity receipt storage is too large.") }
+        guard data.count <= Self.maxBytes else { throw ActivityFailure("NATIVE_ERROR", "Activity receipt storage is too large.") }
         #if os(iOS)
         try data.write(to: url, options: [.atomic, Self.protection])
         #else

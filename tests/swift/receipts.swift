@@ -255,7 +255,7 @@ extension LifecycleTests {
         try await verify(mixed.count == 1 && (try fileText(switched).contains(secrets[2])), "a full store writes snapshots again")
     }
 
-    // AK-LIST-3
+    // AK-LIST-3, AK-COMPAT-3
     @MainActor private static func testReceiptFileRules() async throws {
         let folder = try receiptFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -263,10 +263,16 @@ extension LifecycleTests {
             StoredReceipt(id: id, summary: ReceiptSummary(activityKey: "key", schemaVersion: version, fingerprint: "f"), state: "ended",
                           revision: revision, content: content)
         }
-        func expectUnreadable(_ entries: [StoredReceipt]) async throws {
+        /// A receipt that cannot be read costs that receipt, not the others; it leaves the file at the next save.
+        func expectDropped(_ bad: StoredReceipt) async throws {
             let url = folder.appendingPathComponent(UUID().uuidString + ".json")
-            try FileReceiptStore(url: url).save(entries)
-            await expectError("NATIVE_ERROR") { _ = try FileReceiptStore(url: url).load() }
+            let store = FileReceiptStore(url: url)
+            try store.save([entry("kept"), bad])
+            let loaded = try store.load()
+            expect(loaded.map(\.id) == ["kept"], "an invalid receipt is dropped, the others load")
+            try await verify(try fileText(url).contains(#""id":"\#(bad.id)""#), "a load leaves the file as it is")
+            try store.save(loaded)
+            try await verify(!(try fileText(url).contains(#""id":"\#(bad.id)""#)), "the next save writes what was read")
         }
         let readable = folder.appendingPathComponent("readable.json")
         try FileReceiptStore(url: readable).save([entry("b"), entry("d", content: .layout(transcript(7, "words")), revision: 7)])
@@ -280,27 +286,32 @@ extension LifecycleTests {
         expect(FileReceiptStore.protection == .completeFileProtectionUntilFirstUserAuthentication,
                "on iOS the file is readable once the device was unlocked after a restart")
         // a stored snapshot must be valid, its revision must match, and only contract v2 is read
-        try await expectUnreadable([entry("a", content: .layout(LayoutSnapshot(revision: 0, values: ["1a": .bool(true)])))])
-        try await expectUnreadable([entry("a", content: .layout(transcript(2, "words")), revision: 1)])
-        try await expectUnreadable([entry("a", version: 1)])
-        try await expectUnreadable([entry("a", version: 3)])
-        try await expectUnreadable((0...256).map { entry("id\($0)") })
-        try FileReceiptStore(url: readable).save((0..<256).map { entry("id\($0)") })
-        try await verify(try FileReceiptStore(url: readable).load().count == 256, "the file keeps up to 256 receipts")
-        // A file that cannot be read, or a folder that cannot hold one, is a native error.
+        try await expectDropped(entry("a", content: .layout(LayoutSnapshot(revision: 0, values: ["1a": .bool(true)]))))
+        try await expectDropped(entry("a", content: .layout(transcript(2, "words")), revision: 1))
+        try await expectDropped(entry("a", version: 1))
+        try await expectDropped(entry("a", version: 3))
+        let many = folder.appendingPathComponent("many.json")
+        try FileReceiptStore(url: many).save((0...256).map { entry("id\($0)") })
+        try await verify(try FileReceiptStore(url: many).load().map(\.id) == (1...256).map { "id\($0)" }, "a load keeps the newest 256 receipts")
+        // A file that is no list of receipts costs its receipts, not the list; a folder that cannot hold one is a native error.
         let corrupt = folder.appendingPathComponent("corrupt.json")
         try Data("invalid JSON".utf8).write(to: corrupt)
-        await expectError("NATIVE_ERROR") { _ = try FileReceiptStore(url: corrupt).load() }
+        try await verify(try FileReceiptStore(url: corrupt).load().isEmpty, "a file that is no JSON holds no receipt")
         await expectError("NATIVE_ERROR") { try FileReceiptStore(url: corrupt.appendingPathComponent("receipts.json")).save([]) }
         let odd = folder.appendingPathComponent("odd.json")
-        for text in [#"{"receipts":[]}"#, #"[{"id":"a"}]"#, #"[{"id":"a","activityKey":"k","schemaVersion":2,"state":"ended","revision":0,"fingerprint":"f","content":{"digest":"d"},"layout":{}}]"#,
-                     #"[{"id":"a","activityKey":"k","schemaVersion":2,"state":"ended","revision":0,"fingerprint":"f","content":{"digest":"d","revision":0}}]"#,
-                     #"[{"id":"a","activityKey":"k","schemaVersion":2,"state":"ended","revision":0,"fingerprint":"f","content":"d"}]"#] {
+        let receipt = #""id":"a","activityKey":"k","schemaVersion":2,"state":"ended","revision":0,"fingerprint":"f""#
+        for (text, ids) in [(#"{"receipts":[]}"#, [String]()), (#"[{"id":"a"}]"#, []), (#"[{\#(receipt),"content":"d"}]"#, []),
+                            // A receipt of a later version, with members this one does not know, is read.
+                            (#"[{\#(receipt),"content":{"digest":"d"},"layout":{}}]"#, ["a"]),
+                            (#"[{\#(receipt),"content":{"digest":"d","revision":0}}]"#, ["a"]),
+                            (#"[{\#(receipt),"content":{"revision":0,"values":{"eta":"9 min"},"later":1}}]"#, ["a"]),
+                            (#"[{"id":"x"},{\#(receipt),"content":{"digest":"d"}}]"#, ["a"])] {
             try Data(text.utf8).write(to: odd)
-            await expectError("NATIVE_ERROR") { _ = try FileReceiptStore(url: odd).load() }
+            try await verify(try FileReceiptStore(url: odd).load().map(\.id) == ids, "\(text) holds \(ids)")
         }
         try Data(repeating: 0x20, count: 2_097_153).write(to: odd)
-        await expectError("NATIVE_ERROR") { _ = try FileReceiptStore(url: odd).load() }
+        try await verify(try FileReceiptStore(url: odd).load().isEmpty, "a file larger than 2 MB holds no receipt")
+        try await verify(try Data(contentsOf: odd).count == 2_097_153, "and it is left as it is")
         let huge = LayoutSnapshot(revision: 0, values: Dictionary(uniqueKeysWithValues: (0..<32).map { ("k\($0)", LayoutValue.string(String(repeating: "\u{1F600}", count: 1000))) }))
         await expectError("NATIVE_ERROR") { try FileReceiptStore(url: odd).save((0..<32).map { entry("id\($0)", content: .layout(huge)) }) }
 

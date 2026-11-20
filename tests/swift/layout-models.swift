@@ -31,7 +31,7 @@ extension LifecycleTests {
         expect(value, label)
     }
     static func layoutRequest(_ json: String) throws -> LayoutRequest {
-        try JSONDecoder().decode(LayoutRequest.self, from: Data(json.utf8))
+        try JSONDecoder.layoutRequests().decode(LayoutRequest.self, from: Data(json.utf8))
     }
     static func canonical(_ data: Data) throws -> String {
         String(decoding: try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: data), options: [.sortedKeys]), as: UTF8.self)
@@ -85,7 +85,7 @@ extension LifecycleTests {
         expect(session.weight == 1663, "session layout weight matches the shared fixture")
         let encoded = try JSONEncoder().encode(session)
         try await verify(try canonical(encoded) == canonical(Data(sessionLayout.utf8)), "encoding is the wire shape with absent members omitted")
-        try await verify(try JSONDecoder().decode(LayoutRequest.self, from: encoded).weight == 1663, "encoded requests decode again")
+        try await verify(try JSONDecoder.layoutRequests().decode(LayoutRequest.self, from: encoded).weight == 1663, "encoded requests decode again")
         expect(session.snapshot.values["title"] == .string("집중 시간") && session.snapshot.staleAt == 1_790_000_900_000, "snapshot members decode")
         expect(session.android?.visibility == .private, "android options decode")
 
@@ -218,9 +218,9 @@ extension LifecycleTests {
                        EndPolicy(kind: "later", at: nil), EndPolicy(kind: "after", at: -1), EndPolicy(kind: "after", at: 8_640_000_000_000_001)] {
             await expectError("INVALID_INPUT") { try LayoutEndRequest(id: "handle", policy: policy).validate() }
         }
-        let end = try JSONDecoder().decode(LayoutEndRequest.self, from: Data(#"{"id":"handle","policy":{"kind":"after","at":1793809500000}}"#.utf8))
+        let end = try JSONDecoder.layoutRequests().decode(LayoutEndRequest.self, from: Data(#"{"id":"handle","policy":{"kind":"after","at":1793809500000}}"#.utf8))
         expect(end.id == "handle" && end.policy.kind == "after" && end.policy.at == 1_793_809_500_000, "end requests decode")
-        let update = try JSONDecoder().decode(LayoutUpdateRequest.self, from: Data(#"{"id":"handle","snapshot":{"revision":4,"values":{"on":true}}}"#.utf8))
+        let update = try JSONDecoder.layoutRequests().decode(LayoutUpdateRequest.self, from: Data(#"{"id":"handle","snapshot":{"revision":4,"values":{"on":true}}}"#.utf8))
         expect(update.id == "handle" && update.snapshot == LayoutSnapshot(revision: 4, values: ["on": .bool(true)]), "update requests decode")
     }
 }

@@ -325,6 +325,7 @@ extension LayoutDocument {
             guard tally.controls <= LayoutRules.maxControls, region.allowsButtons, !inButton else { throw LayoutRules.limit }
             (children, valid) = ([child], LayoutRules.isActionID(actionId))
         case .divider, .boundText, .progress, .timerText: break
+        case .unknown: valid = false
         }
         guard valid, node.accessibility?.isValid ?? true else { throw LayoutRules.layout }
         let insideButton: Bool
@@ -379,7 +380,7 @@ extension LayoutDocument {
             valid = valid && values[key]?.flag != nil
             try checkReferences(child, values)
         case let .custom(_, props?): valid = valid && props.values.allSatisfy { $0.key.map { values[$0] != nil } ?? true }
-        case .spacer, .divider, .text, .symbol, .image, .path, .custom: break
+        case .spacer, .divider, .text, .symbol, .image, .path, .custom, .unknown: break
         }
         guard valid else { throw LayoutRules.reference }
     }
