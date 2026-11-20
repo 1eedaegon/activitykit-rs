@@ -48,10 +48,12 @@ public struct ActivityKitLayoutWidget: Widget {
             let document = context.attributes.document
             let island = DynamicIsland {
                 DynamicIslandExpandedRegion(.leading, priority: document.priority(of: .expandedLeading)) {
-                    Self.placed(LayoutRegionView(context: context, region: .expandedLeading), below: document.isBelowIfTooWide(.expandedLeading))
+                    Self.placed(Self.clear(LayoutRegionView(context: context, region: .expandedLeading), of: .leading),
+                                below: document.isBelowIfTooWide(.expandedLeading))
                 }
                 DynamicIslandExpandedRegion(.trailing, priority: document.priority(of: .expandedTrailing)) {
-                    Self.placed(LayoutRegionView(context: context, region: .expandedTrailing), below: document.isBelowIfTooWide(.expandedTrailing))
+                    Self.placed(Self.clear(LayoutRegionView(context: context, region: .expandedTrailing), of: .trailing),
+                                below: document.isBelowIfTooWide(.expandedTrailing))
                 }
                 DynamicIslandExpandedRegion(.center, priority: document.priority(of: .expandedCenter)) {
                     LayoutRegionView(context: context, region: .expandedCenter)
@@ -71,6 +73,17 @@ public struct ActivityKitLayoutWidget: Widget {
             .widgetURL(context.attributes.document.url(values: context.state.values))
             return Self.margined(island, by: document)
         }
+    }
+
+    /// What stands in the top outer corner of the expanded island's leading or trailing region is cut there: on the
+    /// iOS 26.3 simulator the last letter of a short trailing value lost a tenth of its pixels, a fifth with margins
+    /// of 12 and 20 points around the expanded island, and the star of the leading region its top with those margins.
+    /// 6 points from the top and from the outer side kept the value whole; on other systems they were not measured,
+    /// and they add to the margins and padding a layout states.
+    private static let expandedCornerClearance: CGFloat = 6
+
+    private static func clear(_ view: some View, of side: Edge.Set) -> some View {
+        view.padding([.top, side], expandedCornerClearance)
     }
 
     /// A leading or trailing region that is too wide for its place beside the camera goes below it, stated on the

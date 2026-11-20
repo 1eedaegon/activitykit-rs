@@ -5,6 +5,9 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- The expanded Dynamic Island no longer cuts the last letter of a short trailing value: the widget keeps the leading and
+  trailing regions 6 points from the top and from their outer side, on top of a layout's margins and padding.
+
 ## 0.6.6 - 2026-11-19
 
 - ci: a release runs again the jobs that no runner took (`f38bbb9`)

@@ -332,15 +332,10 @@ pub(crate) fn height(reporter: &Reporter, fills: bool) -> Outcome {
 
 // AK-ISLAND-3
 /// The expanded Dynamic Island of the plugin's demo, in pure colors: a symbol leading, a title in the middle, a short
-/// value trailing and a status with a bar below. Its trailing value and the ends of its bar were cut by the island's
-/// corners. The UI test expands the island and finds the green value and the magenta bar inside the island's black.
-///
-/// `variant` tries what keeps the value whole: 0 the demo's layout, 1 a line limit and a scale factor on the value, 2
-/// margins of 12 and 20 points around the expanded island, 3 the value below the camera when it is too wide, 4 the
-/// value with padding of 6 points above and after it. The bottom
-/// region shows the same value in cyan, where it has room: the width it should have.
-pub(crate) fn island(reporter: &Reporter, variant: u8) -> Outcome {
-    let mut expanded = IslandExpanded::new()
+/// value trailing, and a status with a bar below. The bottom region shows the same value in cyan, where it has room:
+/// the measure of the value whole. The UI test expands the island and compares the two.
+pub(crate) fn island(reporter: &Reporter) -> Outcome {
+    let expanded = IslandExpanded::new()
         .leading(symbol("star.fill").style("lead"))
         .center(text("Island title").style("center"))
         .trailing(text(Bound::key("eta")).style("value"))
@@ -356,29 +351,16 @@ pub(crate) fn island(reporter: &Reporter, variant: u8) -> Outcome {
             .spacing(4.0)
             .alignment(HorizontalAlignment::Leading),
         );
-    if variant == 3 {
-        expanded = expanded.below_if_too_wide(activitykit::layout::ExpandedRegion::Trailing);
-    }
     let island = Island::new()
         .expanded(expanded)
         .compact_leading(symbol("star.fill").style("lead"))
         .compact_trailing(text(Bound::key("eta")).style("value"))
         .minimal(symbol("star.fill").style("lead"));
-    let island = if variant == 2 {
-        island.margins(activitykit::layout::IslandMargins::new().expanded([12.0, 20.0, 12.0, 20.0]))
-    } else {
-        island
-    };
     let value = || {
         Style::new()
             .font(Font::Caption)
             .weight(FontWeight::Semibold)
             .monospaced_digit()
-    };
-    let value_style = match variant {
-        1 => value().line_limit(1).minimum_scale_factor(0.5),
-        4 => value().padding([6.0, 0.0, 0.0, 6.0]),
-        _ => value(),
     };
     let layout = Layout::new(text("Island").style("title"))
         .island(island)
@@ -390,7 +372,7 @@ pub(crate) fn island(reporter: &Reporter, variant: u8) -> Outcome {
                 .color("#FFFFFF")
                 .line_limit(1),
         )
-        .style("value", value_style.color("#00FF00"))
+        .style("value", value().color("#00FF00"))
         .style("reference", value().color("#00FFFF"))
         .style("status", Style::new().font(Font::Caption).color("#FFFFFF"))
         .style("bar", Style::new().tint("#FF00FF"));

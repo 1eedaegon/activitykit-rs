@@ -288,33 +288,38 @@ final class PlacementTests: HostCase {
     }
 
     // AK-ISLAND-3
-    /// The expanded Dynamic Island draws its trailing value whole: as wide as the same value in the bottom region,
-    /// where it has room. The island's regions cut it before. The island is expanded by a long press on its compact
-    /// form, over the Home Screen; each variant of the scenario is one way a layout might keep the value whole.
+    /// The expanded Dynamic Island draws its trailing value whole: as many of its pixels as the same value has in the
+    /// bottom region, where it has room. The top corner of the expanded content area cut its last letter before (91 %
+    /// showed on the iOS 26.3 simulator; margins around the expanded island made it worse, 80 %, and 6 points of
+    /// padding on the value made it whole). The island is expanded by a long press on its compact form.
     func testTheExpandedIslandKeepsItsTrailingValueWhole() throws {
         if showsBanners { throw XCTSkip("a phone without a Dynamic Island") }
-        var widths: [String] = []
-        for variant in [0, 2, 3, 4] {
-            launch("place-island-\(variant)")
-            waitFor("PASS place-island-\(variant)")
-            goHome()
-            // The compact island shows the value once the system has drawn the activity, which takes a while on a new
-            // simulator; a long press on it expands the island.
-            let compact = springboard.staticTexts["9 min"].firstMatch
-            let drawn = compact.waitForExistence(timeout: 120)
-            if !drawn { try? capture("island-\(variant)-compact-missing") }
-            XCTAssertTrue(drawn, "the compact island shows the value")
-            compact.press(forDuration: 1.2)
-            XCTAssertTrue(springboard.staticTexts["Island title"].firstMatch.waitForExistence(timeout: 10), "a long press expands the island")
-            let pixels = try look(as: "island-\(variant)")
-            let top = CGRect(x: 0, y: 0, width: springboard.frame.width, height: 200)
-            // What of the value shows: its pixels against those of the same value drawn whole in the bottom region.
-            let value = pixels.span(of: RGB(0, 255, 0), in: top), reference = pixels.span(of: RGB(0, 255, 255), in: top)
-            let shown = Double(pixels.count(of: RGB(0, 255, 0), in: top)) / Double(max(1, pixels.count(of: RGB(0, 255, 255), in: top)))
-            widths.append("variant \(variant): the value \(String(describing: value)), \(Int((shown * 100).rounded())) % of it shows; whole in the bottom region \(String(describing: reference))")
-            print("placement: island \(widths.last ?? "")")
-            XCUIDevice.shared.press(.home)
+        launch("place-island")
+        waitFor("PASS place-island")
+        goHome()
+        // The compact island shows the value once the system has drawn the activity, which takes a while on a new
+        // simulator.
+        let compact = springboard.staticTexts["9 min"].firstMatch
+        let drawn = compact.waitForExistence(timeout: 120)
+        if !drawn { try? capture("island-compact-missing") }
+        XCTAssertTrue(drawn, "the compact island shows the value")
+        // A long press does not always take on a busy simulator: up to three.
+        let title = springboard.staticTexts["Island title"].firstMatch
+        for _ in 1...3 {
+            compact.press(forDuration: 1.5)
+            if title.waitForExistence(timeout: 5) { break }
         }
+        XCTAssertTrue(title.exists, "a long press expands the island")
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        let pixels = try look(as: "island-expanded")
+        let top = CGRect(x: 0, y: 0, width: springboard.frame.width, height: 200)
+        let value = try XCTUnwrap(pixels.span(of: RGB(0, 255, 0), in: top), "the trailing value shows")
+        let whole = pixels.count(of: RGB(0, 255, 255), in: top)
+        XCTAssertGreaterThan(whole, 100, "the same value shows whole in the bottom region, the measure")
+        let shown = Double(pixels.count(of: RGB(0, 255, 0), in: top)) / Double(max(1, whole))
+        print("placement: island: the value \(value), \(Int((shown * 100).rounded())) % of the pixels it has whole")
+        XCTAssertGreaterThanOrEqual(shown, 0.98, "the trailing value is whole")
+        XCUIDevice.shared.press(.home)
     }
 
     /// Whether the simulated phone has no Dynamic Island: such a phone shows an alert as a banner. By its model:

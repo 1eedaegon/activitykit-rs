@@ -233,6 +233,10 @@ A priority is 0 to 100, for a region the layout has; only the leading and the tr
 Margins are a number for every edge or `[top, leading, bottom, trailing]`, 0 to 64; a presentation without them keeps
 the system's.
 
+The widget keeps the expanded leading and trailing regions 6 points from the top and from their outer side, on top of
+the margins and the padding a layout states: without them the top outer corner cut the last letter of a short trailing
+value on the iOS 26.3 simulator, and margins around the expanded island cut more of it, not less.
+
 ### Accessibility
 
 ```rust
