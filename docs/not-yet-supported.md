@@ -15,7 +15,6 @@ transitions, the Dynamic Island's priorities and margins, and nodes marked sensi
 
 - Generic `ActivityAttributes` in Rust: Swift needs one concrete type in the app and the widget, and a widget cannot be
   written in Rust. The layout document is that type's static data.
-- The deprecated iOS 16.1 calls: the crate needs iOS 16.2.
 - One stream per Swift sequence: one `events()` channel carries everything, with the activity's handle.
 - An APNs client, keys or HTTP code: that is server work and security-sensitive.
 - ActivityKit's own activity id: the crate's handle is stable across launches and is what the widget sees.

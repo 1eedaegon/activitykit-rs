@@ -14,7 +14,7 @@ extension LifecycleTests {
         }
         let all = ["buttons", "pushToStart", "pushChannels", "transient", "scheduledStart", "smallFamily"]
         let cases: [(Int, Int, [String])] = [
-            (16, 2, []), (17, 0, []), (17, 1, []), (17, 2, Array(all.prefix(2))), (17, 4, Array(all.prefix(2))),
+            (16, 1, []), (16, 2, []), (17, 0, []), (17, 1, []), (17, 2, Array(all.prefix(2))), (17, 4, Array(all.prefix(2))),
             (18, 0, ["buttons", "pushToStart", "pushChannels", "transient", "smallFamily"]), (25, 9, ["buttons", "pushToStart", "pushChannels", "transient", "smallFamily"]),
             (26, 0, all), (27, 2, all)
         ]
@@ -35,7 +35,7 @@ extension LifecycleTests {
     // AK-PLATFORM-1, AK-START-7
     @MainActor static func testPlatformSupport() {
         let cases: [(LiveActivityPlatformSupport.DeviceFamily, Int, Int, Bool)] = [
-            (.phone, 16, 0, false), (.phone, 16, 1, false), (.phone, 16, 2, true),
+            (.phone, 16, 0, false), (.phone, 16, 1, true), (.phone, 16, 2, true),
             (.phone, 15, 7, false), (.phone, 27, 2, true),
             (.pad, 16, 1, false), (.pad, 16, 7, false), (.pad, 17, 0, true),
             (.pad, 27, 2, true), (.unsupported, 27, 2, false)

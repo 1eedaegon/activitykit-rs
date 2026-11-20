@@ -8,7 +8,7 @@ import ActivityKitCore
 
 /// What `ak_authorization` answers.
 struct AuthorizationReply: Codable, Equatable, Sendable {
-    /// An iPhone with iOS 16.2 or later, or an iPad with iPadOS 17 or later; not an iOS app on a Mac.
+    /// An iPhone with iOS 16.1 or later, or an iPad with iPadOS 17 or later; not an iOS app on a Mac.
     let supported: Bool
     /// Supported, and Live Activities are on for this app.
     let enabled: Bool

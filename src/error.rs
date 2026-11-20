@@ -34,9 +34,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// `UNSUPPORTED_PLATFORM`: not iOS, or an iPhone below iOS 16.2, an iPad below iPadOS 17 or an iOS app on a Mac.
+    /// `UNSUPPORTED_PLATFORM`: not iOS, or an iPhone below iOS 16.1, an iPad below iPadOS 17 or an iOS app on a Mac.
     #[error(
-        "UNSUPPORTED_PLATFORM: Live Activities need an iPhone with iOS 16.2 or an iPad with iPadOS 17"
+        "UNSUPPORTED_PLATFORM: Live Activities need an iPhone with iOS 16.1 or an iPad with iPadOS 17"
     )]
     Unsupported,
     /// `INVALID_INPUT`: the request breaks a rule of the contract.
@@ -158,7 +158,7 @@ impl Error {
     pub fn message(&self) -> &str {
         match self {
             Self::Unsupported => {
-                "Live Activities need an iPhone with iOS 16.2 or an iPad with iPadOS 17"
+                "Live Activities need an iPhone with iOS 16.1 or an iPad with iPadOS 17"
             }
             Self::UnsupportedFeature { .. } => {
                 "This iOS version lacks a feature that the request uses"

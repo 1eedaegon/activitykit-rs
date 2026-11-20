@@ -186,6 +186,12 @@ fn layout() -> Layout {
     )
 }
 
+/// The relevance score the system keeps of `given`: none on iOS 16.1, which has no relevance score, where the handle
+/// reports 0 (AK-PLATFORM-2).
+fn kept_score(given: f64) -> f64 {
+    if ios_at_least(16, 2) { given } else { 0.0 }
+}
+
 /// Whether the host runs on at least this iOS, which the app says in `AK_IOS` (App/Host.swift). A scenario asserts
 /// a feature from the iOS that has it, and below that what the crate does instead. Without the variable every
 /// feature reads as missing, which fails the scenarios on a new system.
@@ -318,7 +324,7 @@ fn start(kit: &ActivityKit, reporter: &Reporter, key: &str) -> Result<Activity, 
     check(activity.revision() == Some(1), "the update's revision")?;
     // AK-UPDATE-12: an update without a relevance keeps the score.
     check(
-        activity.relevance() == 50.0,
+        activity.relevance() == kept_score(50.0),
         format!("the kept relevance, got {}", activity.relevance()),
     )?;
     check(
@@ -677,7 +683,7 @@ fn cold_tap(reporter: &Reporter) -> Outcome {
     Ok(())
 }
 
-// AK-START-3
+// AK-START-3, AK-PLATFORM-2
 /// Start and update an activity, then the UI test ends the process.
 fn relaunch_start(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
@@ -1115,7 +1121,7 @@ fn taps() -> bool {
 }
 
 // AK-PLATFORM-1, AK-START-7
-/// Below iOS 16.2, where the crate starts no activity (iOS 16.0 has no ActivityKit at all, and the bridge links it
+/// Below iOS 16.1, where the crate starts no activity (iOS 16.0 has no ActivityKit at all, and the bridge links it
 /// weakly): the app runs, the authorization says that nothing is supported, and every call answers `Unsupported`.
 fn unsupported(reporter: &Reporter) -> Outcome {
     let kit = ActivityKit::new();
@@ -1455,7 +1461,7 @@ fn policies(reporter: &Reporter) -> Outcome {
     // the Lock Screen.
     block_on(activity.end(End::default())).map_err(|error| format!("end: {error}"))?;
     checks.check(
-        activity.state() == State::Ended && activity.relevance() == 50.0,
+        activity.state() == State::Ended && activity.relevance() == kept_score(50.0),
         format!(
             "the end keeps the score: {:?} {}",
             activity.state(),
@@ -1464,7 +1470,7 @@ fn policies(reporter: &Reporter) -> Outcome {
     );
     let kept = listed(&kit, &activity)?.map(|listed| (listed.state(), listed.relevance()));
     checks.check(
-        kept == Some((State::Ended, 50.0)),
+        kept == Some((State::Ended, kept_score(50.0))),
         format!("the list shows it ended with its score: {kept:?}"),
     );
     let dismissed = reaches(
@@ -1488,7 +1494,7 @@ fn policies(reporter: &Reporter) -> Outcome {
         .map_err(|error| format!("end: {error}"))?;
     let score = listed(&kit, &scored)?.map(|listed| listed.relevance());
     checks.check(
-        score == Some(70.0),
+        score == Some(kept_score(70.0)),
         format!("the end's relevance reaches ActivityKit: {score:?}"),
     );
 

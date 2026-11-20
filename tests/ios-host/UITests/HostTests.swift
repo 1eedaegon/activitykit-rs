@@ -258,10 +258,10 @@ final class HostTests: HostCase {
     }
 
     // AK-PLATFORM-1, AK-START-7
-    /// On a system below iOS 16.2 the app, built for iOS 15.0, runs, and the crate answers `Unsupported`: iOS 16.0
-    /// has no ActivityKit, which the bridge links weakly. From 16.2 every other test shows what the crate does.
+    /// On a system below iOS 16.1 the app, built for iOS 15.0, runs, and the crate answers `Unsupported`: iOS 16.0
+    /// has no ActivityKit, which the bridge links weakly. From 16.1 every other test shows what the crate does.
     func testOlderSystemsAnswerUnsupported() throws {
-        if iOS(16, 2) { throw XCTSkip("from iOS 16.2 the crate runs activities") }
+        if iOS(16, 1) { throw XCTSkip("from iOS 16.1 the crate runs activities") }
         launch("unsupported")
         waitFor("PASS unsupported")
         try capture("unsupported")
@@ -406,6 +406,7 @@ final class HostTests: HostCase {
     /// the line for stale content, with no update and with the app ended. ActivityKit then lists the activity as stale,
     /// and an update without a stale date brings the first line back.
     func testStaleContentChangesTheLockScreen() throws {
+        if !iOS(16, 2) { throw XCTSkip("iOS 16.1 has no stale date: its content never goes stale") }
         launch("stale-start")
         waitFor("PASS stale-start")
         goHome()
@@ -555,7 +556,7 @@ final class HostTests: HostCase {
     }
 
     /// After the process ends, `activities()` finds the activity at its accepted revision, and its handle continues.
-    // AK-HANDLE-1, AK-LIST-1, AK-START-3
+    // AK-HANDLE-1, AK-LIST-1, AK-START-3, AK-PLATFORM-2
     func testActivitiesAfterRelaunch() throws {
         launch("relaunch-start")
         waitFor("PASS relaunch-start")

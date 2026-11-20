@@ -319,7 +319,7 @@ private struct ImageFolderReply: Encodable {
 @MainActor
 final class Bridge {
     static let shared = Bridge()
-    nonisolated static let unsupported = ActivityFailure("UNSUPPORTED_PLATFORM", "Live Activities require iPhone with iOS 16.2 or iPad with iPadOS 17 or later.")
+    nonisolated static let unsupported = ActivityFailure("UNSUPPORTED_PLATFORM", "Live Activities require iPhone with iOS 16.1 or iPad with iPadOS 17 or later.")
 
     let presentations = Presentations()
     private var controller: LayoutActivityController?
