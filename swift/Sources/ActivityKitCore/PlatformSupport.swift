@@ -31,7 +31,8 @@ public enum LiveActivityPlatformSupport {
     public static func supports(_ family: DeviceFamily, version: OperatingSystemVersion, isiOSAppOnMac: Bool = false) -> Bool {
         guard !isiOSAppOnMac else { return false }
         switch family {
-        case .phone: return version.majorVersion > 16 || (version.majorVersion == 16 && version.minorVersion >= 2)
+        // ActivityKit's first release, 16.1, which has no stale date and no relevance score.
+        case .phone: return version.majorVersion > 16 || (version.majorVersion == 16 && version.minorVersion >= 1)
         case .pad: return version.majorVersion >= 17
         case .unsupported: return false
         }

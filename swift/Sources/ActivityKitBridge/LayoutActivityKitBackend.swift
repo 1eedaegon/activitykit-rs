@@ -10,7 +10,7 @@ import ActivityKitCore
 
 /// ActivityKit for layout activities (`Activity<LiveActivityLayoutAttributes>`), with the presentations of the call
 /// and the observer of new activities and their states.
-@available(iOS 16.2, *)
+@available(iOS 16.1, *)
 @MainActor
 final class LayoutActivityKitBackend: LayoutActivityBackend {
     private let system = ActivityKitAdapter<LiveActivityLayoutAttributes>(schemaVersion: 2)
@@ -57,7 +57,7 @@ final class LayoutActivityKitBackend: LayoutActivityBackend {
         return ended(activity, relevance: score)
     }
 
-    private func ended(_ activity: LayoutActivity, relevance: Double) -> LayoutActivity {
+    private func ended(_ activity: LayoutActivity, relevance: Double?) -> LayoutActivity {
         LayoutActivity(id: activity.id, attributes: activity.attributes, snapshot: activity.snapshot, state: "ended",
                        degradedFeatures: activity.degradedFeatures, relevance: relevance)
     }

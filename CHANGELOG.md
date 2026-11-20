@@ -11,6 +11,10 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
   (`JSONDecoder.layoutRequests()`). A receipt that cannot be read costs that receipt and no longer fails every list
   with `NATIVE_ERROR`; a receipt of a later version, with members this one does not know, is read. A load keeps the
   newest 256 receipts.
+- The crate runs Live Activities from iOS 16.1, ActivityKit's first release, where it answered `Unsupported` below
+  16.2. On 16.1 the bridge starts, updates and ends an activity with ActivityKit's calls of that release, which take the
+  content state alone: there is no stale date, no relevance score (a record has none, and the handle's is 0) and no
+  frequent-pushes setting. The widget extension can be built for 16.1.
 
 ## 0.7.0 - 2026-11-20
 

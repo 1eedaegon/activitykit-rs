@@ -1,6 +1,6 @@
 # PRD: compatibility
 
-Status: phases 1 to 3 are built (see "Rollout"); "Where it stands" has what was measured. It follows the
+Status: phases 1 to 4 are built (see "Rollout"); "Where it stands" has what was measured. It follows the
 compatibility plan of `liveupdate-rs` (its `docs/design/compatibility`), which asks the same three questions of an
 AAR and an Android version, and it keeps the crate's Rust version as it is.
 
@@ -10,8 +10,8 @@ Four parts meet where an activity is shown: the crate with its bridge in the app
 builds from the Swift package, the iOS of the device, and often a server that builds push payloads with the crate.
 Each changes on its own, and each change can break one of the others.
 
-**An older iOS.** The crate builds for an app from iOS 15.0. Its bridge starts an activity from iOS 16.2, one release
-above ActivityKit's own first, 16.1. What a later iOS added is behind a check of the version: a button's and a
+**An older iOS.** The crate builds for an app from iOS 15.0. Its bridge started an activity from iOS 16.2, one release
+above ActivityKit's own first, 16.1, until phase 4. What a later iOS added is behind a check of the version: a button's and a
 toggle's intent, a timestamp of the content and push-to-start (17.2), a channel and the small activity family (18), a
 scheduled start and CarPlay (26).
 
@@ -50,8 +50,8 @@ where something is not known, and code written against this version compiles aga
 
 An older iOS:
 
-- The simulator suite runs on the oldest runtime of each floor and on the last one below it (iOS 16.2, 17.0, 17.2,
-  17.4, 18.0, and 18.0 with watchOS 11.0 by hand) as on the newest. A test says from which iOS it holds; below that it
+- The simulator suite runs on the oldest runtime of each floor and on the last one below it (iOS 16.1, 16.2, 17.0,
+  17.2, 17.4, 18.0, and 18.0 with watchOS 11.0 by hand) as on the newest. A test says from which iOS it holds; below that it
   asserts what the crate does instead.
 - A floor is what was run on that system, not the availability the SDK states for a type.
 - An app built for iOS 15.0 starts on a system that has no ActivityKit, and the crate answers `Unsupported` there.
@@ -160,6 +160,10 @@ the suite, by then 23 tests, ran again on 16.2, 17.0, 17.2, 17.4, 18.0 and 26.3:
   supported and a start and the list answered `Unsupported` (`testOlderSystemsAnswerUnsupported`). The widget
   extension, built for 16.2, did not keep the app from installing.
 - iOS 17.1 cannot be run here: Xcode 26.3 offers no simulator runtime of it.
+- **iOS 16.1 (phase 4, 2026-11-20).** The bridge starts, updates and ends an activity with ActivityKit's calls of
+  16.1, which take the content state alone, so there is no stale date and no relevance score (AK-PLATFORM-2); the
+  suite ran on the iOS 16.1 simulator (docs/testing.md). That run found that 16.1 reports a refused start as an error
+  of `ActivityInput` around the `ActivityAuthorizationError`, which the adapter now reads by its domain and code.
 
 **Parts of two versions (phase 3, 2026-11-20).** The reader of the contract's objects is strict only where a decoder
 asks for it (`JSONDecoder.layoutRequests()`), which the bridge does for the app's requests. ActivityKit decodes the
@@ -177,7 +181,7 @@ changes what is shown, and only `small` changes where, which `small_family` alre
 | 1 | The suite on iOS 16.2, 17.0, 17.2, 17.4 and 18.0: tests state their floor; what fails is fixed | patch, per fix: 0.6.6 |
 | 2 | Capabilities: what the device and the embedded widget do (`Authorization`'s members, AK-AUTH-8), and a refusal before ActivityKit is asked (as before, `UnsupportedFeature`) | minor: 0.7.0 |
 | 3 | The widget and the content state read what they do not know; receipts one by one | minor: built for 0.8.0 |
-| 4 | iOS 16.1 in the bridge | minor |
+| 4 | iOS 16.1 in the bridge | minor: built for 0.8.0 |
 | 5 | Open enums and constructors: one breaking release, so that later ones are not | minor (0.x), with `!` |
 
 ## Open questions
