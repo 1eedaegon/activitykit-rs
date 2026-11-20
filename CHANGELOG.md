@@ -5,6 +5,10 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.8.1 - 2026-11-20
+
+- fix: the contract's types have constructors again outside the crate (`c842779`)
+
 - The contract's requests and records, `#[non_exhaustive]` since 0.8.0, have constructors and builders, so a crate
   outside this one builds them without JSON: `LayoutRegions::new(lock_screen)` with `.island`, `.background`,
   `.keyline`, `.url` and `.small`; `LayoutSnapshot::new(revision, values)` with `.stale_at` and `.timestamp`;
