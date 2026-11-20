@@ -10,6 +10,11 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
   are measured once, at its first update. On an Intel Mac the checks of an update of a layout of 40 nodes took
   616 µs before and 39 µs after. A widget's render resolves each style once, not once for each node that names it:
   a Lock Screen of 40 nodes rendered in 47 µs instead of about 100.
+- `Authorization` says what the device runs of the features that came after the first Live Activities:
+  `push_to_start` (iOS 17.2), `push_channels` and `transient` (18), `scheduled_start` (26), and `small_family` (18,
+  with a widget extension that draws it). An app no longer has to try a request and read
+  `Error::UnsupportedFeature` to learn it. A pattern on `Authorization` already needed `..`, so code that compiled
+  goes on compiling.
 
 ## 0.6.6 - 2026-11-19
 

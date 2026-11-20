@@ -397,13 +397,23 @@ extension LifecycleTests {
         expect(data(fromThread)["enabled"] as? Bool == true, "ak_authorization answers on any thread before it returns")
     }
 
-    // AK-AUTH-1, AK-AUTH-2, AK-BRIDGE-3, AK-IMAGE-4, AK-IMAGE-5
+    // AK-AUTH-1, AK-AUTH-2, AK-AUTH-8, AK-BRIDGE-3, AK-IMAGE-4, AK-IMAGE-5
     @MainActor static func testBridgeAuthorizationAndImages() throws {
         let system = install()
-        expect(data(now(C.authorization)) as NSDictionary == ["supported": true, "enabled": true, "buttons": true, "frequentPushes": false],
+        let later: [String: Bool] = ["pushToStart": false, "pushChannels": false, "transient": false, "scheduledStart": false, "smallFamily": false]
+        expect(data(now(C.authorization)) as NSDictionary == (["supported": true, "enabled": true, "buttons": true, "frequentPushes": false] as [String: Bool])
+                .merging(later) { $1 } as NSDictionary,
                "ak_authorization reports the system")
         system.reply = AuthorizationReply(supported: true, enabled: false, buttons: false)
         expect(data(now(C.authorization))["enabled"] as? Bool == false, "turned off in Settings")
+        var eighteen = LiveActivityFeatures()
+        eighteen.buttons = true; eighteen.pushToStart = true; eighteen.pushChannels = true; eighteen.transient = true; eighteen.smallFamily = true
+        system.reply = AuthorizationReply(supported: true, enabled: true, frequentPushes: true, features: eighteen)
+        let reported = data(now(C.authorization))
+        expect(["buttons", "pushToStart", "pushChannels", "transient", "smallFamily"].allSatisfy { reported[$0] as? Bool == true }
+               && reported["scheduledStart"] as? Bool == false, "and what the device runs of the later features")
+        let older = try JSONDecoder().decode(AuthorizationReply.self, from: Data(#"{"supported":true,"enabled":true,"buttons":true}"#.utf8))
+        expect(older.features == LiveActivityFeatures(buttons: true), "a reply without them says the device runs none of them")
         expect(code(now(C.imageFolder)) == "CONFIGURATION_REQUIRED", "no App Group, no image folder")
         system.folder = URL(fileURLWithPath: "/container/activitykit/images")
         expect(data(now(C.imageFolder))["path"] as? String == "/container/activitykit/images", "ak_image_folder names the folder")
@@ -418,7 +428,9 @@ extension LifecycleTests {
         expect(code(start) == "UNSUPPORTED_PLATFORM", "no Live Activities, no start")
         expect(code(broken) == "UNSUPPORTED_PLATFORM", "the platform is checked before the request")
         expect(code(listed) == "UNSUPPORTED_PLATFORM", "no list")
-        expect(data(now(C.authorization)) as NSDictionary == ["supported": false, "enabled": false, "buttons": false, "frequentPushes": false],
+        expect(data(now(C.authorization)) as NSDictionary == ["supported": false, "enabled": false, "buttons": false, "frequentPushes": false,
+                                                              "pushToStart": false, "pushChannels": false, "transient": false,
+                                                              "scheduledStart": false, "smallFamily": false],
                "an unsupported platform reports nothing enabled")
         expect(code(now(C.imageFolder)) == "UNSUPPORTED_PLATFORM", "no image folder")
         let system = UnsupportedSystem()
@@ -449,7 +461,9 @@ extension LifecycleTests {
         expect(EventLog.shared.events.count == 4, "state and authorization events reach the handler at once")
         expect(EventLog.shared.events[2] as NSDictionary == ["type": "state", "activityId": "la-ios-layout-1", "activityKey": "rec:1", "state": "dismissed"]
                && EventLog.shared.events[3] as NSDictionary == ["type": "authorization",
-                   "authorization": ["supported": true, "enabled": false, "buttons": true, "frequentPushes": false]], "they keep their wire shape")
+                   "authorization": ["supported": true, "enabled": false, "buttons": true, "frequentPushes": false, "pushToStart": false,
+                                     "pushChannels": false, "transient": false, "scheduledStart": false, "smallFamily": false]],
+                   "they keep their wire shape")
         system.observed[0].emit(.started(activityId: "la-ios-layout-2", activityKey: "rec:2"))
         expect(EventLog.shared.events.count == 5 && EventLog.shared.events[4] as NSDictionary
                == ["type": "started", "activityId": "la-ios-layout-2", "activityKey": "rec:2"], "a new activity is a started event")

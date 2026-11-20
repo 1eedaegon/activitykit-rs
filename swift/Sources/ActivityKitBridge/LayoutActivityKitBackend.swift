@@ -17,11 +17,8 @@ final class LayoutActivityKitBackend: LayoutActivityBackend {
     /// The names that the app's `ActivityKitCustomViews` class registers, read once.
     private let customViews = CustomViewCatalog.names()
     /// The system asks a widget for the small family from iOS 18, and the layout widget answers when its extension
-    /// opts in.
-    private let drawsSmall: Bool = {
-        guard #available(iOS 18.0, *) else { return false }
-        return LayoutWidgetPreflight.drawsSmallFamily(plugIns: Bundle.main.builtInPlugInsURL)
-    }()
+    /// opts in: what the authorization says.
+    private let drawsSmall = ActivityKitSystem.features.smallFamily
     private let presentations: Presentations
     private let observer: ActivityObserver
 

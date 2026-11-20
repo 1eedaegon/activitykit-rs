@@ -20,13 +20,22 @@ final class ActivityKitSystem: BridgeSystem, @unchecked Sendable {
         return Self.reply(enabled: ActivityAuthorizationInfo().areActivitiesEnabled)
     }
 
+    /// What this device runs of the later features, read once: neither the iOS nor the embedded widget extension
+    /// changes while the app runs. The extension is read only where the system asks for the small family (iOS 18).
+    /// A scheduled start needs the app built with the iOS 26 SDK too, as the adapter's request does.
+    static let features: LiveActivityFeatures = {
+        var features = LiveActivityFeatures(version: ProcessInfo.processInfo.operatingSystemVersion,
+                                            widgetDrawsSmallFamily: LayoutWidgetPreflight.drawsSmallFamily(plugIns: Bundle.main.builtInPlugInsURL))
+        #if !compiler(>=6.2)
+        features.scheduledStart = false
+        #endif
+        return features
+    }()
+
     private static func reply(enabled: Bool) -> AuthorizationReply {
-        // The iOS from which the widget draws a button: where the system runs `ActivityKitActionIntent`.
-        var buttons = false
-        if #available(iOS 17.2, *) { buttons = true }
         var frequentPushes = false
         if #available(iOS 16.2, *) { frequentPushes = ActivityAuthorizationInfo().frequentPushesEnabled }
-        return AuthorizationReply(supported: true, enabled: enabled, buttons: buttons, frequentPushes: frequentPushes)
+        return AuthorizationReply(supported: true, enabled: enabled, frequentPushes: frequentPushes, features: features)
     }
 
     /// The token as APNs takes it: lowercase hex.

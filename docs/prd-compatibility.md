@@ -163,7 +163,7 @@ the suite, by then 23 tests, ran again on 16.2, 17.0, 17.2, 17.4, 18.0 and 26.3:
 | Phase | What | Release |
 | --- | --- | --- |
 | 1 | The suite on iOS 16.2, 17.0, 17.2, 17.4 and 18.0: tests state their floor; what fails is fixed | patch, per fix |
-| 2 | Capabilities: what the device and the embedded widget do, and a refusal before ActivityKit is asked | minor |
+| 2 | Capabilities: what the device and the embedded widget do (`Authorization`'s members, AK-AUTH-8), and a refusal before ActivityKit is asked (as before, `UnsupportedFeature`) | minor |
 | 3 | The widget and the content state read what they do not know; receipts one by one | minor |
 | 4 | iOS 16.1 in the bridge | minor |
 | 5 | Open enums and constructors: one breaking release, so that later ones are not | minor (0.x), with `!` |
