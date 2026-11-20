@@ -26,6 +26,7 @@ use std::collections::BTreeMap;
 /// What [`ActivityKit::start`](crate::ActivityKit::start) draws: the Lock Screen tree, the Dynamic Island, the two
 /// tints, the URL a tap opens and the style table that nodes name with [`Node::style`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Layout {
     pub lock_screen: Node,
     /// The Dynamic Island. Without it, the expanded island shows the Lock Screen tree, the compact leading and minimal
@@ -112,6 +113,7 @@ impl Layout {
 /// The four regions of the expanded Dynamic Island.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct IslandExpanded {
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub leading: Option<Node>,
@@ -132,6 +134,7 @@ pub struct IslandExpanded {
 /// A region of the expanded Dynamic Island.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ExpandedRegion {
     Leading,
     Trailing,
@@ -143,6 +146,7 @@ pub enum ExpandedRegion {
 /// higher one the width first. A region without one has 0. At least one member.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct RegionPriorities {
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub leading: Option<f64>,
@@ -158,6 +162,7 @@ pub struct RegionPriorities {
 /// for every edge or `[top, leading, bottom, trailing]`, 0 to 64 points. At least one member.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct IslandMargins {
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub expanded: Option<Padding>,
@@ -246,6 +251,7 @@ impl IslandExpanded {
 /// Dynamic Island presentations, at least one part. A part left out draws its default.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Island {
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub expanded: Option<IslandExpanded>,

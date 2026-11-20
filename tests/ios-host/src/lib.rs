@@ -883,7 +883,7 @@ fn scheduled_start(reporter: &Reporter) -> Outcome {
         let hour = SystemTime::now() + Duration::from_secs(3600);
         let refused = block_on(kit.start_with(scheduled("waiting", "Waiting", hour)));
         check(
-            matches!(&refused, Err(Error::UnsupportedFeature { feature, minimum_ios }) if feature == "scheduledStart" && *minimum_ios == (26, 0)),
+            matches!(&refused, Err(Error::UnsupportedFeature { feature, minimum_ios, .. }) if feature == "scheduledStart" && *minimum_ios == (26, 0)),
             format!("below iOS 26 a scheduled start is refused as unsupported, not {refused:?}"),
         )?;
         let left = block_on(kit.activities()).map_err(|error| error.to_string())?;
@@ -981,7 +981,7 @@ fn start_options(reporter: &Reporter) -> Outcome {
     // Below iOS 18 an activity cannot be transient: it would stay, so the crate refuses the request.
     if !ios_at_least(18, 0) {
         check(
-            matches!(&transient, Err(Error::UnsupportedFeature { feature, minimum_ios }) if feature == "transient" && *minimum_ios == (18, 0)),
+            matches!(&transient, Err(Error::UnsupportedFeature { feature, minimum_ios, .. }) if feature == "transient" && *minimum_ios == (18, 0)),
             format!("below iOS 18 a transient start is refused as unsupported, not {transient:?}"),
         )?;
         reporter.say("refused: a transient start needs iOS 18");
@@ -1190,10 +1190,7 @@ fn tile(reporter: &Reporter, background: Option<&str>) -> Outcome {
         .spacing(4.0)
     };
     let chip = || Style::new().frame(Frame::new().width(34.0).height(24.0));
-    let pair = Color::Adaptive {
-        light: "#00FF00".to_owned(),
-        dark: "#FF00FF".to_owned(),
-    };
+    let pair = Color::adaptive("#00FF00", "#FF00FF");
     let layout = Layout::new(vstack([text("Colors"), chips()]).spacing(6.0))
         .small(chips())
         .style("hex", chip().background("#FF8000").color("#000000"))
@@ -1217,10 +1214,7 @@ fn tile(reporter: &Reporter, background: Option<&str>) -> Outcome {
 /// because cards with them came in two appearances far more often than cards of text alone.
 fn appearance(reporter: &Reporter) -> Outcome {
     let kit = prepared(reporter)?;
-    let pair = |light: &str, dark: &str| Color::Adaptive {
-        light: light.to_owned(),
-        dark: dark.to_owned(),
-    };
+    let pair = |light: &str, dark: &str| Color::adaptive(light, dark);
     let controls = [
         timer("from", "to"),
         toggle("flag", "on", text("Flag")),

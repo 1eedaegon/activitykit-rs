@@ -19,6 +19,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Bound {
     pub bind: String,
 }
@@ -36,6 +37,7 @@ impl Bound {
 /// accessibility can be bound.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum Bindable<T> {
     Literal(T),
     Bound(Bound),
@@ -100,6 +102,7 @@ impl From<FontWeight> for Bindable<FontWeight> {
 /// others are fixed at start.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Style {
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub font: Option<Font>,
@@ -150,6 +153,7 @@ pub struct Style {
 /// Sizes in points. At least one member.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Frame {
     #[serde(default, deserialize_with = "non_null", skip_serializing_if = "none")]
     pub width: Option<f64>,
@@ -169,6 +173,7 @@ pub struct Frame {
 
 /// A length in points, or `"infinity"` on the wire.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub enum Dimension {
     Points(f64),
     Infinity,
@@ -202,6 +207,7 @@ impl<'de> Deserialize<'de> for Dimension {
 /// One number for every edge, or `[top, leading, bottom, trailing]`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum Padding {
     All(f64),
     Edges([f64; 4]),
@@ -210,11 +216,13 @@ pub enum Padding {
 /// A semantic name, one hex color for both appearances, or a light and dark pair.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Color {
     Named(ColorName),
     /// `#RRGGBB` or `#RRGGBBAA`.
     Hex(String),
     /// Hex colors for the light and the dark appearance.
+    #[non_exhaustive]
     Adaptive {
         light: String,
         dark: String,
@@ -223,6 +231,7 @@ pub enum Color {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ColorName {
     Primary,
     Secondary,
@@ -248,6 +257,7 @@ pub enum ColorName {
 /// A system text style.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum Font {
     LargeTitle,
     Title,
@@ -264,6 +274,7 @@ pub enum Font {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum FontWeight {
     UltraLight,
     Thin,
@@ -278,6 +289,7 @@ pub enum FontWeight {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum FontDesign {
     Default,
     Rounded,
@@ -288,6 +300,7 @@ pub enum FontDesign {
 /// How the content of a node changes from one update to the next.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ContentTransition {
     /// Digits roll, upward as a number grows.
     NumericText,
@@ -301,6 +314,7 @@ pub enum ContentTransition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ButtonStyle {
     Automatic,
     Bordered,
@@ -321,6 +335,16 @@ impl From<&str> for Bindable<Color> {
 }
 
 /// A color name such as `"red"`, or else a hex color such as `"#FF3B30"`.
+impl Color {
+    /// Hex colors for the light and the dark appearance.
+    pub fn adaptive(light: impl Into<String>, dark: impl Into<String>) -> Self {
+        Self::Adaptive {
+            light: light.into(),
+            dark: dark.into(),
+        }
+    }
+}
+
 impl From<&str> for Color {
     fn from(color: &str) -> Self {
         let name = serde_json::Value::String(color.to_owned());

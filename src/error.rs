@@ -66,12 +66,14 @@ pub enum Error {
     ConfigurationRequired(String),
     /// `UNSUPPORTED_FEATURE`: the request uses `feature`, which needs iOS `minimum_ios` (major, minor).
     #[error("UNSUPPORTED_FEATURE: {feature} needs iOS {}.{}", minimum_ios.0, minimum_ios.1)]
+    #[non_exhaustive]
     UnsupportedFeature {
         feature: String,
         minimum_ios: (u16, u16),
     },
     /// `SYSTEM_LIMIT`: the app's or the device's limit of running activities is reached.
     #[error("SYSTEM_LIMIT: the {} limit of Live Activities is reached", scope.noun())]
+    #[non_exhaustive]
     SystemLimit { scope: LimitScope },
     /// `NATIVE_ERROR`: ActivityKit or the bridge failed, or the Swift layer gave no reply within the kit's call wait
     /// of 10 seconds.

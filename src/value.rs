@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, ops::Deref};
 /// One displayed value: text, a number or a flag. Strings are used as given, without normalization.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum Value {
     Text(String),
     Number(f64),

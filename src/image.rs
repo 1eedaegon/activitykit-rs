@@ -27,11 +27,22 @@ const END: &[u8] = b"\0\0\0\0IEND\xae\x42\x60\x82";
 /// A named PNG, as JSON carries it: `{ "name", "png": [bytes] }`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct ImageInput {
     /// The name that an `image` node's `{ "file": name }` source gives.
     pub name: String,
     /// The PNG file's bytes.
     pub png: Vec<u8>,
+}
+
+impl ImageInput {
+    /// A named PNG, to check with [`Validate::validate`] before it is sent.
+    pub fn new(name: impl Into<String>, png: impl Into<Vec<u8>>) -> Self {
+        Self {
+            name: name.into(),
+            png: png.into(),
+        }
+    }
 }
 
 impl Validate for ImageInput {
