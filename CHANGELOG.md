@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- A widget draws an activity of a later crate or a later server: it passes over the members of the layout, the styles
+  and the content state that it does not know, and draws a node of a type it does not know as nothing, where it
+  refused the whole layout and drew the activity empty. The app's requests stay strict, in Rust and in the bridge
+  (`JSONDecoder.layoutRequests()`). A receipt that cannot be read costs that receipt and no longer fails every list
+  with `NATIVE_ERROR`; a receipt of a later version, with members this one does not know, is read. A load keeps the
+  newest 256 receipts.
 - The crate runs Live Activities from iOS 16.1, ActivityKit's first release, where it answered `Unsupported` below
   16.2. On 16.1 the bridge starts, updates and ends an activity with ActivityKit's calls of that release, which take the
   content state alone: there is no stale date, no relevance score (a record has none, and the handle's is 0) and no

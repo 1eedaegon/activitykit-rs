@@ -3,8 +3,8 @@ import Foundation
 extension LifecycleTests {
     /// What this layer answers for one fixture request: the error code, or nil and the weight.
     static func layoutVerdict(_ command: String, _ input: Data) -> (code: String?, weight: Int?) {
-        let decoder = JSONDecoder()
         do {
+            let decoder = try JSONDecoder.layoutRequests()
             switch command {
             case "start_layout":
                 let request = try decoder.decode(LayoutRequest.self, from: input)
@@ -31,8 +31,8 @@ extension LifecycleTests {
     /// What this layer answers for an update after a start, as `LayoutActivityController.update` checks it: the
     /// update alone, then against the stored layout and styles. The weight is the stored part plus the new values.
     static func updateVerdict(_ start: Data, _ update: Data) -> (code: String?, weight: Int?) {
-        let decoder = JSONDecoder()
         do {
+            let decoder = try JSONDecoder.layoutRequests()
             let request = try decoder.decode(LayoutRequest.self, from: start)
             try request.validate()
             let next = try decoder.decode(LayoutUpdateRequest.self, from: update)
@@ -48,8 +48,8 @@ extension LifecycleTests {
 
     /// What this layer answers for an end with final content after a start, as `LayoutActivityController.end` checks it.
     static func endVerdict(_ start: Data, _ end: Data) -> (code: String?, weight: Int?) {
-        let decoder = JSONDecoder()
         do {
+            let decoder = try JSONDecoder.layoutRequests()
             let request = try decoder.decode(LayoutRequest.self, from: start)
             try request.validate()
             let next = try decoder.decode(LayoutEndRequest.self, from: end)
@@ -66,7 +66,7 @@ extension LifecycleTests {
 
     /// The request decoded and encoded again, for comparing with the wire input.
     static func reencoded(_ command: String, _ input: Data) throws -> Data {
-        let decoder = JSONDecoder(), encoder = JSONEncoder()
+        let decoder = try JSONDecoder.layoutRequests(), encoder = JSONEncoder()
         switch command {
         case "start_layout": return try encoder.encode(decoder.decode(LayoutRequest.self, from: input))
         case "update_layout": return try encoder.encode(decoder.decode(LayoutUpdateRequest.self, from: input))

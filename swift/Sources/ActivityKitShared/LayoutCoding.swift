@@ -9,12 +9,23 @@ struct LayoutMemberKey: CodingKey {
     init?(intValue: Int) { nil }
 }
 
-/// Reads a JSON object strictly: a member that is unknown, null or of another type fails.
+/// Reads a JSON object of the contract: a member that is null or of another type fails, and so does a member that is
+/// unknown when the decoder reads the app's requests (`JSONDecoder.layoutRequests()`). Anywhere else, in a widget that
+/// reads the attributes and the content state ActivityKit stored, an unknown member is passed over: the activity may
+/// have been made by a later crate or a later server.
 struct LayoutReader {
     static let mismatch = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The value does not match the layout contract."))
+    /// The user-info key that asks for the strict reading. Foundation makes a key of any string; the type only allows
+    /// for failing, and `layoutRequests()` fails then rather than read leniently.
+    static let strictKey = CodingUserInfoKey(rawValue: "io.github.1eedaegon.activitykit.requests")
     private let container: KeyedDecodingContainer<LayoutMemberKey>
     private var taken = 0
-    init(_ decoder: Decoder) throws { container = try decoder.container(keyedBy: LayoutMemberKey.self) }
+    /// Whether a member that nothing reads fails: in a request of the app, not in what a later version wrote.
+    let isStrict: Bool
+    init(_ decoder: Decoder) throws {
+        container = try decoder.container(keyedBy: LayoutMemberKey.self)
+        isStrict = Self.strictKey.flatMap { decoder.userInfo[$0] as? Bool } ?? false
+    }
 
     mutating func take<Value: Decodable>(_ name: String) throws -> Value? {
         let key = LayoutMemberKey(name)
@@ -26,9 +37,20 @@ struct LayoutReader {
         guard let value: Value = try take(name) else { throw LayoutReader.mismatch }
         return value
     }
-    /// Fails when the object holds a member that nothing read.
+    /// Fails when the object of a request holds a member that nothing read.
     func finish() throws {
-        guard container.allKeys.count == taken else { throw LayoutReader.mismatch }
+        guard !isStrict || container.allKeys.count == taken else { throw LayoutReader.mismatch }
+    }
+}
+
+extension JSONDecoder {
+    /// A decoder of the app's requests: a member that the contract does not know is a mistake of the caller and fails,
+    /// where a plain decoder passes over it, as a widget must for an activity of a later version.
+    public static func layoutRequests() throws -> JSONDecoder {
+        guard let key = LayoutReader.strictKey else { throw LayoutReader.mismatch }
+        let decoder = JSONDecoder()
+        decoder.userInfo[key] = true
+        return decoder
     }
 }
 
