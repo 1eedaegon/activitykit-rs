@@ -85,8 +85,13 @@ pub extern "C" fn ak_host_run(report: Report) {
         .unwrap_or_default();
     thread::spawn(move || {
         let reporter = Reporter(report);
-        // A launch by the system for a tap has no scenario: the start of the cold-tap scenario left its mark.
-        let scenario = if scenario.is_empty() && cold_tap_pending() {
+        // A launch by the system for a tap has no scenario: the start of the cold-tap or the late-tap scenario left
+        // its mark.
+        let scenario = if !scenario.is_empty() {
+            scenario
+        } else if late_tap_mark().is_some_and(|mark| mark.exists()) {
+            "late-tap".to_owned()
+        } else if cold_tap_pending() {
             "cold-tap".to_owned()
         } else {
             scenario
@@ -124,7 +129,10 @@ pub extern "C" fn ak_host_run(report: Report) {
             "push-start" => push_start(&reporter),
             "cold-tap-start" => cold_tap_start(&reporter),
             "cold-tap" => cold_tap(&reporter),
+            "late-tap-start" => late_tap_start(&reporter),
+            "late-tap" => late_tap(&reporter),
             "intents" => intents(&reporter),
+            "unsupported" => unsupported(&reporter),
             "place-anchors" => placement::anchors(&reporter, placement::Card::Drawn),
             "place-anchors-tint" => placement::anchors(&reporter, placement::Card::Tint),
             "place-anchors-plain" => placement::anchors(&reporter, placement::Card::Plain),
@@ -199,11 +207,34 @@ fn cleared(reporter: &Reporter, kit: ActivityKit) -> Result<ActivityKit, String>
     let authorization = kit.authorization();
     reporter.say(format!("authorization {authorization:?}"));
     check(authorization.enabled, "Live Activities are not enabled")?;
-    // AK-AUTH-1
-    check(
-        authorization.buttons == taps(),
-        format!("buttons is {} on this iOS", authorization.buttons),
-    )?;
+    // AK-AUTH-1, AK-AUTH-8: what this iOS runs, as the scenarios below find it; the host's widget draws the small family.
+    let later = [
+        ("buttons", authorization.buttons, taps()),
+        (
+            "push_to_start",
+            authorization.push_to_start,
+            ios_at_least(17, 2),
+        ),
+        (
+            "push_channels",
+            authorization.push_channels,
+            ios_at_least(18, 0),
+        ),
+        ("transient", authorization.transient, ios_at_least(18, 0)),
+        (
+            "small_family",
+            authorization.small_family,
+            ios_at_least(18, 0),
+        ),
+        (
+            "scheduled_start",
+            authorization.scheduled_start,
+            ios_at_least(26, 0),
+        ),
+    ];
+    for (name, said, runs) in later {
+        check(said == runs, format!("{name} is {said} on this iOS"))?;
+    }
     for activity in block_on(kit.activities()).map_err(|error| error.to_string())? {
         if matches!(activity.state(), State::Active | State::Stale) {
             block_on(activity.end(End::immediately())).map_err(|error| error.to_string())?;
@@ -423,6 +454,76 @@ fn lock_screen(reporter: &Reporter) -> Outcome {
 fn cold_tap_mark() -> Option<std::path::PathBuf> {
     std::env::var_os("HOME")
         .map(|home| std::path::Path::new(&home).join("Documents/activitykit-host-cold-tap"))
+}
+
+fn late_tap_mark() -> Option<std::path::PathBuf> {
+    std::env::var_os("HOME")
+        .map(|home| std::path::Path::new(&home).join("Documents/activitykit-host-late-tap"))
+}
+
+/// How long the launch for a late tap waits before it makes its kit: past the 5 s for which the intent posts the tap.
+const LATE_KIT: Duration = Duration::from_secs(8);
+
+// AK-EVENT-16
+/// An activity whose Stop the UI test taps while the app is not running; the launch the tap causes makes its kit only
+/// after its intent has given up (`late_tap`).
+fn late_tap_start(reporter: &Reporter) -> Outcome {
+    let kit = prepared(reporter)?;
+    let start = Start::new(
+        layout(),
+        values! { "status" => "Waiting", "tone" => "green", "level" => 0.2 },
+    )
+    .key("host:late-tap");
+    let activity = block_on(kit.start_with(start)).map_err(|error| format!("start: {error}"))?;
+    let mark = late_tap_mark().ok_or("no HOME")?;
+    std::fs::write(&mark, activity.id()).map_err(|error| format!("mark: {error}"))?;
+    reporter.say(format!(
+        "running {}: terminate the app, then tap Stop",
+        activity.id()
+    ));
+    Ok(())
+}
+
+// AK-EVENT-16
+/// The launch the tap caused, which makes its kit 8 s late: the intent kept the tap after it was not taken at once and
+/// gave up after 5 s; the kit's first subscriber gets it, late, with its id, its time and the revision it was made on.
+/// The system may suspend the app in between, and the UI test brings it back.
+fn late_tap(reporter: &Reporter) -> Outcome {
+    let launched = Instant::now();
+    if let Some(mark) = late_tap_mark() {
+        let _ = std::fs::remove_file(mark);
+    }
+    reporter.say("launched without a scenario: the kit comes late");
+    thread::sleep(LATE_KIT);
+    let kit = ActivityKit::new();
+    let events = kit.events();
+    let tapped = next_event(&events, Duration::from_secs(20), |event| match event {
+        Event::Action {
+            activity,
+            action,
+            tap,
+            ..
+        } => Some((activity, action, tap)),
+        _ => None,
+    });
+    let (activity, action, tap) = tapped.ok_or("no tap after the late kit")?;
+    reporter.say(format!(
+        "action {action} from {}, {:?} after the launch: {tap:?}",
+        activity.id(),
+        launched.elapsed()
+    ));
+    check(
+        action == "stop" && activity.key() == "host:late-tap",
+        "the tap names its action and its activity",
+    )?;
+    check(tap.late, "the tap came from where the intent kept it")?;
+    check(
+        tap.id.is_some() && tap.at.is_some() && tap.revision == Some(0),
+        "it carries its id, its time and the revision it was made on",
+    )?;
+    block_on(activity.update(values! { "status" => "Late", "tone" => "gray", "level" => 1.0 }))
+        .map_err(|error| format!("update in the handler: {error}"))?;
+    Ok(())
 }
 
 fn cold_tap_pending() -> bool {
@@ -1011,6 +1112,34 @@ fn stale_check(reporter: &Reporter) -> Outcome {
 /// labels (AK-RENDER-10, AK-TOGGLE-1): no tap can come there, and a scenario ends where it would wait for one.
 fn taps() -> bool {
     ios_at_least(17, 2)
+}
+
+// AK-PLATFORM-1, AK-START-7
+/// Below iOS 16.2, where the crate starts no activity (iOS 16.0 has no ActivityKit at all, and the bridge links it
+/// weakly): the app runs, the authorization says that nothing is supported, and every call answers `Unsupported`.
+fn unsupported(reporter: &Reporter) -> Outcome {
+    let kit = ActivityKit::new();
+    let authorization = kit.authorization();
+    reporter.say(format!("authorization {authorization:?}"));
+    check(
+        !authorization.supported && !authorization.enabled && !authorization.buttons,
+        "nothing is supported",
+    )?;
+    let started = block_on(kit.start(
+        layout(),
+        values! { "status" => "Here", "tone" => "green", "level" => 0.1 },
+    ));
+    check(
+        matches!(started, Err(Error::Unsupported)),
+        format!("a start answers Unsupported, not {started:?}"),
+    )?;
+    let listed = block_on(kit.activities());
+    check(
+        matches!(listed, Err(Error::Unsupported)),
+        format!("the list answers Unsupported, not {listed:?}"),
+    )?;
+    reporter.say("every call answers Unsupported");
+    Ok(())
 }
 
 /// A button to tap until its tap arrives. On a new simulator the system runs no intent of a new app for minutes: its

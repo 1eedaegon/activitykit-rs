@@ -202,18 +202,19 @@ private struct LayoutActivityHost {
     /// below it a button is its label.
     var button: LayoutView.ButtonBuilder? {
         guard #available(iOS 17.2, *) else { return nil }
-        let activityId = context.attributes.instanceID
+        let (activityId, key, revision) = (context.attributes.instanceID, context.attributes.activityKey, context.state.revision)
         return { actionId, label in
-            AnyView(Button(intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId)) { label })
+            AnyView(Button(intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId, activityKey: key, revision: revision)) { label })
         }
     }
 
     /// Toggles run the same intent, with the state the person asks for: the opposite of the one shown.
     var toggle: LayoutView.ToggleBuilder? {
         guard #available(iOS 17.2, *) else { return nil }
-        let activityId = context.attributes.instanceID
+        let (activityId, key, revision) = (context.attributes.instanceID, context.attributes.activityKey, context.state.revision)
         return { actionId, isOn, label in
-            AnyView(Toggle(isOn: isOn, intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId, isOn: !isOn)) { label })
+            AnyView(Toggle(isOn: isOn, intent: ActivityKitActionIntent(activityId: activityId, actionId: actionId, isOn: !isOn,
+                                                                       activityKey: key, revision: revision)) { label })
         }
     }
 

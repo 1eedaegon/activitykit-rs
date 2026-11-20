@@ -17,6 +17,18 @@ let authorization = kit.authorization();
 start still answers `Error::ConfigurationRequired` when `NSSupportsLiveActivities` or the widget extension is missing,
 and `buttons` does not check that the app links `ActivityKitIntent`.
 
+It also says, feature by feature, what the device runs of what came after the first Live Activities, so that an app
+need not try a request to learn it:
+
+| Member | From | Below it |
+| --- | --- | --- |
+| `buttons` | iOS 17.2 | a button and a toggle show their labels |
+| `push_to_start` | iOS 17.2 | `Builder::push_to_start(true)` watches nothing |
+| `push_channels` | iOS 18 | `Start::push(Push::Channel(..))` fails with `Error::UnsupportedFeature` before ActivityKit is asked |
+| `transient` | iOS 18 | `Start::transient()` fails the same way |
+| `scheduled_start` | iOS 26, in an app built with the iOS 26 SDK | `Start::scheduled(..)` fails the same way; on iOS 26 in an app built with an older SDK, with `Error::ConfigurationRequired` |
+| `small_family` | iOS 18, and the widget extension sets `ActivityKitSmallFamily` | Apple Watch and CarPlay show the island's compact parts |
+
 Off iOS, `authorization()` reports nothing supported and every other call answers `Error::Unsupported` after it has
 checked the request, so an invalid layout fails the same way on a Mac or Linux as on a phone.
 
@@ -434,9 +446,31 @@ it, is dropped, or `acknowledgement.acknowledge()` is called. An app that hands 
 to start recording, keeps the event or its acknowledgement until that thread is done; an app that drops the event as
 soon as it reads it lets the intent return at once. Keep the event only while you act on it: taps reach the app one at
 a time, so a held tap holds the later ones behind it, and a later tap's intent can give up after its 5 seconds before
-the app has taken that tap, which then arrives late, when nothing may keep the app running. A tap for an activity that ActivityKit no longer
-lists comes with a handle whose `key()` is empty and whose update answers `Error::NotFound`. A tap does not change the
-activity; update it if the button should change.
+the app has taken that tap, which then arrives late, when nothing may keep the app running. A tap for an activity that
+ActivityKit no longer lists comes with a handle whose `key()` is the key the button was drawn with (empty from a
+widget of an older activitykit) and whose update answers `Error::NotFound`. A tap does not change the activity; update
+it if the button should change.
+
+A tap that the app does not take at once is kept. When the intent's first two posts (200 ms) go unanswered, as when the
+system has just launched the app for the tap and the app has no kit yet, the intent writes the tap to a small file in
+the app's container (`Application Support/activitykit/taps`, at most 32 taps). The first receiver of a later kit gets
+it, in this launch or the next, with `tap.late` set when the intent had given up on it; the file goes once the tap is
+handed on. Each tap is handed on once in a process, whichever way it came. `tap` also says the tap's `id`, the same in
+every launch, its time `at`, and the `revision` of the content the person saw:
+
+```rust
+use activitykit::Event;
+
+if let Event::Action { activity, action, tap, .. } = event {
+    // A Stop pressed on content that a later update replaced, or long ago, may not be what the person wants now.
+    let stale = tap.revision.is_some_and(|seen| activity.revision().is_some_and(|now| seen < now));
+    if tap.late || stale { /* ask, or check the activity's state first */ }
+}
+```
+
+A kept tap is at most 12 hours old: an activity lives 8 hours and its card 4 more. An app that must handle a tap exactly
+once across launches remembers the `id`s it handled: a tap whose handling the app did not finish, because the process
+ended, comes again at the next launch.
 
 ## Pushes
 

@@ -5,7 +5,7 @@ use super::{
     activity::{Shared, Turn},
 };
 use crate::{
-    Error, Event, Result, State,
+    Error, Event, Result, State, Tap,
     bridge::{self, Call},
     contract::{LayoutActivityRecord, LayoutSnapshot},
     image::ImageFolder,
@@ -16,6 +16,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex, PoisonError, Weak, mpsc},
     thread,
+    time::{Duration, UNIX_EPOCH},
 };
 
 impl Inner {
@@ -193,13 +194,26 @@ impl Inner {
                 action_id,
                 activity_key,
                 on,
+                tap_id,
+                tapped_at,
+                revision,
+                late,
             } => {
                 let activity = self.handle(&activity_id, activity_key.as_deref());
+                let tap = Tap {
+                    id: tap_id,
+                    at: tapped_at
+                        .filter(|millis| millis.is_finite() && *millis >= 0.0)
+                        .map(|millis| UNIX_EPOCH + Duration::from_millis(millis as u64)),
+                    revision,
+                    late,
+                };
                 self.hub.tap(|acknowledgement| Event::Action {
                     activity: activity.clone(),
                     action: action_id.clone(),
                     acknowledgement,
                     on,
+                    tap: tap.clone(),
                 });
             }
             WireEvent::State {
@@ -264,6 +278,15 @@ enum WireEvent {
         /// The state a toggle was asked for; absent for a button.
         #[serde(default)]
         on: Option<bool>,
+        #[serde(default)]
+        tap_id: Option<String>,
+        /// In epoch milliseconds.
+        #[serde(default)]
+        tapped_at: Option<f64>,
+        #[serde(default)]
+        revision: Option<u64>,
+        #[serde(default)]
+        late: bool,
     },
     #[serde(rename_all = "camelCase")]
     State {
