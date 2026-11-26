@@ -293,7 +293,9 @@ APNs (`apns`, `apns-start`): APNs answered 200 each time, the handle took the pu
 end push ended the activity, and a push-to-start's activity arrived as `Event::Started`; the push-to-start token
 came only after the bridge read the token the app already had (AK-PUSH-4, in the changelog under the release
 after 0.9.0). On the iPhone 16 (iOS 27.2.1) the host was signed and installed, but
-the UI tests did not start ("Timed out while enabling automation mode"); its scenarios were launched by hand.
+the UI tests did not start ("Timed out while enabling automation mode"); its scenarios were launched by hand. With
+`standby`, the Lock Screen showed the line of `unless_fullscreen`, and in StandBy, the phone locked on a charger on
+its side, a tap on the activity filled the screen with the line of `when_fullscreen`, by the owner.
 
 Not tested: iOS 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.
