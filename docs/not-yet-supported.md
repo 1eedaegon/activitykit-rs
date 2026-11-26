@@ -7,7 +7,6 @@ built; the types that would carry them (`Event`, `Error`, `State`, `Authorizatio
 | --- | --- | --- |
 | A channel for a push-to-start (`input-push-channel`) | 18.0 | A channel made at APNs before the start; the crate builds start payloads for the push-to-start token. |
 | A node drawn by whether the Dynamic Island is limited in width (`isDynamicIslandLimitedInWidth`: two activities on one island, landscape) | 27 | The iOS 27 SDK, which has the environment value; Xcode 26.3, which builds and tests this repository, has not. It would be a node condition as `ifFullscreen` is. |
-| Receipts without values | — | The Swift layer can keep a digest instead of the accepted values (`ReceiptMode.redacted`, tested on the Mac); the crate keeps the values and has no option for it yet. |
 
 [The plan](prd-ios-surface.md) says in which order these come, with what else a cross-platform layer asked for:
 transitions, the Dynamic Island's priorities and margins, and nodes marked sensitive.
