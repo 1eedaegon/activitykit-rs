@@ -91,6 +91,7 @@ Each row is one thing the crate does, the call that does it, and where the rest 
 | Motion | `Style::content_transition(..)`, `node.transition(..)` | 16.1 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Private content | `node.sensitive()` | 16.1 | [motion and privacy](docs/usage.md#motion-and-privacy) |
 | Stale content | `node.when_stale()`, `node.unless_stale()`, with `Start::stale_at(..)` | 16.2 | [stale content](docs/usage.md#stale-content) |
+| StandBy | `node.when_fullscreen()`, `node.unless_fullscreen()` | 17 | [StandBy](docs/usage.md#standby) |
 | Apple Watch and CarPlay | `Layout::small(node)`, with `ActivityKitSmallFamily` in the widget extension | 18 | [Apple Watch and CarPlay](docs/usage.md#apple-watch-and-carplay) |
 | Buttons and events | `button(action_id, label)`, `kit.events()` → `Event::Action` | 17.2 | [events](docs/usage.md#events) |
 | Toggles | `toggle(action_id, key, label)`, `Event::Action { on, .. }` | 17.2 | [toggles](docs/usage.md#toggles) |

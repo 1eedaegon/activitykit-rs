@@ -396,8 +396,17 @@ extension LayoutDocument {
 
     /// What a region draws for these values, or nil when it draws nothing. `isStale` is what the system says of the
     /// content when it draws the activity (`ActivityViewContext.isStale`): it chooses the nodes with `ifStale`.
-    public func render(_ region: LayoutRegion, values: [String: LayoutValue], isStale: Bool = false) -> LayoutRenderNode? {
-        node(for: region).flatMap { render($0, values: values, isStale: isStale) }
+    /// `isFullscreen` is whether the Lock Screen presentation fills the screen, in StandBy (`isActivityFullscreen`): it
+    /// chooses the nodes with `ifFullscreen`.
+    public func render(_ region: LayoutRegion, values: [String: LayoutValue], isStale: Bool = false,
+                       isFullscreen: Bool = false) -> LayoutRenderNode? {
+        node(for: region).flatMap { render($0, values: values, isStale: isStale, isFullscreen: isFullscreen) }
+    }
+
+    /// What the system says of the activity where it draws it, which the conditions `ifStale` and `ifFullscreen` read.
+    struct Drawn {
+        let isStale: Bool
+        let isFullscreen: Bool
     }
 
     /// The styles of one render, each token resolved once: nodes share their tokens, and resolving a style (its bound
@@ -442,26 +451,32 @@ extension LayoutDocument {
     }
 
     /// A node resolved against the values, or nil when its condition hides it or a value it needs is missing.
-    public func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool = false) -> LayoutRenderNode? {
-        render(node, isStale: isStale, styles: StyleTable(self, values: values))
+    public func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool = false,
+                       isFullscreen: Bool = false) -> LayoutRenderNode? {
+        render(node, drawn: Drawn(isStale: isStale, isFullscreen: isFullscreen), styles: StyleTable(self, values: values))
     }
 
     /// A render with the values of a table of styles, which the tests read.
     func render(_ node: LayoutNode, isStale: Bool, styles: StyleTable) -> LayoutRenderNode? {
-        render(node, values: styles.values, isStale: isStale, slot: 0, held: false, styles: styles)
+        render(node, drawn: Drawn(isStale: isStale, isFullscreen: false), styles: styles)
+    }
+
+    private func render(_ node: LayoutNode, drawn: Drawn, styles: StyleTable) -> LayoutRenderNode? {
+        render(node, values: styles.values, drawn: drawn, slot: 0, held: false, styles: styles)
     }
 
     /// `held` says that a node holding this one is marked sensitive.
-    private func render(_ node: LayoutNode, values: [String: LayoutValue], isStale: Bool, slot: Int, held: Bool,
+    private func render(_ node: LayoutNode, values: [String: LayoutValue], drawn: Drawn, slot: Int, held: Bool,
                         styles: StyleTable) -> LayoutRenderNode? {
         switch node.condition {
         case .when(let key)?: guard values[key]?.isTruthy == true else { return nil }
         case .unless(let key)?: guard values[key]?.isTruthy != true else { return nil }
         case nil: break
         }
-        if let wanted = node.ifStale, wanted != isStale { return nil }
+        if let wanted = node.ifStale, wanted != drawn.isStale { return nil }
+        if let wanted = node.ifFullscreen, wanted != drawn.isFullscreen { return nil }
         let sensitive = held || node.privacy == .sensitive
-        guard let content = content(of: node.content, values, isStale: isStale, held: sensitive, styles: styles) else { return nil }
+        guard let content = content(of: node.content, values, drawn: drawn, held: sensitive, styles: styles) else { return nil }
         let combining: Bool
         switch content {
         case .vstack, .hstack, .zstack, .custom, .link(url: nil, label: _): combining = true
@@ -472,12 +487,12 @@ extension LayoutDocument {
                                 transition: node.transition, isSensitive: node.privacy == .sensitive, slot: slot)
     }
 
-    private func content(of content: LayoutContent, _ values: [String: LayoutValue], isStale: Bool, held: Bool,
+    private func content(of content: LayoutContent, _ values: [String: LayoutValue], drawn: Drawn, held: Bool,
                          styles: StyleTable) -> LayoutRenderContent? {
         func visible(_ children: [LayoutNode]) -> [LayoutRenderNode] {
-            children.enumerated().compactMap { slot, child in render(child, values: values, isStale: isStale, slot: slot, held: held, styles: styles) }
+            children.enumerated().compactMap { slot, child in render(child, values: values, drawn: drawn, slot: slot, held: held, styles: styles) }
         }
-        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, isStale: isStale, slot: 0, held: held, styles: styles) }
+        func label(_ child: LayoutNode) -> LayoutRenderNode? { render(child, values: values, drawn: drawn, slot: 0, held: held, styles: styles) }
         func unit(_ value: Double) -> Double { min(max(value, 0), 1) }
         switch content {
         case let .vstack(children, spacing, alignment): return .vstack(children: visible(children), spacing: spacing, alignment: alignment ?? .center)

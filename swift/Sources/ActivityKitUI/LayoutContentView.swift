@@ -11,6 +11,8 @@ import ActivityKitShared
 /// environment, to see a layout as a watch or a car gets it.
 @available(iOS 16.1, *)
 public struct LayoutContentView: View {
+    /// Whether the Lock Screen presentation fills the screen, in StandBy; the system says so in the environment.
+    @Environment(\.isActivityFullscreen) private var isFullscreen
     private let document: LayoutDocument
     private let values: [String: LayoutValue]
     private let isStale: Bool
@@ -34,7 +36,8 @@ public struct LayoutContentView: View {
     }
 
     fileprivate func region(_ region: LayoutRegion) -> LayoutView {
-        LayoutView(document: document, values: values, region: region, isStale: isStale, button: button, toggle: toggle, custom: custom)
+        LayoutView(document: document, values: values, region: region, isStale: isStale, isFullscreen: isFullscreen,
+                   button: button, toggle: toggle, custom: custom)
     }
 
     /// The regions of the small family in a row, with the room between them: one region is the row.

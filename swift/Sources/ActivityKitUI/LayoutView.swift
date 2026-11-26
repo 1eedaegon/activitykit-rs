@@ -18,10 +18,11 @@ public struct LayoutView: View {
     private let views: LayoutNodeView.Builders
 
     /// `isStale` is what the system says of the content when it draws the activity: it chooses the nodes that are
-    /// drawn only while the content is stale, or only while it is not.
+    /// drawn only while the content is stale, or only while it is not. `isFullscreen`, whether the Lock Screen
+    /// presentation fills the screen in StandBy, chooses the nodes with `ifFullscreen` the same way.
     public init(document: LayoutDocument, values: [String: LayoutValue], region: LayoutRegion, isStale: Bool = false,
-                button: ButtonBuilder? = nil, toggle: ToggleBuilder? = nil, custom: CustomBuilder? = nil) {
-        node = document.render(region, values: values, isStale: isStale)
+                isFullscreen: Bool = false, button: ButtonBuilder? = nil, toggle: ToggleBuilder? = nil, custom: CustomBuilder? = nil) {
+        node = document.render(region, values: values, isStale: isStale, isFullscreen: isFullscreen)
         views = LayoutNodeView.Builders(button: button, toggle: toggle, custom: custom)
     }
 

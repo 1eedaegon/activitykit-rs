@@ -5,6 +5,10 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- StandBy: `Node::when_fullscreen()` and `unless_fullscreen()` (the member `ifFullscreen`) draw a node only while the
+  Lock Screen presentation fills the screen of an iPhone that charges on its side (iOS 17), or only while it does not.
+  The widget reads `isActivityFullscreen`. A widget up to 0.8.1 passes over the member and draws the node always.
+
 ## 0.8.1 - 2026-11-20
 
 - fix: the contract's types have constructors again outside the crate (`c842779`)

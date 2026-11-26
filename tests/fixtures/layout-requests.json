@@ -1466,6 +1466,12 @@
       "weight": 321
     },
     {
+      "name": "starts a layout with nodes for StandBy and for the Lock Screen",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "vstack", "children": [{ "type": "text", "value": "Big", "ifFullscreen": true }, { "type": "text", "value": "Small", "ifFullscreen": false, "transition": "opacity" }, { "type": "divider", "if": "live", "ifStale": false, "ifFullscreen": false }] }, "island": { "minimal": { "type": "symbol", "name": "clock", "ifFullscreen": false } } }, "snapshot": { "revision": 0, "values": { "live": true } } },
+      "weight": 340
+    },
+    {
       "name": "accepts a stale condition inside a button and a link",
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "hstack", "children": [{ "type": "button", "actionId": "retry", "ifStale": true, "child": { "type": "text", "value": "Retry", "ifStale": true } }, { "type": "link", "url": "app://status", "child": { "type": "text", "value": "Open", "ifStale": false } }] } }, "snapshot": { "revision": 0, "values": {} } },
@@ -7723,6 +7729,30 @@
       "name": "rejects a stale condition that is a number",
       "command": "start_layout",
       "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifStale": 1 } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a null fullscreen condition",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifFullscreen": null } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a fullscreen condition that is text",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifFullscreen": "true" } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a fullscreen condition that is a number",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifFullscreen": 1 } }, "snapshot": { "revision": 0, "values": {} } },
+      "code": "INVALID_INPUT"
+    },
+    {
+      "name": "rejects a fullscreen condition that is bound",
+      "command": "start_layout",
+      "input": { "activityKey": "demo:1", "schemaVersion": 2, "fallback": "none", "layout": { "lockScreen": { "type": "divider", "ifFullscreen": { "bind": "on" } } }, "snapshot": { "revision": 0, "values": {} } },
       "code": "INVALID_INPUT"
     },
     {

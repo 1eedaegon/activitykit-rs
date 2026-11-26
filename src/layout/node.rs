@@ -24,6 +24,10 @@ pub struct Node {
     /// `true`: the node is rendered only while the content is stale; `false`: only while it is not.
     #[serde(rename = "ifStale", skip_serializing_if = "none")]
     pub if_stale: Option<bool>,
+    /// `true`: the node is rendered only while the Lock Screen presentation fills the screen, in StandBy; `false`:
+    /// only while it does not.
+    #[serde(rename = "ifFullscreen", skip_serializing_if = "none")]
+    pub if_fullscreen: Option<bool>,
     /// What assistive technologies read of the node.
     #[serde(skip_serializing_if = "none")]
     pub accessibility: Option<Accessibility>,
@@ -43,6 +47,7 @@ impl From<Element> for Node {
             r#if: None,
             unless: None,
             if_stale: None,
+            if_fullscreen: None,
             accessibility: None,
             transition: None,
             privacy: None,
@@ -62,6 +67,7 @@ impl<'de> Deserialize<'de> for Node {
         };
         let (style, r#if, unless) = (key("style")?, key("if")?, key("unless")?);
         let if_stale = member(&mut members, "ifStale")?;
+        let if_fullscreen = member(&mut members, "ifFullscreen")?;
         let accessibility = member(&mut members, "accessibility")?;
         let transition = member(&mut members, "transition")?;
         let privacy = member(&mut members, "privacy")?;
@@ -73,6 +79,7 @@ impl<'de> Deserialize<'de> for Node {
             r#if,
             unless,
             if_stale,
+            if_fullscreen,
             accessibility,
             transition,
             privacy,
@@ -664,6 +671,22 @@ impl Node {
     /// Draws the node only while the content is not stale: see [`when_stale`](Self::when_stale).
     pub fn unless_stale(mut self) -> Self {
         self.if_stale = Some(false);
+        self
+    }
+
+    /// Draws the node only while the Lock Screen presentation fills the screen: in StandBy, where an iPhone that
+    /// charges on its side shows it scaled up, with room for more. The system says so when it draws the activity. The
+    /// wire member is `ifFullscreen`; beside the other conditions the node is drawn while all hold. The island's parts
+    /// and the small family are never full screen.
+    pub fn when_fullscreen(mut self) -> Self {
+        self.if_fullscreen = Some(true);
+        self
+    }
+
+    /// Draws the node only while the Lock Screen presentation does not fill the screen: see
+    /// [`when_fullscreen`](Self::when_fullscreen).
+    pub fn unless_fullscreen(mut self) -> Self {
+        self.if_fullscreen = Some(false);
         self
     }
 

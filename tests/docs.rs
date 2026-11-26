@@ -150,8 +150,16 @@ fn the_docs_state_the_system_limits_and_behaviors() {
     for phrase in ["when_stale()", "unless_stale()", "without the app running"] {
         says(&usage, phrase, "docs/usage.md");
     }
+    // A layout that follows StandBy.
+    for phrase in [
+        "when_fullscreen()",
+        "unless_fullscreen()",
+        "isActivityFullscreen",
+    ] {
+        says(&usage, phrase, "docs/usage.md");
+    }
     let contract = read("docs/request-contract.md");
-    for phrase in ["`ifStale`", "while both hold"] {
+    for phrase in ["`ifStale`", "while both hold", "`ifFullscreen`"] {
         says(&contract, phrase, "docs/request-contract.md");
     }
     // The small family, and that the extension opts in.

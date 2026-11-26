@@ -9,6 +9,8 @@ mod validation;
 mod weight;
 
 #[cfg(test)]
+mod fullscreen_tests;
+#[cfg(test)]
 mod limit_tests;
 #[cfg(test)]
 mod model_tests;
