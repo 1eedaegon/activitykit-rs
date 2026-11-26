@@ -12,3 +12,8 @@ tests/ios-host/*.xcodeproj/
 tests/ios-host/App/Info.plist
 tests/ios-host/Widget-Info.plist
 tests/ios-host/output/
+# A phone build of the test host (run.sh with DEVICE), and APNs keys, which are secrets.
+tests/ios-host/target-*/
+*.p8
+# The APNs sender's lock file would name the crate's version at the commit that wrote it; a release does not update it.
+examples/apns-sender/Cargo.lock

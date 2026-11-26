@@ -158,9 +158,12 @@ class HostCase: XCTestCase {
         try save(XCUIScreen.main.screenshot(), as: name)
     }
 
+    /// Saves a screenshot in `AK_SHOTS`, run.sh's OUT, or where that cannot be written, as on a phone, in the UI
+    /// tests' own documents.
     func save(_ screenshot: XCUIScreenshot, as name: String) throws {
-        let folder = ProcessInfo.processInfo.environment["AK_SHOTS"].map { URL(fileURLWithPath: $0) }
-            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        var folder = ProcessInfo.processInfo.environment["AK_SHOTS"].map { URL(fileURLWithPath: $0) } ?? documents
+        if (try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)) == nil { folder = documents }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try screenshot.pngRepresentation.write(to: folder.appendingPathComponent(name + ".png"), options: .atomic)
     }

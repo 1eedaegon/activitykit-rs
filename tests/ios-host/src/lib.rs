@@ -21,6 +21,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
+mod device;
 mod placement;
 
 /// Set by the host app once it is in the background (App/Host.swift).
@@ -127,6 +128,9 @@ pub extern "C" fn ak_host_run(report: Report) {
             "redacted-start" => redacted_start(&reporter),
             "redacted-check" => redacted_check(&reporter),
             "push-start" => push_start(&reporter),
+            "apns" => device::apns(&reporter),
+            "apns-start" => device::apns_start(&reporter),
+            "standby" => device::standby(&reporter),
             "cold-tap-start" => cold_tap_start(&reporter),
             "cold-tap" => cold_tap(&reporter),
             "late-tap-start" => late_tap_start(&reporter),

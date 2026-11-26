@@ -33,15 +33,25 @@ final class PlacementTests: HostCase {
 
     /// What the screen shows once it has stopped changing, as pixels, saved as `name`: the first screenshot that is
     /// the same as the one before it. A card that an update made higher grows for a moment, and its texts' frames
-    /// say nothing of that.
+    /// say nothing of that. On a phone the status bar's corners are left out: its signal and clock change while the
+    /// card stands still (on an iPhone XS the signal's bars changed in every screenshot). A simulator's status bar
+    /// stands still, and there the whole screen is compared.
     func look(as name: String) throws -> Pixels {
+        let screen = springboard.frame.size
+        let onPhone = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] == nil
+        let corners = onPhone ? [CGRect(x: 0, y: 0, width: screen.width * 0.3, height: 60),
+                                 CGRect(x: screen.width * 0.7, y: 0, width: screen.width * 0.3, height: 60)] : []
         var before: Pixels?
         for _ in 0..<16 {
             let screenshot = XCUIScreen.main.screenshot()
-            let now = try XCTUnwrap(Pixels(screenshot, screen: springboard.frame.size), "the screenshot is an image")
-            if let before, before.isSame(as: now) {
+            let now = try XCTUnwrap(Pixels(screenshot, screen: screen), "the screenshot is an image")
+            if let before, before.isSame(as: now) || (!corners.isEmpty && before.isSame(as: now, outside: corners)) {
                 try save(screenshot, as: name)
                 return now
+            }
+            if let before {
+                let changed = now.difference(from: before)
+                print("placement: \(name): \(changed.count) pixels changed, in \(String(describing: changed.frame))")
             }
             before = now
             RunLoop.current.run(until: Date().addingTimeInterval(0.3))
@@ -322,12 +332,20 @@ final class PlacementTests: HostCase {
         XCUIDevice.shared.press(.home)
     }
 
-    /// Whether the simulated phone has no Dynamic Island: such a phone shows an alert as a banner. By its model:
-    /// every iPhone up to the 14 (`iPhone14,8`) and the 16e (`iPhone17,5`); the 14 Pro (`iPhone15,2`) began the island.
+    /// Whether the phone has no Dynamic Island: such a phone shows an alert as a banner. By its model: every iPhone up
+    /// to the 14 (`iPhone14,8`) and the 16e (`iPhone17,5`); the 14 Pro (`iPhone15,2`) began the island. A simulator
+    /// names the model it simulates, a phone its own.
     var showsBanners: Bool {
-        let model = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? ""
+        let model = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? Self.hardwareModel
         let major = Int(model.dropFirst("iPhone".count).prefix { $0.isNumber }) ?? Int.max
         return model.hasPrefix("iPhone") && (major <= 14 || model == "iPhone17,5")
+    }
+
+    /// The model of the phone the tests run on, such as `iPhone17,3`.
+    static var hardwareModel: String {
+        var system = utsname()
+        uname(&system)
+        return withUnsafeBytes(of: system.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
     }
 
     // AK-RENDER-18
