@@ -5,6 +5,11 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+- An app learns its push-to-start token. The Swift layer watched only the changes of the token
+  (`pushToStartTokenUpdates`), and on an iPhone XS with iOS 18.7 none came in 5 minutes: the app already had a token,
+  which did not change. It now reports the token the app has when the watch begins (`pushToStartToken`), then each
+  new one, never the same one twice. Found on a phone; the simulator has no APNs.
+
 ## 0.9.0 - 2026-11-26
 
 - feat: a node drawn only in StandBy, or only outside it (`b6069a0`)

@@ -191,7 +191,15 @@ final class ActivityObserver {
         guard let events, !watchingPushToStart, #available(iOS 17.2, *) else { return }
         watchingPushToStart = true
         Task.detached {
-            for await token in Activity<LiveActivityLayoutAttributes>.pushToStartTokenUpdates {
+            // The sequence brings changes; a token the app already has comes from the property, once. A token is
+            // reported once however both bring it. The sequence is subscribed before the property is read, so that a
+            // change between the two is not lost.
+            let updates = Activity<LiveActivityLayoutAttributes>.pushToStartTokenUpdates.makeAsyncIterator()
+            var reported = Activity<LiveActivityLayoutAttributes>.pushToStartToken
+            if let reported { events.emit(.pushToStartToken(token: ActivityKitSystem.hex(reported))) }
+            while let token = await updates.next() {
+                guard token != reported else { continue }
+                reported = token
                 events.emit(.pushToStartToken(token: ActivityKitSystem.hex(token)))
             }
         }
