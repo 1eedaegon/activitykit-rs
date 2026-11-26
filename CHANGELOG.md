@@ -5,6 +5,10 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.9.3 - 2026-11-26
+
+- docs: receipts without values are supported, not missing (`5fba6c7`)
+
 ## 0.9.2 - 2026-11-26
 
 - test: the suite on an iPhone 16 with iOS 27.2 (`25ed542`)
