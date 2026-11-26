@@ -1,4 +1,5 @@
-//! iOS Live Activities from Rust.
+//! iOS Live Activities from Rust: on the Lock Screen, in the Dynamic Island, in StandBy and on Apple Watch, updated by
+//! the app or by APNs pushes.
 //!
 //! ```no_run
 //! use activitykit::{ActivityKit, Bound, End, Event, Layout, Style, values};
