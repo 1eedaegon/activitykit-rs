@@ -5,6 +5,12 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.9.0 - 2026-11-26
+
+- feat: a node drawn only in StandBy, or only outside it (`b6069a0`)
+- docs: what phones and a watch showed of 0.7.0 and 0.8.1 (`91211a1`)
+- docs: the watch's Open on iPhone opens the app (`21f048c`)
+
 - StandBy: `Node::when_fullscreen()` and `unless_fullscreen()` (the member `ifFullscreen`) draw a node only while the
   Lock Screen presentation fills the screen of an iPhone that charges on its side (iOS 17), or only while it does not.
   The widget reads `isActivityFullscreen`. A widget up to 0.8.1 passes over the member and draws the node always.
