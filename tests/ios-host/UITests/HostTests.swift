@@ -150,8 +150,12 @@ class HostCase: XCTestCase {
 
     /// The system asks once whether the app may show Live Activities.
     func allowLiveActivities() {
-        let allow = springboard.buttons.matching(NSPredicate(format: "label IN %@", ["Always Allow", "Allow"])).firstMatch
-        if allow.waitForExistence(timeout: 3) { allow.tap() }
+        if allowButton.waitForExistence(timeout: 3) { allowButton.tap() }
+    }
+
+    /// The button of the system's question that lets the app go on, in English and in Korean.
+    var allowButton: XCUIElement {
+        springboard.buttons.matching(NSPredicate(format: "label IN %@", ["Always Allow", "Allow", "항상 허용", "허용"])).firstMatch
     }
 
     func capture(_ name: String) throws {

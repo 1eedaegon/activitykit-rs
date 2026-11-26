@@ -292,9 +292,18 @@ key (Sandbox, limited to the host's topic), `examples/apns-sender` started, upda
 APNs (`apns`, `apns-start`): APNs answered 200 each time, the handle took the pushed content as `Event::Updated`, an
 end push ended the activity, and a push-to-start's activity arrived as `Event::Started`; the push-to-start token
 came only after the bridge read the token the app already had (AK-PUSH-4, in the changelog under the release
-after 0.9.0). On the iPhone 16 (iOS 27.2.1) the host was signed and installed, but
-the UI tests did not start ("Timed out while enabling automation mode"); its scenarios were launched by hand. With
-`standby`, the Lock Screen showed the line of `unless_fullscreen`, and in StandBy, the phone locked on a charger on
+after 0.9.0). On the iPhone 16 (iOS 27.2.1), from Xcode 26.3, a first try stopped with "Timed out while enabling
+automation mode" though UI Automation was on; a later run with the phone unlocked went through: 22 passed and 3
+skipped (the banner, which a phone with an island shows in the island, and the two tests of older systems), and the
+expanded island's trailing value showed whole (AK-ISLAND-3). The system's question whether the app may go on showing
+Live Activities came in Korean, the phone's language, where the tests looked for the English buttons only; they look
+for "항상 허용" as well now, which no run has needed since. Placement tests failed by the
+pixels at the card's edges, those of the anchors and of the card's size in two runs and that of the stacks in the
+second, the same with the question answered: iOS 27.2 lays a light over the content along the card's edge, strongest
+in the outermost pixel and gone within about 3 points, and not as strong everywhere (a red box's top row read
+(255, 60, 60) and a pink one's (255, 220, 255), while green and cyan ones beside them read pure), so a box at the
+card's top or foot read up to 2.7 points short. The card kept its size: two bars of 40 points were 240 pixels, 80
+points, high. With `standby`, the Lock Screen showed the line of `unless_fullscreen`, and in StandBy, the phone locked on a charger on
 its side, a tap on the activity filled the screen with the line of `when_fullscreen`, by the owner.
 
 Not tested: iOS 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator

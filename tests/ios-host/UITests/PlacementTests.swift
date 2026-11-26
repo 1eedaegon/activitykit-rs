@@ -81,7 +81,7 @@ final class PlacementTests: HostCase {
         goHome()
         pullLockScreenDown(until: title)
         var frame = settled(title, "the card of \(scenario)")
-        let allow = springboard.buttons.matching(NSPredicate(format: "label IN %@", ["Always Allow", "Allow"])).firstMatch
+        let allow = allowButton
         if allow.exists {
             allow.tap()
             XCTAssertTrue(waitUntil(10) { !allow.exists }, "the system's question goes once it is answered")
