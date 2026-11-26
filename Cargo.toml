@@ -1,7 +1,7 @@
 [package]
 name = "activitykit"
 version = "0.9.1"
-description = "iOS Live Activities from Rust"
+description = "iOS Live Activities from Rust: the Lock Screen, the Dynamic Island, StandBy and Apple Watch, drawn by a ready-made SwiftUI widget, updated in-app or by APNs push"
 authors = ["1eedaegon"]
 edition = "2024"
 rust-version = "1.90"
@@ -9,7 +9,8 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/1eedaegon/activitykit-rs"
 readme = "README.md"
 keywords = ["ios", "live-activities", "activitykit", "dynamic-island", "widgetkit"]
-categories = ["api-bindings", "gui"]
+categories = ["api-bindings", "gui", "os"]
+documentation = "https://docs.rs/activitykit"
 # One copy of the Swift bridge per app: two versions of this crate would link the same C symbols.
 links = "activitykit"
 include = [

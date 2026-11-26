@@ -1,8 +1,14 @@
 # Activitykit-rs
 
+[![crates.io](https://img.shields.io/crates/v/activitykit.svg)](https://crates.io/crates/activitykit)
+[![docs.rs](https://img.shields.io/docsrs/activitykit)](https://docs.rs/activitykit)
+[![CI](https://github.com/1eedaegon/activitykit-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/1eedaegon/activitykit-rs/actions/workflows/ci.yml)
+[![License](https://img.shields.io/crates/l/activitykit.svg)](#license)
+
 iOS Live Activities from Rust. You describe the activity in Rust; the crate's Swift layer, which it builds into your
-Rust library, talks to ActivityKit, and a widget extension of a few lines draws it on the Lock Screen and in the
-Dynamic Island. The crate is called `activitykit`.
+Rust library, talks to ActivityKit, and a widget extension of a few lines draws it on the Lock Screen, in the Dynamic
+Island, in StandBy and on Apple Watch. The app updates it, or a server does with APNs pushes. The crate is called
+`activitykit`.
 
 ## Install
 
