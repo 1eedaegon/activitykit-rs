@@ -187,8 +187,9 @@ An island part that the layout leaves out is drawn with a default:
 - `compactTrailing`: nothing.
 
 `small` is what the activity shows where the system asks the widget for the small activity family: the Smart Stack of
-Apple Watch (iOS 18) and CarPlay (iOS 26). It has no default of its own, and is drawn on `background` and opens `url`
-as the Lock Screen tree does. The layout widget draws the family only when its extension's Info.plist sets
+Apple Watch (iOS 18) and CarPlay (iOS 26). It has no default of its own, and is drawn on `background` and carries
+`url` as the Lock Screen tree does; what a tap there does is the system's (on an Apple Watch it shows the tile larger,
+with the system's "Open on iPhone"). The layout widget draws the family only when its extension's Info.plist sets
 `ActivityKitSmallFamily` to the Boolean true, since a widget states its families once, for every activity: then a
 layout's `small` is drawn there, and a layout without it shows its `compactLeading` and `compactTrailing` parts (or
 their defaults) in a row, without the island's `margins`. Without the key the widget states no family of its own,
