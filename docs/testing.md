@@ -97,6 +97,44 @@ the newest; 17.4 was added for a defect that only iOS 17 has (AK-RENDER-19). CI 
 (the record below), and what runs them from now on is an open question of
 [the compatibility plan](prd-compatibility.md).
 
+### A real iPhone
+
+`DEVICE` and `TEAM` run the same suite on a connected iPhone, signed for a development team; the first build registers
+the products' identifiers (`io.github.1eedaegon.activitykit.host` and the rest) with the team:
+
+```sh
+DEVICE=<UDID from xcrun xctrace list devices> TEAM=<team id> tests/ios-host/run.sh
+```
+
+The phone must be unlocked for the whole run, with Settings > Developer > Enable UI Automation on (from iOS 17 a
+phone asks for it once; without it the runner stops with "Timed out while enabling automation mode"). A phone needs a
+version of Xcode that knows its iOS. The screenshots stay on the phone, in the UI tests' documents; the host's log is
+copied to OUT.
+
+Two scenarios are for a phone only, and no UI test drives them (`src/device.rs`). Launch the host with one:
+
+```sh
+xcrun devicectl device process launch --device <UDID> --terminate-existing io.github.1eedaegon.activitykit.host -scenario standby
+```
+
+- `standby` starts an activity with one line for the Lock Screen and one for StandBy (`when_fullscreen`): put the
+  phone on a charger on its side, locked, and see which line shows.
+- `apns`, on a host built with `PUSH=1` (the Push Notifications capability, APNs's development environment), starts
+  an activity that asks for a push token and writes it to the app's `Documents/apns-token.txt`; then
+  `examples/apns-sender` sends pushes to it with the team's APNs key, and the scenario reports each content a push
+  brings, until a push ends the activity:
+
+```sh
+xcrun devicectl device copy from --device <UDID> --domain-type appDataContainer \
+  --domain-identifier io.github.1eedaegon.activitykit.host --source Documents/apns-token.txt --destination token.txt
+export APNS_KEY=<path of the .p8> APNS_KEY_ID=<key id> APNS_TEAM_ID=<team id> \
+  APNS_BUNDLE_ID=io.github.1eedaegon.activitykit.host APNS_TOKEN=$(cat token.txt)
+cargo run --manifest-path examples/apns-sender/Cargo.toml -- update 1 '{"status":"Pushed","tone":"red","level":0.9}'
+cargo run --manifest-path examples/apns-sender/Cargo.toml -- end
+```
+
+The key is the team's secret: keep the `.p8` file out of the repository.
+
 ## CI
 
 `.github/workflows/ci.yml` decides from the changed paths what runs; `tests/ci/run.sh` checks those patterns. The
@@ -241,6 +279,23 @@ iPhone 16 (iOS 27.2.1), a layout with a `small` region and a widget extension wi
 demo's "Watch and car", activitykit 0.8.1): the watch's Smart Stack showed the small region (a symbol, a title, an
 arrival time and a circular progress), not the compact parts, as the paired simulator had; a tap on the tile showed
 it larger, and the system's "Open on iPhone" there opened the app on the phone, by the person who used the watch.
+
+On 2026-11-26 this repository's own test host ran on the phones, signed with the owner's team (`DEVICE`, `TEAM`).
+On the iPhone XS (iOS 18.7.12) the whole suite passed but for the island's test, which a phone without an island
+skips: buttons and toggles, the Lock Screen's layouts, staleness, the relevance and the dismissals, the small family
+in the preview app, and the placement tests, once the still screen left the status bar's corners out (the signal's
+bars changed in every screenshot). The card stood 10 points from the sides, as on the simulators of that size, and an
+alert showed it as a banner. A tap on the Lock Screen's button with the app ended launched it in the background and
+reached Rust 64 ms after the host's Rust code began, acknowledged after the handler; a tap that a kit made 8 s late
+missed arrived 12.5 s after the launch with `late: true`. With the Push Notifications capability and a team's APNs
+key (Sandbox, limited to the host's topic), `examples/apns-sender` started, updated and ended activities through
+APNs (`apns`, `apns-start`): APNs answered 200 each time, the handle took the pushed content as `Event::Updated`, an
+end push ended the activity, and a push-to-start's activity arrived as `Event::Started`; the push-to-start token
+came only after the bridge read the token the app already had (AK-PUSH-4, in the changelog under the release
+after 0.9.0). On the iPhone 16 (iOS 27.2.1) the host was signed and installed, but
+the UI tests did not start ("Timed out while enabling automation mode"); its scenarios were launched by hand. With
+`standby`, the Lock Screen showed the line of `unless_fullscreen`, and in StandBy, the phone locked on a charger on
+its side, a tap on the activity filled the screen with the line of `when_fullscreen`, by the owner.
 
 Not tested: iOS 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.

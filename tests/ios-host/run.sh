@@ -15,6 +15,12 @@
 # alone xcodebuild took more than 9 minutes to start the tests on a CI runner's new simulator.
 #
 # After a pass of every test, OUT/passed lists the tests that passed only on a retry (often none).
+#
+# DEVICE (a connected iPhone's UDID, from `xcrun xctrace list devices`) and TEAM (a development team) run the tests on
+# that iPhone instead of a simulator: the products are signed for TEAM, and the first build registers their identifiers
+# with it. The phone must be unlocked and stay so while the tests run. The screenshots stay on the phone; the host's
+# log is copied from it. PUSH=1 gives the host app the Push Notifications capability (App/Push.entitlements, APNs's
+# development environment), for the scenario `apns` and examples/apns-sender.
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 out=${OUT:-$here/output}
@@ -23,9 +29,11 @@ derived=${DERIVED_DATA:-$target_dir/DerivedData}
 products=$derived/Build/Products
 stamp=$products/build-key
 case "$(uname -m)" in arm64) rust_target=aarch64-apple-ios-sim arch=arm64 ;; *) rust_target=x86_64-apple-ios arch=x86_64 ;; esac
-runtime=${RUNTIME:-$(xcrun simctl list runtimes | awk '/^iOS/ && !/unavailable/ { id = $NF } END { print id }')}
-# The newest iPhone Pro that the runtime simulates: an old runtime knows no new phone.
-device_type=${DEVICE_TYPE:-$(xcrun simctl list runtimes -j | python3 -I -c '
+# A simulator's runtime and phone, unless a real iPhone runs the tests.
+if [ -z "${DEVICE:-}" ]; then
+  runtime=${RUNTIME:-$(xcrun simctl list runtimes | awk '/^iOS/ && !/unavailable/ { id = $NF } END { print id }')}
+  # The newest iPhone Pro that the runtime simulates: an old runtime knows no new phone.
+  device_type=${DEVICE_TYPE:-$(xcrun simctl list runtimes -j | python3 -I -c '
 import json, re, sys
 runtime = next((r for r in json.load(sys.stdin)["runtimes"] if r["identifier"] == sys.argv[1]), None)
 if runtime is None:
@@ -34,17 +42,33 @@ pros = [(int(m.group(1)), d["identifier"]) for d in runtime["supportedDeviceType
 if not pros:
     sys.exit(f"{sys.argv[1]} simulates no iPhone Pro: name a phone in DEVICE_TYPE")
 print(max(pros)[1])' "$runtime")}
+fi
 # The iOS the host's Rust code is built for: the oldest the crate builds for.
 deployment=15.0
 mkdir -p "$out"
 rm -f "$out"/*.png "$out/host.log" "$out/passed"
 
-udid=$(xcrun simctl create "activitykit-host-$$" "$device_type" "$runtime")
-cleanup() { xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true; xcrun simctl delete "$udid"; }
-trap cleanup EXIT HUP INT TERM
-echo "simulator $udid: $device_type, $runtime"
-# The arch picks one of the simulator's two destinations on Apple silicon.
-destination="platform=iOS Simulator,id=$udid,arch=$arch"
+if [ -n "${DEVICE:-}" ]; then
+  [ -n "${TEAM:-}" ] || { echo "DEVICE needs TEAM, the development team that signs the products"; exit 1; }
+  rust_target=aarch64-apple-ios sdk=iphoneos
+  destination="platform=iOS,id=$DEVICE"
+  # The project signs nothing (a simulator needs no signing); for a phone the build signs with the team.
+  set -- CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$TEAM" -allowProvisioningUpdates
+  if [ -n "${PUSH:-}" ]; then set -- "$@" HOST_ENTITLEMENTS=App/Push.entitlements; fi
+  # The phone cannot write into OUT: the screenshots go to the UI tests' own folder there.
+  shots=/nonexistent
+  echo "device $DEVICE, team $TEAM"
+else
+  sdk=iphonesimulator
+  udid=$(xcrun simctl create "activitykit-host-$$" "$device_type" "$runtime")
+  cleanup() { xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true; xcrun simctl delete "$udid"; }
+  trap cleanup EXIT HUP INT TERM
+  echo "simulator $udid: $device_type, $runtime"
+  # The arch picks one of the simulator's two destinations on Apple silicon.
+  destination="platform=iOS Simulator,id=$udid,arch=$arch"
+  set --
+  shots=$out
+fi
 
 # The test run of the products, when there is exactly one (a build removes the earlier ones first).
 xctestrun() {
@@ -59,7 +83,7 @@ built() {
     ActivityKitHost.app/PlugIns/ActivityKitHostWidget.appex/ActivityKitHostWidget \
     ActivityKitHostPreview.app/ActivityKitHostPreview \
     ActivityKitHostUITests-Runner.app/PlugIns/ActivityKitHostUITests.xctest/ActivityKitHostUITests; do
-    [ -f "$products/Debug-iphonesimulator/$file" ] || return 1
+    [ -f "$products/Debug-$sdk/$file" ] || return 1
   done
   [ -n "$(xctestrun)" ]
 }
@@ -83,14 +107,15 @@ else
   IPHONEOS_DEPLOYMENT_TARGET=$deployment CARGO_TARGET_DIR="$target_dir" cargo build --manifest-path "$here/Cargo.toml" --target "$rust_target"
   xcodegen generate --spec "$here/project.yml" --quiet
   xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost -destination "$destination" \
-    -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" COMPILER_INDEX_STORE_ENABLE=NO build-for-testing -quiet
+    -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" COMPILER_INDEX_STORE_ENABLE=NO "$@" build-for-testing -quiet
   [ -n "$(xctestrun)" ] || { echo "build-for-testing left no single .xctestrun in $products"; exit 1; }
   if [ -n "${BUILD_KEY:-}" ]; then printf '%s\n' "$BUILD_KEY" >"$stamp"; fi
 fi
 
 status=0
 set --
-if [ -n "${ONLY:-}" ]; then set -- "-only-testing:ActivityKitHostUITests/$ONLY"; fi
+if [ -n "${DEVICE:-}" ]; then set -- -allowProvisioningUpdates; fi
+if [ -n "${ONLY:-}" ]; then set -- "$@" "-only-testing:ActivityKitHostUITests/$ONLY"; fi
 if [ -n "${REPEAT:-}" ]; then
   set -- "$@" -test-iterations "$REPEAT"
 elif [ -n "${CI:-}" ]; then
@@ -101,7 +126,7 @@ fi
 # The status goes through a file: the group runs in a subshell of the pipe, where `set -e` would end it at a failing
 # xcodebuild before the status is written.
 { tested=0
-  TEST_RUNNER_AK_SHOTS="$out" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
+  TEST_RUNNER_AK_SHOTS="$shots" xcodebuild -project "$here/ActivityKitHost.xcodeproj" -scheme ActivityKitHost \
     -destination "$destination" -derivedDataPath "$derived" RUST_TARGET_DIR="$target_dir" test-without-building "$@" 2>&1 || tested=$?
   echo "$tested" >"$out/.status"; } | tee "$out/xcodebuild.log"
 status=$(cat "$out/.status")
@@ -113,6 +138,13 @@ if [ -n "$failed" ] && [ "$status" -eq 0 ]; then
 fi
 if [ "$status" -eq 0 ] && [ -z "${ONLY:-}" ]; then printf '%s' "$failed" >"$out/passed"; fi
 
-log=$(find "$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/Containers/Data/Application" -name activitykit-host.log 2>/dev/null | head -1)
-if [ -n "$log" ]; then cp "$log" "$out/host.log"; cat "$out/host.log"; fi
+if [ -n "${DEVICE:-}" ]; then
+  xcrun devicectl device copy from --device "$DEVICE" --domain-type appDataContainer \
+    --domain-identifier io.github.1eedaegon.activitykit.host --source Documents/activitykit-host.log \
+    --destination "$out/host.log" >/dev/null || true
+  log=$out/host.log
+else
+  log=$(find "$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/Containers/Data/Application" -name activitykit-host.log 2>/dev/null | head -1)
+fi
+if [ -n "$log" ] && [ -f "$log" ]; then [ "$log" = "$out/host.log" ] || cp "$log" "$out/host.log"; cat "$out/host.log"; fi
 exit "$status"

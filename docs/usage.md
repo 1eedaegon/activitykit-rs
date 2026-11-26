@@ -548,6 +548,9 @@ let start = Payload::start("la-ios-layout-s1", "job:1", layout, values! { "statu
 // Headers: apns-push-type: PUSH_TYPE, apns-topic: topic("dev.example.app"), apns-priority: PRIORITY_NOW
 ```
 
+`examples/apns-sender` is a server's side of it, ready to run: it signs a provider token with the team's APNs key
+and sends a payload over HTTP/2 (docs/testing.md has the steps).
+
 `to_json` checks a payload as the kit checks the call it stands for, and what APNs would refuse (more than 4096
 bytes is `PayloadTooLarge`), so a bad one fails before APNs sees it. The `timestamp` of `aps` is the time of sending,
 in seconds, by which the system orders pushes; the content's own `timestamp` and `staleAt` are in milliseconds, as in

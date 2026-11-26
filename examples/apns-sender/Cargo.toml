@@ -1,0 +1,18 @@
+[package]
+name = "activitykit-apns-sender"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+description = "An example server's side of activitykit's pushes: sends one Live Activity push to APNs"
+
+[dependencies]
+activitykit = { path = "../.." }
+jsonwebtoken = "9"
+reqwest = { version = "0.12", default-features = false, features = ["http2", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# Not part of the crate's package: the example has its own lock file and target folder.
+[workspace]

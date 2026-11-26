@@ -25,6 +25,8 @@ settings:
     CODE_SIGNING_ALLOWED: NO
     # Where cargo built the Rust library (run.sh passes its target folder).
     RUST_TARGET_DIR: $(SRCROOT)/target
+    # The host app's entitlements: none, or App/Push.entitlements on a phone with PUSH=1 (run.sh).
+    HOST_ENTITLEMENTS: ""
 targets:
   ActivityKitHost:
     type: application
@@ -50,6 +52,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.1eedaegon.activitykit.host
+        CODE_SIGN_ENTITLEMENTS: $(HOST_ENTITLEMENTS)
         RUST_TARGET[sdk=iphoneos*]: aarch64-apple-ios
         RUST_TARGET[sdk=iphonesimulator*][arch=x86_64]: x86_64-apple-ios
         RUST_TARGET[sdk=iphonesimulator*][arch=arm64]: aarch64-apple-ios-sim

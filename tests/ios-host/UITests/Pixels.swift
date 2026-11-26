@@ -67,6 +67,33 @@ struct Pixels {
         bytes == other.bytes
     }
 
+    /// Whether every pixel outside `parts` is the same as `other`'s.
+    func isSame(as other: Pixels, outside parts: [CGRect]) -> Bool {
+        guard width == other.width, height == other.height else { return false }
+        let skipped = parts.map { part in
+            (columns: Int(part.minX * scale)..<Int(part.maxX * scale), rows: Int(part.minY * scale)..<Int(part.maxY * scale))
+        }
+        for row in 0..<height {
+            for column in 0..<width where color(column, row) != other.color(column, row) {
+                if !skipped.contains(where: { $0.columns.contains(column) && $0.rows.contains(row) }) { return false }
+            }
+        }
+        return true
+    }
+
+    /// How many pixels differ from `other`'s, and the part of the screen they span: what keeps a screen changing.
+    func difference(from other: Pixels) -> (count: Int, frame: CGRect?) {
+        guard width == other.width, height == other.height else { return (width * height, nil) }
+        var count = 0, left = Int.max, right = Int.min, top = Int.max, bottom = Int.min
+        for row in 0..<height {
+            for column in 0..<width where color(column, row) != other.color(column, row) {
+                count += 1
+                left = min(left, column); right = max(right, column); top = min(top, row); bottom = max(bottom, row)
+            }
+        }
+        return (count, count > 0 ? frame(left...right, top...bottom) : nil)
+    }
+
     /// The color at a point of the screen.
     func color(at point: CGPoint) -> RGB? {
         pixel(point).map { color($0.column, $0.row) }
