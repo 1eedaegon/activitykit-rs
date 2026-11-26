@@ -232,5 +232,15 @@ App Intents metadata began `ActivityKitActionIntent` with iOS 17.2; on an iPhone
 points wide on the XS's screen of 375 and 365 on the iPhone 16's of 393: 10 and 14 points from the sides, as on the
 simulators. The demo's layouts fill the card's width, so a control of a narrower layout was not tapped on a phone.
 
-Not tested: a phone, iOS 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
+Again on phones, by the liveactivity-rs session with the plugin's demo. On activitykit 0.7.0 (2026-11-20), on the
+iPhone XS (iOS 18.7.12): its lifecycle test 27 of 27 twice, the UI tests of a bound style, the Lock Screen's button
+and its switch at the first start; the button's record carried `"tap":{"id","at","revision":0}`; the cards had the
+size and place they had on 0.6.6. On activitykit 0.8.1 (2026-11-21), with the widget extension built for iOS 16.1:
+the same lifecycle test twice and three UI tests on the XS. On an Apple Watch SE 3 (watchOS 26.6) paired with an
+iPhone 16 (iOS 27.2.1), a layout with a `small` region and a widget extension with `ActivityKitSmallFamily` (the
+demo's "Watch and car", activitykit 0.8.1): the watch's Smart Stack showed the small region (a symbol, a title, an
+arrival time and a circular progress), not the compact parts, as the paired simulator had; a tap on the tile showed
+it larger and did not open the app on the phone, by the person who looked at the watch.
+
+Not tested: iOS 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.
