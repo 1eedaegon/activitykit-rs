@@ -5,6 +5,11 @@ A release takes the subjects of its commits from `tools/release.sh`, above what 
 
 ## Unreleased
 
+## 0.9.2 - 2026-11-26
+
+- test: the suite on an iPhone 16 with iOS 27.2 (`25ed542`)
+- docs: say where an activity shows and what updates it (`a8b9397`)
+
 ## 0.9.1 - 2026-11-26
 
 - fix: an app learns its push-to-start token (`4f39651`)

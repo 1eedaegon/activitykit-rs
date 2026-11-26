@@ -1,6 +1,6 @@
 [package]
 name = "activitykit"
-version = "0.9.1"
+version = "0.9.2"
 description = "iOS Live Activities from Rust: the Lock Screen, the Dynamic Island, StandBy and Apple Watch, drawn by a ready-made SwiftUI widget, updated in-app or by APNs push"
 authors = ["1eedaegon"]
 edition = "2024"
