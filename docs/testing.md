@@ -240,7 +240,7 @@ the same lifecycle test twice and three UI tests on the XS. On an Apple Watch SE
 iPhone 16 (iOS 27.2.1), a layout with a `small` region and a widget extension with `ActivityKitSmallFamily` (the
 demo's "Watch and car", activitykit 0.8.1): the watch's Smart Stack showed the small region (a symbol, a title, an
 arrival time and a circular progress), not the compact parts, as the paired simulator had; a tap on the tile showed
-it larger and did not open the app on the phone, by the person who looked at the watch.
+it larger, and the system's "Open on iPhone" there opened the app on the phone, by the person who used the watch.
 
 Not tested: iOS 17.1, a locked device with a passcode, ActivityKit's `stale` state as an event (the simulator
 reported it in its list, in the stale scenario, and not within half a minute of a nearer stale date), and what the specification lists as not proven by a test.
