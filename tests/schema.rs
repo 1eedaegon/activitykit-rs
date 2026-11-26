@@ -10,12 +10,13 @@ use std::collections::{BTreeMap, BTreeSet};
 type Members = BTreeSet<String>;
 
 /// What every node may carry beside the members of its type.
-const COMMON: [&str; 8] = [
+const COMMON: [&str; 9] = [
     "type",
     "style",
     "if",
     "unless",
     "ifStale",
+    "ifFullscreen",
     "accessibility",
     "transition",
     "privacy",

@@ -26,6 +26,7 @@ extension LifecycleTests {
         try testRenderPresentation()
         try testRenderToggles()
         try testRenderStaleness()
+        try testRenderFullscreen()
         try testRenderSmall()
         try testCardBackground()
         try testStylesOncePerRender()
@@ -471,6 +472,28 @@ extension LifecycleTests {
         }
         let node = try layoutDocument(#"{"type":"divider","ifStale":true}"#).layout.lockScreen
         expect(document.render(node, values: [:]) == nil && document.render(node, values: [:], isStale: true)?.content == .divider, "one node renders the same way")
+    }
+
+    // AK-STANDBY-1
+    /// A node with `ifFullscreen` is drawn by whether the Lock Screen presentation fills the screen, in StandBy, which
+    /// the system says where it draws the activity; beside the other conditions, while all hold.
+    @MainActor private static func testRenderFullscreen() throws {
+        let document = try layoutDocument(#"{"type":"vstack","children":[{"type":"text","value":"Big","ifFullscreen":true},"#
+            + #"{"type":"text","value":"Small","ifFullscreen":false},{"type":"text","value":"Waiting","ifFullscreen":true,"ifStale":true},"#
+            + #"{"type":"text","value":"Always"}]}"#, layout: #","island":{"minimal":{"type":"symbol","name":"clock","ifFullscreen":false}}"#)
+        expect(texts(document.render(.lockScreen, values: [:])) == ["Small", "Always"], "the presentation does not fill the screen unless the render is told so")
+        expect(texts(document.render(.lockScreen, values: [:], isFullscreen: true)) == ["Big", "Always"], "full screen draws the nodes for it")
+        expect(texts(document.render(.lockScreen, values: [:], isStale: true, isFullscreen: true)) == ["Big", "Waiting", "Always"],
+               "beside staleness, a node is drawn while both hold")
+        expect(children(document.render(.lockScreen, values: [:], isFullscreen: true)).map(\.slot) == [0, 3], "a node keeps its place among its siblings")
+        expect(document.render(.minimal, values: [:])?.content == .symbol(name: "clock", rendering: nil, variableValue: nil),
+               "an island part is drawn as one that does not fill the screen")
+        let big = try layoutDocument(#"{"type":"vstack","children":[{"type":"symbol","name":"bolt","ifFullscreen":true}]}"#)
+        expect(big.render(.minimal, values: [:])?.content == .symbol(name: "bolt", rendering: nil, variableValue: nil),
+               "the default of an absent island part ignores the condition, as it ignores the others")
+        let node = try layoutDocument(#"{"type":"divider","ifFullscreen":true}"#).layout.lockScreen
+        expect(document.render(node, values: [:]) == nil && document.render(node, values: [:], isFullscreen: true)?.content == .divider,
+               "one node renders the same way")
     }
 
     // AK-RENDER-13

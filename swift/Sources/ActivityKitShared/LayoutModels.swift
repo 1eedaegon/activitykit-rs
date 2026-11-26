@@ -379,6 +379,9 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
     public let condition: LayoutCondition?
     /// `true`: rendered only while the content is stale; `false`: only while it is not. The wire member `ifStale`.
     public let ifStale: Bool?
+    /// `true`: rendered only while the Lock Screen presentation fills the screen, in StandBy; `false`: only while it
+    /// does not. The wire member `ifFullscreen`.
+    public let ifFullscreen: Bool?
     public let accessibility: LayoutAccessibility?
     public let transition: LayoutTransition?
     public let privacy: LayoutPrivacy?
@@ -386,7 +389,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
     init(style: String? = nil, condition: LayoutCondition? = nil, accessibility: LayoutAccessibility? = nil, privacy: LayoutPrivacy? = nil,
          content: LayoutContent) {
         self.style = style; self.condition = condition; self.accessibility = accessibility; self.privacy = privacy; self.content = content
-        ifStale = nil; transition = nil
+        ifStale = nil; ifFullscreen = nil; transition = nil
     }
 
     public init(from decoder: Decoder) throws {
@@ -395,7 +398,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         // A node of a later version is read for its type alone: its other members may have shapes this one does not know.
         guard let type = LayoutNodeType(rawValue: name) else {
             guard !object.isStrict else { throw LayoutReader.mismatch }
-            (style, condition, ifStale, accessibility, transition, privacy) = (nil, nil, nil, nil, nil, nil)
+            (style, condition, ifStale, ifFullscreen, accessibility, transition, privacy) = (nil, nil, nil, nil, nil, nil, nil)
             content = .unknown(type: name)
             return
         }
@@ -403,7 +406,7 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         let when: String? = try object.take("if"), unless: String? = try object.take("unless")
         guard when == nil || unless == nil else { throw LayoutReader.mismatch }
         condition = when.map(LayoutCondition.when) ?? unless.map(LayoutCondition.unless)
-        ifStale = try object.take("ifStale")
+        ifStale = try object.take("ifStale"); ifFullscreen = try object.take("ifFullscreen")
         accessibility = try object.take("accessibility"); transition = try object.take("transition"); privacy = try object.take("privacy")
         switch type {
         case .vstack: content = .vstack(children: try object.need("children"), spacing: try object.take("spacing"), alignment: try object.take("alignment"))
@@ -442,8 +445,8 @@ public struct LayoutNode: Codable, Sendable, LayoutObject {
         case nil: break
         }
         let (type, own) = contentMembers
-        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless), ("ifStale", ifStale), ("accessibility", accessibility),
-                                     ("transition", transition), ("privacy", privacy)]
+        let common: LayoutMembers = [("type", type), ("style", style), ("if", when), ("unless", unless), ("ifStale", ifStale), ("ifFullscreen", ifFullscreen),
+                                     ("accessibility", accessibility), ("transition", transition), ("privacy", privacy)]
         return common + own
     }
     private var contentMembers: (type: String, own: LayoutMembers) {

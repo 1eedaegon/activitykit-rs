@@ -205,6 +205,26 @@ An update whose own stale date has not passed makes the content fresh again. Bes
 node is drawn while both conditions hold. `State::Stale` and `Event::State` tell the app the same thing while it
 runs.
 
+### StandBy
+
+```rust
+use activitykit::{Bound, Layout};
+use activitykit::layout::{text, vstack};
+
+let layout = Layout::new(vstack([
+    text(Bound::key("score")),
+    // A charging iPhone on its side shows the Lock Screen presentation filling the screen: room for more.
+    text(Bound::key("details")).when_fullscreen(),
+]));
+```
+
+In StandBy (iOS 17), an iPhone that charges on its side shows the Lock Screen presentation scaled up to fill the
+screen. `when_fullscreen()` draws a node only then, `unless_fullscreen()` only otherwise; the system says which when
+it draws the activity (`isActivityFullscreen`), so this too needs no update. Beside the other conditions a node is
+drawn while all hold. The island's parts and the small family are never full screen. A widget extension of
+activitykit up to 0.8.1 does not know the condition and draws such a node always, so a pair of nodes for StandBy and
+for the Lock Screen shows both there: update the widget with the crate.
+
 ### Apple Watch and CarPlay
 
 ```rust

@@ -27,9 +27,9 @@ scheduled start and CarPlay (26).
 extension against the Swift package "as a local package, or from this repository", so the package can be of another
 version than the crate. A server is updated in a day; the app on a phone stays for months.
 
-- The widget reads a layout strictly (`LayoutReader`): one member it does not know and the whole layout is refused,
-  and the activity is drawn empty. Contract v2 has grown that way with every minor release: `accessibility`,
-  `transition`, `privacy`, `link`, `toggle`, `ifStale`, `small`.
+- Up to 0.7.0 the widget read a layout strictly (`LayoutReader`): one member it did not know and the whole layout
+  was refused, and the activity was drawn empty. Contract v2 has grown with almost every minor release:
+  `accessibility`, `transition`, `privacy`, `link`, `toggle`, `ifStale`, `small`, `ifFullscreen`.
 - The check before a start asks only that an embedded widget's Info.plist says `ActivityKitLayout` 2. It does not
   say which members that widget knows.
 - A content state that a later crate built for a push is read by the same strict reader in an earlier app.
